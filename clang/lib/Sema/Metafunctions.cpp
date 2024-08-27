@@ -2007,7 +2007,15 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
 
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Null:
-  case ReflectionKind::Type:
+  case ReflectionKind::Type: {
+    QualType currentType = RV.getTypeOfReflectedResult(S.Context);
+    bool UnwrapAlises = isa<UsingType>(currentType) ||
+                        isa<TypedefType>(currentType) ||
+                        isa<TemplateSpecializationType>(currentType);
+    QualType QT = desugarType(currentType, UnwrapAlises, /*DropCV=*/false,
+                              /*DropRefs=*/false);
+    return SetAndSucceed(Result, makeReflection(QT));
+  }
   case ReflectionKind::Template:
   case ReflectionKind::Namespace:
     return Diagnoser(Range.getBegin(), diag::metafn_no_associated_property)
@@ -5565,12 +5573,20 @@ bool return_type_of(APValue &Result, Sema &S, EvalFn Evaluator,
     return true;
 
   switch (RV.getReflectionKind()) {
-  case ReflectionKind::Type:
-    if (auto *FPT = dyn_cast<FunctionProtoType>(RV.getReflectedType()))
-      return SetAndSucceed(Result, makeReflection(FPT->getReturnType()));
+  case ReflectionKind::Type: {
+    if (auto *FPT = dyn_cast<FunctionProtoType>(RV.getReflectedType())) {
+      bool UnwrapAlises = isa<UsingType>(FPT->getReturnType()) ||
+                          isa<TypedefType>(FPT->getReturnType()) ||
+                          isa<TemplateSpecializationType>(FPT->getReturnType());
+      QualType QT =
+          desugarType(FPT->getReturnType(), UnwrapAlises, /*DropCV=*/false,
+                      /*DropRefs=*/false);
+      return SetAndSucceed(Result, makeReflection(QT));
+    }
 
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_introspect_type)
         << 3 << 2;
+  }
   case ReflectionKind::Declaration:
     if (auto *FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl());
         FD && !isa<CXXConstructorDecl>(FD) && !isa<CXXDestructorDecl>(FD))
