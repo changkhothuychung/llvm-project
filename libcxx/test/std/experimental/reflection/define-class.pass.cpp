@@ -267,18 +267,44 @@ static_assert(identifier_of(nonstatic_data_members_of(^^Cls1)[0]) == "Kühl");
                          // ===========================
 
 namespace data_member_spec_comparison {
-// static_assert(data_member_spec(^^int, {}) != ^^int);
-// static_assert(data_member_spec(^^int, {}) == data_member_spec(^^int, {}));
-// static_assert(data_member_spec(^^int, {}) !=
-//               data_member_spec(^^int, {.name="i"}));
-// static_assert(data_member_spec(^^int, {.name=u8"i"}) ==
-//               data_member_spec(^^int, {.name="i"}));
-// static_assert(data_member_spec(^^int, {.name="i", .alignment=4}) !=
-//               data_member_spec(^^int, {.name="i"}));
-// static_assert(data_member_spec(^^int, {.name=""}) == data_member_spec(^^int, {}));
+static_assert(data_member_spec(^^int,
+                               {
+                               }) != ^^int);
+static_assert(data_member_spec(^^int,
+                               {
+                               }) == data_member_spec(^^int,
+                                                      {
+                                                      }));
+static_assert(data_member_spec(^^int,
+                               {
+                               }) != data_member_spec(^^int,
+                                                      {
+                                                          .name = "i"}));
+static_assert(data_member_spec(^^int,
+                               {
+                                   .name = u8"i"}) ==
+              data_member_spec(^^int,
+                               {
+                                   .name = "i"}));
+static_assert(data_member_spec(^^int,
+                               {
+                                   .name = "i", .alignment = 4}) !=
+              data_member_spec(^^int,
+                               {
+                                   .name = "i"}));
+static_assert(data_member_spec(^^int,
+                               {
+                                   .name = ""}) ==
+              data_member_spec(^^int,
+                               {
+                               }));
 
 using Alias = int;
-//static_assert(data_member_spec(^^Alias, {}) == data_member_spec(^^int, {}));
+static_assert(data_member_spec(^^Alias,
+                               {
+                               }) == data_member_spec(^^int,
+                                                      {
+                                                      }));
 }  // namespace data_member_spec_comparison
 
 int main() { }
