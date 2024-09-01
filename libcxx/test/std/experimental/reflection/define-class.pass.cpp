@@ -278,7 +278,7 @@ static_assert(data_member_spec(^^int, {.name="i", .alignment=4}) !=
 static_assert(data_member_spec(^^int, {.name=""}) == data_member_spec(^^int, {}));
 
 using Alias = int;
-static_assert(data_member_spec(^^Alias, {}) == data_member_spec(^^int, {}));
+static_assert(data_member_spec(^^Alias, {}) != data_member_spec(^^int, {}));
 }  // namespace data_member_spec_comparison
 
 int main() { }
