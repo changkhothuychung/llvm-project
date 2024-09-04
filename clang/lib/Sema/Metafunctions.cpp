@@ -2008,11 +2008,8 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Null:
   case ReflectionKind::Type: {
-    QualType currentType = RV.getTypeOfReflectedResult(S.Context);
-    bool UnwrapAlises = isa<UsingType>(currentType) ||
-                        isa<TypedefType>(currentType) ||
-                        isa<TemplateSpecializationType>(currentType);
-    QualType QT = desugarType(currentType, UnwrapAlises, /*DropCV=*/false,
+    QualType QT = desugarType(RV.getTypeOfReflectedResult(S.Context), 
+                              /*UnwrapAliases=*/ true, /*DropCV=*/false,
                               /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
   }
@@ -2022,7 +2019,7 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
         << DescriptionOf(RV) << 0 << Range;
   case ReflectionKind::Object: {
     QualType QT = desugarType(RV.getTypeOfReflectedResult(S.Context),
-                              /*UnwrapAliases=*/false, /*DropCV=*/false,
+                              /*UnwrapAliases=*/ true, /*DropCV=*/false,
                               /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
   }
@@ -2040,20 +2037,21 @@ bool type_of(APValue &Result, Sema &S, EvalFn Evaluator, DiagFn Diagnoser,
 
     bool UnwrapAliases = isa<ParmVarDecl>(VD) || isa<BindingDecl>(VD);
     bool DropCV = isa<ParmVarDecl>(VD);
-    QualType QT = desugarType(VD->getType(), UnwrapAliases, DropCV,
+    QualType QT = desugarType(VD->getType(), 
+                              /*UnwrapAliases=*/ true, DropCV,
                               /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
   }
   case ReflectionKind::BaseSpecifier: {
     QualType QT = RV.getReflectedBaseSpecifier()->getType();
-    QT = desugarType(QT, /*UnwrapAliases=*/false, /*DropCV=*/false,
+    QT = desugarType(QT, /*UnwrapAliases=*/true, /*DropCV=*/false,
                      /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
   }
   case ReflectionKind::DataMemberSpec:
   {
     QualType QT = RV.getReflectedDataMemberSpec()->Ty;
-    QT = desugarType(QT, /*UnwrapAliases=*/false, /*DropCV=*/false,
+    QT = desugarType(QT, /*UnwrapAliases=*/true, /*DropCV=*/false,
                      /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
   }
@@ -5575,11 +5573,8 @@ bool return_type_of(APValue &Result, Sema &S, EvalFn Evaluator,
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Type: {
     if (auto *FPT = dyn_cast<FunctionProtoType>(RV.getReflectedType())) {
-      bool UnwrapAlises = isa<UsingType>(FPT->getReturnType()) ||
-                          isa<TypedefType>(FPT->getReturnType()) ||
-                          isa<TemplateSpecializationType>(FPT->getReturnType());
       QualType QT =
-          desugarType(FPT->getReturnType(), UnwrapAlises, /*DropCV=*/false,
+          desugarType(FPT->getReturnType(), /*UnwrapAliases=*/ true, /*DropCV=*/false,
                       /*DropRefs=*/false);
       return SetAndSucceed(Result, makeReflection(QT));
     }
