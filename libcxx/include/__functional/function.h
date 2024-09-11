@@ -932,7 +932,7 @@ template <class _Alloc>
 function<_Rp(_ArgTypes...)>::function(allocator_arg_t, const _Alloc&, const function& __f) : __f_(__f.__f_) {}
 #  endif
 
-template <class _Rp, class... _ArgTypes>
+template <class _Rp, class... _ArgTypes, __enable_if_t<is_same<__decay_t<_Fp>, function>::value, false> = 0>
 function<_Rp(_ArgTypes...)>::function(function&& __f) _NOEXCEPT : __f_(std::move(__f.__f_)) {}
 
 #  if _LIBCPP_STD_VER <= 14
