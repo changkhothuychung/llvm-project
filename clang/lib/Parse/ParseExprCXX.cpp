@@ -1385,11 +1385,15 @@ static void DiagnoseStaticSpecifierRestrictions(Parser &P,
 /// ParseLambdaExpressionAfterIntroducer - Parse the rest of a lambda
 /// expression.
 ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
-                     LambdaIntroducer &Intro) {
+                     LambdaIntroducer &Intro, SourceLocation ConstevalLoc) {
   SourceLocation LambdaBeginLoc = Intro.Range.getBegin();
-  Diag(LambdaBeginLoc, getLangOpts().CPlusPlus11
-                           ? diag::warn_cxx98_compat_lambda
-                           : diag::ext_lambda);
+  if (getLangOpts().HLSL)
+    Diag(LambdaBeginLoc, diag::ext_hlsl_lambda) << /*HLSL*/ 1;
+  else
+    Diag(LambdaBeginLoc, getLangOpts().CPlusPlus11
+                             ? diag::warn_cxx98_compat_lambda
+                             : diag::ext_lambda)
+        << /*C++*/ 0;
 
   PrettyStackTraceLoc CrashInfo(PP.getSourceManager(), LambdaBeginLoc,
                                 "lambda expression parsing");
@@ -1549,7 +1553,6 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
     // Parse mutable-opt and/or constexpr-opt or consteval-opt, and update
     // the DeclEndLoc.
     SourceLocation ConstexprLoc;
-    SourceLocation ConstevalLoc;
     SourceLocation StaticLoc;
 
     tryConsumeLambdaSpecifierToken(*this, MutableLoc, StaticLoc, ConstexprLoc,
@@ -1559,8 +1562,11 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
 
     addStaticToLambdaDeclSpecifier(*this, StaticLoc, DS);
     addConstexprToLambdaDeclSpecifier(*this, ConstexprLoc, DS);
-    addConstevalToLambdaDeclSpecifier(*this, ConstevalLoc, DS);
   }
+
+  if (ConstevalLoc.isValid())
+    // Could have been parsed from specifiers, or could be a consteval block.
+    addConstevalToLambdaDeclSpecifier(*this, ConstevalLoc, DS);
 
   Actions.ActOnLambdaClosureParameters(getCurScope(), ParamInfo);
 

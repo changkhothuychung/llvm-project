@@ -15,6 +15,7 @@
 #include "clang/AST/APValue.h"
 #include "Linkage.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
@@ -23,7 +24,6 @@
 #include "clang/AST/Type.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include <iostream>
 using namespace clang;
 
 /// The identity of a type_info object depends on the canonical unqualified
@@ -546,6 +546,7 @@ static void profileReflection(llvm::FoldingSetNodeID &ID, APValue V) {
   }
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::Annotation:
     ID.AddPointer(V.getOpaqueReflectionData());
     return;
   case ReflectionKind::DataMemberSpec: {
@@ -934,6 +935,13 @@ TagDataMemberSpec *APValue::getReflectedDataMemberSpec() const {
           const_cast<void *>(getOpaqueReflectionData()));
 }
 
+CXX26AnnotationAttr *APValue::getReflectedAnnotation() const {
+  assert(getReflectionKind() == ReflectionKind::Annotation &&
+         "not a reflection of an annotation");
+  return reinterpret_cast<CXX26AnnotationAttr *>(
+          const_cast<void *>(getOpaqueReflectionData()));
+}
+
 static double GetApproxValue(const llvm::APFloat &F) {
   llvm::APFloat V = F;
   bool ignored;
@@ -1022,7 +1030,7 @@ void APValue::printPretty(raw_ostream &Out, const PrintingPolicy &Policy,
   if (const auto *AT = Ty->getAs<AtomicType>())
     Ty = AT->getValueType();
 
-  switch (Kind) {
+  switch (getKind()) {
   case APValue::None:
     Out << "<out of lifetime>";
     return;
@@ -1284,8 +1292,11 @@ void APValue::printPretty(raw_ostream &Out, const PrintingPolicy &Policy,
     case ReflectionKind::DataMemberSpec:
       Repr = "data-member-spec";
       break;
+    case ReflectionKind::Annotation:
+      Repr = "annotation";
+      break;
     }
-    Out << "^(" << Repr << ")";
+    Out << "^^(" << Repr << ")";
     return;
   }
   llvm_unreachable("Unknown APValue kind!");
@@ -1295,7 +1306,6 @@ std::string APValue::getAsString(const ASTContext &Ctx, QualType Ty) const {
   std::string Result;
   llvm::raw_string_ostream Out(Result);
   printPretty(Out, Ctx, Ty);
-  Out.flush();
   return Result;
 }
 
@@ -1624,6 +1634,7 @@ void APValue::setReflection(ReflectionKind RK, const void *Ptr) {
   case ReflectionKind::Namespace:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     SelfData.Kind = RK;
     SelfData.Data = Ptr;
     return;

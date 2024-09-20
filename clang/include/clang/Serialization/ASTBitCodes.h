@@ -1999,7 +1999,6 @@ enum StmtCode {
   EXPR_EXTRACT_LVALUE,
 
   // C++2c expansion statements (P1306)
-  STMT_ITERABLE_EXPANSION,
   STMT_DESTRUCTURABLE_EXPANSION,
   STMT_INIT_LIST_EXPANSION,
   EXPR_EXPANSION_INIT_LIST,
@@ -2014,6 +2013,9 @@ enum StmtCode {
   // OpenACC Constructs
   STMT_OPENACC_COMPUTE_CONSTRUCT,
   STMT_OPENACC_LOOP_CONSTRUCT,
+
+  // HLSL Constructs
+  EXPR_HLSL_OUT_ARG,
 };
 
 /// The kinds of designators that can occur in a

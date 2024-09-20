@@ -2371,18 +2371,18 @@ void StmtProfiler::VisitCXXExpansionInitListExpr(
   VisitExpr(E);
 }
 
-void StmtProfiler::VisitCXXExpansionSelectExpr(
-                                              const CXXExpansionSelectExpr *E) {
+void StmtProfiler::VisitCXXExpansionInitListSelectExpr(
+                                      const CXXExpansionInitListSelectExpr *E) {
+  VisitExpr(E);
+}
+
+void StmtProfiler::VisitCXXDestructurableExpansionSelectExpr(
+                                const CXXDestructurableExpansionSelectExpr *E) {
   VisitExpr(E);
 }
 
 void StmtProfiler::VisitCXXInitListExpansionStmt(
                                             const CXXInitListExpansionStmt *S) {
-  VisitStmt(S);
-}
-
-void StmtProfiler::VisitCXXIterableExpansionStmt(
-                                            const CXXIterableExpansionStmt *S) {
   VisitStmt(S);
 }
 
@@ -2706,6 +2706,10 @@ void StmtProfiler::VisitOpenACCLoopConstruct(const OpenACCLoopConstruct *S) {
 
   OpenACCClauseProfiler P{*this};
   P.VisitOpenACCClauseList(S->clauses());
+}
+
+void StmtProfiler::VisitHLSLOutArgExpr(const HLSLOutArgExpr *S) {
+  VisitStmt(S);
 }
 
 void Stmt::Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,

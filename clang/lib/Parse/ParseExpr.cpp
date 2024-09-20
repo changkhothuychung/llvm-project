@@ -23,7 +23,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Availability.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/LocInfoType.h"
 #include "clang/Basic/PrettyStackTrace.h"
 #include "clang/Lex/LiteralSupport.h"
 #include "clang/Parse/Parser.h"
@@ -447,7 +449,21 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
     ConsumeToken();
 
     if (OpToken.is(tok::caretcaret)) {
-      return ExprError(Diag(Tok, diag::err_opencl_logical_exclusive_or));
+      assert(getLangOpts().Reflection &&
+             "should not have '^^'-token without reflection");
+      if (getLangOpts().Blocks) {
+        OpToken.setKind(tok::caret);
+        Token T;
+        {
+          T.startToken();
+          T.setKind(tok::caret);
+          T.setLocation(Tok.getLocation());
+          T.setLength(1);
+        }
+        UnconsumeToken(OpToken);
+        PP.EnterToken(T, /*IsReinject=*/true);
+        return ParseRHSOfBinaryExpression(LHS, MinPrec);
+      }
     }
 
     // If we're potentially in a template-id, we may now be able to determine
@@ -607,7 +623,7 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
         RHS = ExprError();
       }
       // If this is left-associative, only parse things on the RHS that bind
-      // more tightly than the current operator.  If it is left-associative, it
+      // more tightly than the current operator.  If it is right-associative, it
       // is okay, to bind exactly as tightly.  For example, compile A=B=C=D as
       // A=(B=(C=D)), where each paren is a level of recursion here.
       // The function takes ownership of the RHS.

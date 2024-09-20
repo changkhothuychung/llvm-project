@@ -167,13 +167,15 @@ template <typename T> concept Concept = requires { true; };
 template <typename T2> class TCls<int, T2> {};
 template <typename T2> int TVar<int, T2> = 1;
 
+[[maybe_unused]] auto l = [] {};
+
 }  // namespace myns
 
-static_assert(members_of(^^myns).size() == 9);
+static_assert(members_of(^^myns).size() == 10);
 static_assert(members_of(^^myns) ==
               std::vector{^^myns::var, ^^myns::fn, ^^myns::Cls, ^^myns::Alias,
                           ^^myns::TCls, ^^myns::TFn, ^^myns::TVar,
-                          ^^myns::TAlias, ^^myns::Concept});
+                          ^^myns::TAlias, ^^myns::Concept, ^^myns::l});
 static_assert((members_of(^^myns) | std::views::filter(std::meta::is_template) |
                                    std::ranges::to<std::vector>()) ==
               std::vector{^^myns::TCls, ^^myns::TFn, ^^myns::TVar,
@@ -250,6 +252,42 @@ constexpr Cls obj;
 static_assert(obj.[:members_of(^^Cls)[1]:]() == 5);
 }  // namespace inaccessible_class_members
 
+                           // =======================
+                           // unsatisfied_constraints
+                           // =======================
+
+namespace unsatisfied_constraints {
+template <typename T>
+struct Cls {
+    ~Cls() requires (false) {}
+    ~Cls() {}
+
+    void fn() requires (^^T == ^^int) {}
+    void fn() requires (^^T != ^^bool) {}
+};
+
+static_assert(
+    (members_of(^^Cls<int>) |
+     std::views::filter(std::meta::is_destructor) |
+     std::ranges::to<std::vector>()).size() == 1);
+static_assert(
+    (members_of(^^Cls<int>) |
+     std::views::filter([](auto R) { return !is_destructor(R); }) |
+     std::views::filter(std::meta::is_user_provided) |
+     std::ranges::to<std::vector>()).size() == 2);
+static_assert(
+    (members_of(^^Cls<short>) |
+     std::views::filter([](auto R) { return !is_destructor(R); }) |
+     std::views::filter(std::meta::is_user_provided) |
+     std::ranges::to<std::vector>()).size() == 1);
+static_assert(
+    (members_of(^^Cls<bool>) |
+     std::views::filter([](auto R) { return !is_destructor(R); }) |
+     std::views::filter(std::meta::is_user_provided) |
+     std::ranges::to<std::vector>()).size() == 0);
+
+}  // namespace unsatisfied_constraints
+
                                     // =====
                                     // bases
                                     // =====
@@ -288,11 +326,22 @@ static_assert(is_public(bases_of(^^D2<B1, B3>)[1]));
                                  // ===========
 
 namespace enumerators {
-enum class EnumCls { A, B, C };
+enum class EnumCls;
+static_assert(!has_complete_definition(^^EnumCls));
+
+enum class EnumCls {
+    A,
+    B = has_complete_definition(^^EnumCls) ? 1 : 0,
+    C,
+};
+static_assert(int(EnumCls::B) == 0);
+static_assert(has_complete_definition(^^EnumCls));
 static_assert(enumerators_of(^^EnumCls) ==
               std::vector{^^EnumCls::A, ^^EnumCls::B, ^^EnumCls::C});
 
 struct Cls { enum Enum { A, B, C }; };
+static_assert(!has_complete_definition(^^::));
+static_assert(has_complete_definition(^^Cls::Enum));
 static_assert(enumerators_of(^^Cls::Enum) ==
               std::vector{^^Cls::A, ^^Cls::B, ^^Cls::C});
 
@@ -329,6 +378,42 @@ static_assert(subobjects_of(^^TCls<B1, B2>)[2] ==
               nonstatic_data_members_of(^^TCls<B1, B2>)[0]);
 }  // namespace all_subobjects
 
+                            // ====================
+                            // complete_definitions
+                            // ====================
+
+namespace complete_definitions {
+enum E : int;
+static_assert(!has_complete_definition(^^E));
+
+enum E : int { A = has_complete_definition(^^E) ? 1 : 0 };
+static_assert(E::A == 0);
+static_assert(has_complete_definition(^^E));
+
+struct S;
+static_assert(!has_complete_definition(^^S));
+
+struct S {
+  void fn() {
+    static_assert(has_complete_definition(^^S));
+  }
+  static_assert(!has_complete_definition(^^S));
+};
+static_assert(has_complete_definition(^^S));
+
+void fn();
+static_assert(!has_complete_definition(^^fn));
+
+void fn() {
+  static_assert(!has_complete_definition(^^fn));
+}
+static_assert(has_complete_definition(^^fn));
+
+static_assert(!has_complete_definition(^^::));
+static_assert(!has_complete_definition(^^int));
+static_assert(!has_complete_definition(^^std::vector));
+
+}  // namespace complete_definitions
 
 int main() {
   class_members::usage_example();
