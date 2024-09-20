@@ -32,6 +32,7 @@
 #include "clang/Sema/SemaCodeCompletion.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/TimeProfiler.h"
+#include <iostream>
 #include <optional>
 
 using namespace clang;
@@ -470,7 +471,10 @@ Decl *Parser::ParseLinkage(ParsingDeclSpec &DS, DeclaratorContext Context) {
       [[fallthrough]];
     default:
       ParsedAttributes DeclAttrs(AttrFactory);
-      MaybeParseCXX11Attributes(DeclAttrs);
+      ParsedAttributes DeclSpecAttrs(AttrFactory);
+      while (MaybeParseCXX11Attributes(DeclAttrs) ||
+             MaybeParseGNUAttributes(DeclSpecAttrs))
+        ;
       ParseExternalDeclaration(DeclAttrs, DeclSpecAttrs);
       continue;
     }
@@ -494,7 +498,7 @@ Decl *Parser::ParseLinkage(ParsingDeclSpec &DS, DeclaratorContext Context) {
 ///
 ///      export-function-declaration:
 ///         'export' function-declaration
-/// 
+///
 ///      export-declaration-group:
 ///         'export' '{' function-declaration-seq[opt] '}'
 ///
@@ -1176,7 +1180,7 @@ Decl *Parser::ParseStaticAssertDeclaration(SourceLocation &DeclEnd) {
     }
 
     bool ParseAsExpression = false;
-    if (getLangOpts().CPlusPlus26) {
+    if (getLangOpts().CPlusPlus11) {
       for (unsigned I = 0;; ++I) {
         const Token &T = GetLookAheadToken(I);
         if (T.is(tok::r_paren))
@@ -1188,9 +1192,13 @@ Decl *Parser::ParseStaticAssertDeclaration(SourceLocation &DeclEnd) {
       }
     }
 
-    if (ParseAsExpression)
+    if (ParseAsExpression) {
+      Diag(Tok,
+           getLangOpts().CPlusPlus26
+               ? diag::warn_cxx20_compat_static_assert_user_generated_message
+               : diag::ext_cxx_static_assert_user_generated_message);
       AssertMessage = ParseConstantExpressionInExprEvalContext();
-    else if (tokenIsLikeStringLiteral(Tok, getLangOpts()))
+    } else if (tokenIsLikeStringLiteral(Tok, getLangOpts()))
       AssertMessage = ParseUnevaluatedStringLiteralExpression();
     else {
       Diag(Tok, diag::err_expected_string_literal)
@@ -1205,7 +1213,8 @@ Decl *Parser::ParseStaticAssertDeclaration(SourceLocation &DeclEnd) {
     }
   }
 
-  T.consumeClose();
+  if (T.consumeClose())
+    return nullptr;
 
   DeclEnd = Tok.getLocation();
   ExpectAndConsumeSemi(diag::err_expected_semi_after_static_assert, TokName);
@@ -1213,6 +1222,53 @@ Decl *Parser::ParseStaticAssertDeclaration(SourceLocation &DeclEnd) {
   return Actions.ActOnStaticAssertDeclaration(StaticAssertLoc, AssertExpr.get(),
                                               AssertMessage.get(),
                                               T.getCloseLocation());
+}
+
+/// ParseConstevalBlockDeclaration - Parse C++2C consteval-block-declaration.
+///
+/// [C++2C] consteval-block-declaration:
+///           consteval  compound-statement
+///
+Decl *Parser::ParseConstevalBlockDeclaration(SourceLocation &DeclEnd) {
+  assert(Tok.is(tok::kw_consteval) && NextToken().is(tok::l_brace) &&
+         "Not a consteval block declaration");
+  SourceLocation ConstevalLoc = ConsumeToken();
+
+  EnterExpressionEvaluationContext ConstantEvaluated(
+      Actions, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+  LambdaIntroducer FakeIntroducer;
+  FakeIntroducer.Range.setBegin(ConstevalLoc);
+  FakeIntroducer.Range.setEnd(ConstevalLoc);
+
+  ExprResult Lambda = ParseLambdaExpressionAfterIntroducer(FakeIntroducer,
+                                                           ConstevalLoc);
+  if (Lambda.isInvalid())
+    return nullptr;
+
+  SmallVector<Expr *, 0> EmptyArgs;
+  ExprResult Invocation = Actions.ActOnCallExpr(getCurScope(), Lambda.get(),
+                                                Lambda.get()->getBeginLoc(),
+                                                EmptyArgs,
+                                                Lambda.get()->getEndLoc());
+  if (Invocation.isInvalid())
+    return nullptr;
+
+  ExprResult TrueLiteral = Actions.ActOnCXXBoolLiteral(ConstevalLoc,
+                                                       tok::kw_true);
+  assert(!TrueLiteral.isInvalid());
+
+  ExprResult AssertClause = Actions.ActOnBinOp(getCurScope(), ConstevalLoc,
+                                               tok::comma, Invocation.get(),
+                                               TrueLiteral.get());
+  assert(!AssertClause.isInvalid());
+
+  if (AssertClause.get()->containsErrors())
+    return nullptr;
+
+  return Actions.ActOnStaticAssertDeclaration(ConstevalLoc, AssertClause.get(),
+                                              nullptr,
+                                              AssertClause.get()->getEndLoc());
 }
 
 /// ParseDecltypeSpecifier - Parse a C++11 decltype specifier.
@@ -2110,9 +2166,16 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
   const PrintingPolicy &Policy = Actions.getASTContext().getPrintingPolicy();
   TagUseKind TUK;
-  if (isDefiningTypeSpecifierContext(DSC, getLangOpts().CPlusPlus) ==
-          AllowDefiningTypeSpec::No ||
-      (getLangOpts().OpenMP && OpenMPDirectiveParsing))
+
+  // C++26 [class.mem.general]p10: If a name-declaration matches the
+  // syntactic requirements of friend-type-declaration, it is a
+  // friend-type-declaration.
+  if (getLangOpts().CPlusPlus && DS.isFriendSpecifiedFirst() &&
+      Tok.isOneOf(tok::comma, tok::ellipsis))
+    TUK = TagUseKind::Friend;
+  else if (isDefiningTypeSpecifierContext(DSC, getLangOpts().CPlusPlus) ==
+               AllowDefiningTypeSpec::No ||
+           (getLangOpts().OpenMP && OpenMPDirectiveParsing))
     TUK = TagUseKind::Reference;
   else if (Tok.is(tok::l_brace) ||
            (DSC != DeclSpecContext::DSC_association &&
@@ -2344,9 +2407,28 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
                             diag::err_keyword_not_allowed,
                             /*DiagnoseEmptyAttrs=*/true);
 
+    // Consume '...' first so we error on the ',' after it if there is one.
+    SourceLocation EllipsisLoc;
+    TryConsumeToken(tok::ellipsis, EllipsisLoc);
+
+    // CWG 2917: In a template-declaration whose declaration is a
+    // friend-type-declaration, the friend-type-specifier-list shall
+    // consist of exactly one friend-type-specifier.
+    //
+    // Essentially, the following is obviously nonsense, so disallow it:
+    //
+    //   template <typename>
+    //   friend class S, int;
+    //
+    if (Tok.is(tok::comma)) {
+      Diag(Tok.getLocation(),
+           diag::err_friend_template_decl_multiple_specifiers);
+      SkipUntil(tok::semi, StopBeforeMatch);
+    }
+
     TagOrTempResult = Actions.ActOnTemplatedFriendTag(
         getCurScope(), DS.getFriendSpecLoc(), TagType, StartLoc, SS, Name,
-        NameLoc, attrs,
+        NameLoc, EllipsisLoc, attrs,
         MultiTemplateParamsArg(TemplateParams ? &(*TemplateParams)[0] : nullptr,
                                TemplateParams ? TemplateParams->size() : 0));
   } else {
@@ -2921,6 +3003,7 @@ void Parser::MaybeParseAndDiagnoseDeclSpecAfterCXX11VirtSpecifierSeq(
 ///       member-declaration:
 ///         decl-specifier-seq[opt] member-declarator-list[opt] ';'
 ///         function-definition ';'[opt]
+/// [C++26] friend-type-declaration
 ///         ::[opt] nested-name-specifier template[opt] unqualified-id ';'[TODO]
 ///         using-declaration                                            [TODO]
 /// [C++0x] static_assert-declaration
@@ -2952,6 +3035,18 @@ void Parser::MaybeParseAndDiagnoseDeclSpecAfterCXX11VirtSpecifierSeq(
 ///
 ///       constant-initializer:
 ///         '=' constant-expression
+///
+///       friend-type-declaration:
+///         'friend' friend-type-specifier-list ;
+///
+///       friend-type-specifier-list:
+///         friend-type-specifier ...[opt]
+///         friend-type-specifier-list , friend-type-specifier ...[opt]
+///
+///       friend-type-specifier:
+///         simple-type-specifier
+///         elaborated-type-specifier
+///         typename-specifier
 ///
 Parser::DeclGroupPtrTy Parser::ParseCXXClassMemberDeclaration(
     AccessSpecifier AS, ParsedAttributes &AccessAttrs,
@@ -3037,6 +3132,14 @@ Parser::DeclGroupPtrTy Parser::ParseCXXClassMemberDeclaration(
     SourceLocation DeclEnd;
     return DeclGroupPtrTy::make(
         DeclGroupRef(ParseStaticAssertDeclaration(DeclEnd)));
+  }
+
+  if (!TemplateInfo.Kind &&
+      getLangOpts().ConstevalBlocks && Tok.is(tok::kw_consteval) &&
+      NextToken().is(tok::l_brace)) {
+    SourceLocation DeclEnd;
+    return DeclGroupPtrTy::make(
+        DeclGroupRef(ParseConstevalBlockDeclaration(DeclEnd)));
   }
 
   if (Tok.is(tok::kw_template)) {
@@ -3153,6 +3256,68 @@ Parser::DeclGroupPtrTy Parser::ParseCXXClassMemberDeclaration(
 
   if (DS.hasTagDefinition())
     Actions.ActOnDefinedDeclarationSpecifier(DS.getRepAsDecl());
+
+  // Handle C++26's variadic friend declarations. These don't even have
+  // declarators, so we get them out of the way early here.
+  if (DS.isFriendSpecifiedFirst() && Tok.isOneOf(tok::comma, tok::ellipsis)) {
+    Diag(Tok.getLocation(), getLangOpts().CPlusPlus26
+                                ? diag::warn_cxx23_variadic_friends
+                                : diag::ext_variadic_friends);
+
+    SourceLocation FriendLoc = DS.getFriendSpecLoc();
+    SmallVector<Decl *> Decls;
+
+    // Handles a single friend-type-specifier.
+    auto ParsedFriendDecl = [&](ParsingDeclSpec &DeclSpec) {
+      SourceLocation VariadicLoc;
+      TryConsumeToken(tok::ellipsis, VariadicLoc);
+
+      RecordDecl *AnonRecord = nullptr;
+      Decl *D = Actions.ParsedFreeStandingDeclSpec(
+          getCurScope(), AS, DeclSpec, DeclAttrs, TemplateParams, false,
+          AnonRecord, VariadicLoc);
+      DeclSpec.complete(D);
+      if (!D) {
+        SkipUntil(tok::semi, tok::r_brace);
+        return true;
+      }
+
+      Decls.push_back(D);
+      return false;
+    };
+
+    if (ParsedFriendDecl(DS))
+      return nullptr;
+
+    while (TryConsumeToken(tok::comma)) {
+      ParsingDeclSpec DeclSpec(*this, TemplateDiags);
+      const char *PrevSpec = nullptr;
+      unsigned DiagId = 0;
+      DeclSpec.SetFriendSpec(FriendLoc, PrevSpec, DiagId);
+      ParseDeclarationSpecifiers(DeclSpec, TemplateInfo, AS,
+                                 DeclSpecContext::DSC_class, nullptr);
+      if (ParsedFriendDecl(DeclSpec))
+        return nullptr;
+    }
+
+    ExpectAndConsume(tok::semi, diag::err_expected_semi_after_stmt,
+                     "friend declaration");
+
+    return Actions.BuildDeclaratorGroup(Decls);
+  }
+
+  // Befriending a concept is invalid and would already fail if
+  // we did nothing here, but this allows us to issue a more
+  // helpful diagnostic.
+  if (Tok.is(tok::kw_concept)) {
+    Diag(Tok.getLocation(),
+         DS.isFriendSpecified() || NextToken().is(tok::kw_friend)
+             ? diag::err_friend_concept
+             : diag::
+                   err_concept_decls_may_only_appear_in_global_namespace_scope);
+    SkipUntil(tok::semi, tok::r_brace, StopBeforeMatch);
+    return nullptr;
+  }
 
   ParsingDeclarator DeclaratorInfo(*this, DS, DeclAttrs,
                                    DeclaratorContext::Member);
@@ -4986,6 +5151,17 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
 
     SourceLocation ScopeLoc, AttrLoc;
     IdentifierInfo *ScopeName = nullptr, *AttrName = nullptr;
+
+    if (Tok.is(tok::equal) && getLangOpts().AnnotationAttributes) {
+      // This is a C++2c annotation.
+      if (CommonScopeName) {
+        Diag(Tok.getLocation(), diag::err_annotation_with_using);
+        SkipUntil(tok::r_square, tok::colon, tok::r_splice, StopBeforeMatch);
+      } else {
+        ParseAnnotationSpecifier(Attrs, EndLoc);
+      }
+      continue;
+    }
 
     AttrName = TryParseCXX11AttributeIdentifier(
         AttrLoc, SemaCodeCompletion::AttributeCompletion::Attribute,

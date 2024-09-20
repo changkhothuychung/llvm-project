@@ -145,6 +145,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::ArraySectionExprClass:
   case Expr::OMPArrayShapingExprClass:
   case Expr::OMPIteratorExprClass:
+  case Expr::HLSLOutArgExprClass:
   case Expr::ExtractLValueExprClass:
     return Cl::CL_LValue;
 
@@ -224,7 +225,8 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::CXXSpliceSpecifierExprClass:
   case Expr::StackLocationExprClass:
   case Expr::CXXExpansionInitListExprClass:
-  case Expr::CXXExpansionSelectExprClass:
+  case Expr::CXXExpansionInitListSelectExprClass:
+  case Expr::CXXDestructurableExpansionSelectExprClass:
     return Cl::CL_PRValue;
 
   case Expr::CXXMetafunctionExprClass:

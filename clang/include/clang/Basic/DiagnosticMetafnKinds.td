@@ -17,11 +17,12 @@ def metafn_expected_reflection_of_but_got : Note<
 def metafn_no_associated_property : Note<
   "%0 has no %select{type|parent}1">;
 def metafn_cannot_query_property : Note<"cannot query the "
-  "%select{type|object|value|size|alignment|parameters|return type}0 of %1">;
+  "%select{type|object|value|size|alignment|parameters|return type|"
+           "annotations}0 of %1">;
 
 // Ranges of entities.
 def metafn_cannot_introspect_type : Note<
-  "cannot introspect the %select{bases|members|parameters}0 of "
+  "cannot introspect the %select{bases|members|parameters|alignment|size}0 of "
   "%select{an|a|a}1 %select{incomplete|non-class|non-function}1 type">;
 def metafn_members_of_enum : Note<"did you mean to use 'enumerators_of'?">;
 
@@ -59,14 +60,23 @@ def metafn_returns_non_structural_type : Note<
   "represented as a reflection">;
 def metafn_invocation_not_constant_expr : Note<
   "invocation is not a constant expression">;
+def metafn_first_argument_is_not_object : Note<
+  "expected related object reflection as a first argument for invoking "
+  "non-static member function">;
+def metafn_function_is_not_member_of_object : Note<
+   "method is not a member of "
+   "given object reflection">;
+def metafn_function_returns_void : Note<
+   "cannot invoke reflection of void-returning function">;
+
 
 // Extraction.
 def metafn_cannot_extract : Note<
   "cannot extract a %select{value|reference|pointer to member}0 from a "
   "reflection of %1">;
 def metafn_extract_type_mismatch : Note<
-  "reflected %select{value|object|enum constant}0 of type %1 cannot be "
-  "extracted as a %select{value of|reference to}2 type %3">;
+  "reflected %select{value|object|enum constant|annotation}0 of type %1 cannot "
+  "be extracted as a %select{value of|reference to}2 type %3">;
 def metafn_extract_entity_type_mismatch : Note<
   "a pointer of type %0 cannot be extracted from a reflection of %1 whose "
   "pointer has type %2">;
@@ -76,13 +86,16 @@ def metafn_extract_structured_binding : Note<
 // Reflection of expression results.
 def metafn_value_not_structural_type : Note<
   "values of non-structural type %0 cannot be represented as reflections">;
-def metafn_object_not_permitted_result : Note<
-  "objects not permitted as results of constant expressions cannot be "
-  "represented as reflections">;
+def metafn_result_not_representable : Note<
+  "provided %select{value|object}0 cannot be represented by a reflection">;
 
 // Class definition.
 def metafn_name_invalid_identifier : Note<
   "provided name '%0' is not a valid identifier">;
 def metafn_already_complete_type : Note<
   "%0 is already a complete type">;
+
+// Annotation injection.
+def metafn_cannot_annotate : Note<"cannot attach an annotation to %1">;
+
 }  // end of metafn component

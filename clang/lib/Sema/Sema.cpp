@@ -22,6 +22,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/StmtCXX.h"
+#include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/DarwinSDKInfo.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/PartialDiagnostic.h"
@@ -1213,6 +1214,7 @@ void Sema::ActOnEndOfTranslationUnit() {
   DiagnoseUnterminatedPragmaAlignPack();
   DiagnoseUnterminatedPragmaAttribute();
   OpenMP().DiagnoseUnterminatedOpenMPDeclareTarget();
+  DiagnosePrecisionLossInComplexDivision();
 
   // All delayed member exception specs should be checked or we end up accepting
   // incompatible declarations.
@@ -1683,7 +1685,7 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
   // that is different from the last template instantiation where
   // we emitted an error, print a template instantiation
   // backtrace.
-  if (!DiagnosticIDs::isBuiltinNote(DiagID))
+  if (!Diags.getDiagnosticIDs()->isNote(DiagID))
     PrintContextStack();
 }
 
@@ -1697,7 +1699,8 @@ bool Sema::hasUncompilableErrorOccurred() const {
   if (Loc == DeviceDeferredDiags.end())
     return false;
   for (auto PDAt : Loc->second) {
-    if (DiagnosticIDs::isDefaultMappingAsError(PDAt.second.getDiagID()))
+    if (Diags.getDiagnosticIDs()->isDefaultMappingAsError(
+            PDAt.second.getDiagID()))
       return true;
   }
   return false;
@@ -2330,6 +2333,7 @@ operator()(sema::FunctionScopeInfo *Scope) const {
 }
 
 void Sema::PushCompoundScope(bool IsStmtExpr) {
+  assert(getCurFunction());
   getCurFunction()->CompoundScopes.push_back(
       CompoundScopeInfo(IsStmtExpr, getCurFPFeatures()));
 }
@@ -2868,6 +2872,7 @@ bool FunctionEffectDiff::shouldDiagnoseConversion(
       // matching is better.
       return true;
     }
+    llvm_unreachable("Unhandled FunctionEffectDiff::Kind enum");
   case FunctionEffect::Kind::Blocking:
   case FunctionEffect::Kind::Allocating:
     return false;
@@ -2893,6 +2898,7 @@ bool FunctionEffectDiff::shouldDiagnoseRedeclaration(
       // All these forms of mismatches are diagnosed.
       return true;
     }
+    llvm_unreachable("Unhandled FunctionEffectDiff::Kind enum");
   case FunctionEffect::Kind::Blocking:
   case FunctionEffect::Kind::Allocating:
     return false;
@@ -2924,6 +2930,7 @@ FunctionEffectDiff::shouldDiagnoseMethodOverride(
     case Kind::ConditionMismatch:
       return OverrideResult::Warn;
     }
+    llvm_unreachable("Unhandled FunctionEffectDiff::Kind enum");
 
   case FunctionEffect::Kind::Blocking:
   case FunctionEffect::Kind::Allocating:

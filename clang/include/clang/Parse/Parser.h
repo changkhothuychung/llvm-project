@@ -224,7 +224,6 @@ class Parser : public CodeCompletionHandler {
   std::unique_ptr<PragmaHandler> MaxTokensHerePragmaHandler;
   std::unique_ptr<PragmaHandler> MaxTokensTotalPragmaHandler;
   std::unique_ptr<PragmaHandler> RISCVPragmaHandler;
-  std::unique_ptr<PragmaHandler> MCFuncPragmaHandler;
 
   std::unique_ptr<CommentHandler> CommentSemaHandler;
 
@@ -2040,7 +2039,14 @@ private:
   bool
   ParseLambdaIntroducer(LambdaIntroducer &Intro,
                         LambdaIntroducerTentativeParse *Tentative = nullptr);
-  ExprResult ParseLambdaExpressionAfterIntroducer(LambdaIntroducer &Intro);
+
+  // Explicit 'ConstevalLoc' is allowed to facilitate C++2C consteval-blocks.
+  ExprResult ParseLambdaExpressionAfterIntroducer(LambdaIntroducer &Intro,
+                                                  SourceLocation ConstevalLoc);
+  ExprResult ParseLambdaExpressionAfterIntroducer(LambdaIntroducer &Intro) {
+    SourceLocation ConstevalLoc;
+    return ParseLambdaExpressionAfterIntroducer(Intro, ConstevalLoc);
+  }
 
   //===--------------------------------------------------------------------===//
   // C++ 5.2p1: C++ Casts
@@ -2983,6 +2989,9 @@ private:
     return false;
   }
 
+  bool ParseSingleGNUAttribute(ParsedAttributes &Attrs, SourceLocation &EndLoc,
+                               LateParsedAttrList *LateAttrs = nullptr,
+                               Declarator *D = nullptr);
   void ParseGNUAttributes(ParsedAttributes &Attrs,
                           LateParsedAttrList *LateAttrs = nullptr,
                           Declarator *D = nullptr);
@@ -3061,7 +3070,7 @@ private:
           SemaCodeCompletion::AttributeCompletion::None,
       const IdentifierInfo *EnclosingScope = nullptr);
 
-  void MaybeParseHLSLAnnotations(Declarator &D,
+  bool MaybeParseHLSLAnnotations(Declarator &D,
                                  SourceLocation *EndLoc = nullptr,
                                  bool CouldBeBitField = false) {
     assert(getLangOpts().HLSL && "MaybeParseHLSLAnnotations is for HLSL only");
@@ -3069,7 +3078,9 @@ private:
       ParsedAttributes Attrs(AttrFactory);
       ParseHLSLAnnotations(Attrs, EndLoc, CouldBeBitField);
       D.takeAttributes(Attrs);
+      return true;
     }
+    return false;
   }
 
   void MaybeParseHLSLAnnotations(ParsedAttributes &Attrs,
@@ -3366,6 +3377,7 @@ private:
       ParsedAttributes &Attrs, Decl **OwnedType = nullptr);
 
   Decl *ParseStaticAssertDeclaration(SourceLocation &DeclEnd);
+  Decl *ParseConstevalBlockDeclaration(SourceLocation &DeclEnd);
   Decl *ParseNamespaceAlias(SourceLocation NamespaceLoc,
                             SourceLocation AliasLoc, IdentifierInfo *Alias,
                             SourceLocation &DeclEnd);
@@ -3962,6 +3974,9 @@ private:
                                          bool AllowTypeAnnotation = true,
                                          bool TypeConstraint = false,
                                          bool Complain = true);
+
+  void ParseAnnotationSpecifier(ParsedAttributes &Attrs,
+                                SourceLocation *endLoc = nullptr);
 
   //===--------------------------------------------------------------------===//
   // Preprocessor code-completion pass-through

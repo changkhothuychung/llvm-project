@@ -700,6 +700,9 @@ class Attr {
   // Note: Any additional data members will leak and should be constructed
   // externally on the ASTContext.
   code AdditionalMembers = [{}];
+  // Any additional text that should be included verbatim after instantiating
+  // an attribute on a template.
+  code AdditionalInstantiationStmts =[{}];
   // Any documentation that should be associated with the attribute. Since an
   // attribute may be documented under multiple categories, more than one
   // Documentation entry may be listed.
@@ -956,6 +959,47 @@ def AnnotateType : TypeAttr {
   let Documentation = [AnnotateTypeDocs];
 }
 
+def CXX26Annotation : InheritableParamAttr {
+  let Spellings = [];
+  let Args = [ExprArgument<"Arg">];
+  let AdditionalMembers = [{
+private:
+  APValue Value;
+  SourceLocation EqLoc;
+
+public:
+  static CXX26AnnotationAttr *Create(ASTContext &Ctx, \
+                                     const AttributeCommonInfo &CommonInfo) {
+    return CXX26AnnotationAttr::Create(Ctx, nullptr,  CommonInfo);
+  }
+  static CXX26AnnotationAttr *CreateImplicit( \
+          ASTContext &Ctx, \
+          const AttributeCommonInfo &CommonInfo) {
+    return CXX26AnnotationAttr::CreateImplicit(Ctx, nullptr, CommonInfo);
+  }
+
+  APValue getValue() const { return Value; }
+  void setValue(APValue V) { Value = V; }
+
+  SourceLocation getEqLoc() const { return EqLoc; }
+  void setEqLoc(SourceLocation Loc) { EqLoc = Loc; }
+  }];
+
+  let AdditionalInstantiationStmts = [{
+    Expr::EvalResult V;
+    if (!Result->getArg()->isValueDependent() &&
+        !Result->getArg()->EvaluateAsRValue(V, C, true))
+      llvm_unreachable("failed to evaluate annotation expression");
+
+    Result->setValue(V.Val);
+    Result->setEqLoc(A->getEqLoc());
+  }];
+
+  let HasCustomParsing = 1;
+  let TemplateDependent = 1;
+  let Documentation = [Undocumented];
+}
+
 def ARMInterrupt : InheritableAttr, TargetSpecificAttr<TargetARM> {
   // NOTE: If you add any additional spellings, M68kInterrupt's,
   // MSP430Interrupt's, MipsInterrupt's and AnyX86Interrupt's spellings
@@ -1072,6 +1116,36 @@ static llvm::StringRef canonicalizePlatformName(llvm::StringRef Platform) {
              .Case("visionos_app_extension", "xros_app_extension")
              .Case("ShaderModel", "shadermodel")
              .Default(Platform);
+}
+static std::vector<llvm::StringRef> equivalentPlatformNames(llvm::StringRef Platform) {
+    return llvm::StringSwitch<std::vector<llvm::StringRef>>(Platform)
+             .Case("ios", {"ios", "iOS"})
+             .Case("iOS", {"ios", "iOS"})
+             .Case("macos", {"macos", "macOS"})
+             .Case("macOS", {"macos", "macOS"})
+             .Case("tvos", {"tvos", "tvOS"})
+             .Case("tvOS", {"tvos", "tvOS"})
+             .Case("watchos", {"watchos", "watchOS"})
+             .Case("watchOS", {"watchos", "watchOS"})
+             .Case("ios_app_extension", {"iOSApplicationExtension", "ios_app_extension"})
+             .Case("iOSApplicationExtension", {"iOSApplicationExtension", "ios_app_extension"})
+             .Case("macos_app_extension", {"macOSApplicationExtension", "macos_app_extension"})
+             .Case("macOSApplicationExtension", {"macOSApplicationExtension", "macos_app_extension"})
+             .Case("tvos_app_extension", {"tvOSApplicationExtension", "tvos_app_extension"})
+             .Case("tvOSApplicationExtension", {"tvOSApplicationExtension", "tvos_app_extension"})
+             .Case("watchos_app_extension", {"watchOSApplicationExtension", "watchos_app_extension"})
+             .Case("watchOSApplicationExtension", {"watchOSApplicationExtension", "watchos_app_extension"})
+             .Case("maccatalyst", {"macCatalyst", "maccatalyst"})
+             .Case("macCatalyst", {"macCatalyst", "maccatalyst"})
+             .Case("maccatalyst_app_extension", {"macCatalystApplicationExtension", "maccatalyst_app_extension"})
+             .Case("macCatalystApplicationExtension", {"macCatalystApplicationExtension", "maccatalyst_app_extension"})
+             .Case("xros", {"visionos", "visionOS", "xros"})
+             .Case("visionOS", {"visionos", "visionOS", "xros"})
+             .Case("visionos", {"visionos", "visionOS", "xros"})
+             .Case("xros_app_extension", {"visionOSApplicationExtension", "visionos_app_extension", "xros_app_extension"})
+             .Case("visionOSApplicationExtension", {"visionOSApplicationExtension", "visionos_app_extension", "xros_app_extension"})
+             .Case("visionos_app_extension", {"visionOSApplicationExtension", "visionos_app_extension", "xros_app_extension"})
+             .Default({Platform});
 }
 static llvm::Triple::EnvironmentType getEnvironmentType(llvm::StringRef Environment) {
     return llvm::StringSwitch<llvm::Triple::EnvironmentType>(Environment)
@@ -1217,6 +1291,14 @@ def CoroDisableLifetimeBound : InheritableAttr {
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [CPlusPlus];
   let Documentation = [CoroLifetimeBoundDoc];
+  let SimpleHandler = 1;
+}
+
+def CoroAwaitElidable : InheritableAttr {
+  let Spellings = [Clang<"coro_await_elidable">];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let LangOpts = [CPlusPlus];
+  let Documentation = [CoroAwaitElidableDoc];
   let SimpleHandler = 1;
 }
 
@@ -2198,6 +2280,15 @@ def BTFTypeTag : TypeAttr {
   let Args = [StringArgument<"BTFTypeTag">];
   let Documentation = [BTFTypeTagDocs];
   let LangOpts = [COnly];
+}
+
+def BPFFastCall : InheritableAttr,
+                  TargetSpecificAttr<TargetBPF> {
+  let Spellings = [Clang<"bpf_fastcall">];
+  let Subjects = SubjectList<[FunctionLike]>;
+  let Documentation = [BPFFastCallDocs];
+  let LangOpts = [COnly];
+  let SimpleHandler = 1;
 }
 
 def WebAssemblyExportName : InheritableAttr,
@@ -3311,18 +3402,16 @@ def DiagnoseIf : InheritableAttr {
   let Spellings = [GNU<"diagnose_if">];
   let Subjects = SubjectList<[Function, ObjCMethod, ObjCProperty]>;
   let Args = [ExprArgument<"Cond">, StringArgument<"Message">,
-              EnumArgument<"DiagnosticType", "DiagnosticType",
+              EnumArgument<"DefaultSeverity",
+                           "DefaultSeverity",
                            /*is_string=*/true,
-                           ["error", "warning"],
-                           ["DT_Error", "DT_Warning"]>,
+                           ["error",    "warning"],
+                           ["DS_error", "DS_warning"]>,
+              StringArgument<"WarningGroup", /*optional*/ 1>,
               BoolArgument<"ArgDependent", 0, /*fake*/ 1>,
               DeclArgument<Named, "Parent", 0, /*fake*/ 1>];
   let InheritEvenIfAlreadyPresent = 1;
   let LateParsed = LateAttrParseStandard;
-  let AdditionalMembers = [{
-    bool isError() const { return diagnosticType == DT_Error; }
-    bool isWarning() const { return diagnosticType == DT_Warning; }
-  }];
   let TemplateDependent = 1;
   let Documentation = [DiagnoseIfDocs];
 }
@@ -4467,7 +4556,7 @@ def ReleaseHandle : InheritableParamAttr {
 
 def UnsafeBufferUsage : InheritableAttr {
   let Spellings = [Clang<"unsafe_buffer_usage">];
-  let Subjects = SubjectList<[Function]>;
+  let Subjects = SubjectList<[Function, Field]>;
   let Documentation = [UnsafeBufferUsageDocs];
 }
 
@@ -4529,7 +4618,7 @@ def HLSLSV_GroupIndex: HLSLAnnotationAttr {
 
 def HLSLResourceBinding: InheritableAttr {
   let Spellings = [HLSLAnnotation<"register">];
-  let Subjects = SubjectList<[HLSLBufferObj, ExternalGlobalVar]>;
+  let Subjects = SubjectList<[HLSLBufferObj, ExternalGlobalVar], ErrorDiag>;
   let LangOpts = [HLSL];
   let Args = [StringArgument<"Slot">, StringArgument<"Space", 1>];
   let Documentation = [HLSLResourceBindingDocs];
@@ -4599,15 +4688,19 @@ def HLSLResource : InheritableAttr {
           "CBuffer", "Sampler", "TBuffer", "RTAccelerationStructure",
           "FeedbackTexture2D", "FeedbackTexture2DArray"
         ],
-        /*opt=*/0, /*fake=*/0, /*isExternalType=*/1, /*isCovered=*/0>,
-    DefaultBoolArgument<"isROV", /*default=*/0>
+        /*opt=*/0, /*fake=*/0, /*isExternalType=*/1, /*isCovered=*/0>
   ];
   let Documentation = [InternalOnly];
 }
 
-def HLSLResourceClass : InheritableAttr {
+def HLSLROV : TypeAttr {
+  let Spellings = [CXX11<"hlsl", "is_rov">];
+  let LangOpts = [HLSL]; 
+  let Documentation = [InternalOnly];
+}
+
+def HLSLResourceClass : TypeAttr {
   let Spellings = [CXX11<"hlsl", "resource_class">];
-  let Subjects = SubjectList<[Struct]>;
   let LangOpts = [HLSL];
   let Args = [
 	EnumArgument<"ResourceClass", "llvm::hlsl::ResourceClass",
@@ -4618,22 +4711,50 @@ def HLSLResourceClass : InheritableAttr {
   let Documentation = [InternalOnly];
 }
 
+def HLSLContainedType : TypeAttr {
+  let Spellings = [CXX11<"hlsl", "contained_type">];
+  let LangOpts = [HLSL];
+  let Args = [TypeArgument<"Type", /*opt=*/0>];
+  let Documentation = [InternalOnly];
+}
+
+def HLSLRawBuffer : TypeAttr {
+  let Spellings = [CXX11<"hlsl", "raw_buffer">];
+  let LangOpts = [HLSL]; 
+  let Documentation = [InternalOnly];
+}
+
 def HLSLGroupSharedAddressSpace : TypeAttr {
   let Spellings = [CustomKeyword<"groupshared">];
   let Subjects = SubjectList<[Var]>;
   let Documentation = [HLSLGroupSharedAddressSpaceDocs];
 }
 
-def HLSLParamModifier : TypeAttr {
+def HLSLParamModifier : ParameterABIAttr {
   let Spellings = [CustomKeyword<"in">, CustomKeyword<"inout">, CustomKeyword<"out">];
   let Accessors = [Accessor<"isIn", [CustomKeyword<"in">]>,
                    Accessor<"isInOut", [CustomKeyword<"inout">]>,
                    Accessor<"isOut", [CustomKeyword<"out">]>,
                    Accessor<"isAnyOut", [CustomKeyword<"out">, CustomKeyword<"inout">]>,
                    Accessor<"isAnyIn", [CustomKeyword<"in">, CustomKeyword<"inout">]>];
-  let Subjects = SubjectList<[ParmVar]>;
   let Documentation = [HLSLParamQualifierDocs];
   let Args = [DefaultBoolArgument<"MergedSpelling", /*default*/0, /*fake*/1>];
+}
+
+def HLSLWaveSize: InheritableAttr {
+  let Spellings = [Microsoft<"WaveSize">];
+  let Args = [IntArgument<"Min">, DefaultIntArgument<"Max", 0>, DefaultIntArgument<"Preferred", 0>];
+  let Subjects = SubjectList<[HLSLEntry]>;
+  let LangOpts = [HLSL];
+  let AdditionalMembers = [{
+    private:
+      int SpelledArgsCount = 0;
+
+    public:
+      void setSpelledArgsCount(int C) { SpelledArgsCount = C; }
+      int getSpelledArgsCount() const { return SpelledArgsCount; }
+  }];
+  let Documentation = [WaveSizeDocs];
 }
 
 def RandomizeLayout : InheritableAttr {

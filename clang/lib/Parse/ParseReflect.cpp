@@ -59,7 +59,8 @@ ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
           UnqualName.TemplateId->Kind == TNK_Type_template)
         AssumeType = true;
       else if (Tok.isOneOf(tok::l_square, tok::l_paren, tok::star, tok::amp,
-                           tok::ampamp))
+                           tok::ampamp, tok::kw_const, tok::kw_volatile,
+                           tok::kw_restrict))
         AssumeType = true;
 
       if (!AssumeType) {
@@ -77,6 +78,13 @@ ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
     return Actions.ActOnCXXReflectExpr(OpLoc, SourceLocation(), TUDecl);
   }
   TentativeAction.Revert();
+
+  if (SS.isSet() &&
+      TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, true,
+                                                ImplicitTypenameContext::No)) {
+    SkipUntil(tok::semi, StopAtSemi | StopBeforeMatch);
+    return ExprError();
+  }
 
   // Anything else must be a type-id (e.g., 'const int', 'Cls(*)(int)'.
   if (isCXXTypeId(TypeIdAsReflectionOperand)) {

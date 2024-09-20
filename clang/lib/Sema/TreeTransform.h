@@ -25,6 +25,7 @@
 #include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExprOpenMP.h"
+#include "clang/AST/LocInfoType.h"
 #include "clang/AST/OpenMPClause.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
@@ -116,9 +117,13 @@ class TreeTransform {
   class ForgetPartiallySubstitutedPackRAII {
     Derived &Self;
     TemplateArgument Old;
+    // Set the pack expansion index to -1 to avoid pack substitution and
+    // indicate that parameter packs should be instantiated as themselves.
+    Sema::ArgumentPackSubstitutionIndexRAII ResetPackSubstIndex;
 
   public:
-    ForgetPartiallySubstitutedPackRAII(Derived &Self) : Self(Self) {
+    ForgetPartiallySubstitutedPackRAII(Derived &Self)
+        : Self(Self), ResetPackSubstIndex(Self.getSema(), -1) {
       Old = Self.ForgetPartiallySubstitutedPack();
     }
 
@@ -4315,7 +4320,10 @@ ExprResult TreeTransform<Derived>::TransformInitializer(Expr *Init,
       getSema(), EnterExpressionEvaluationContext::InitList,
       Construct->isListInitialization());
 
-  getSema().keepInLifetimeExtendingContext();
+  getSema().currentEvaluationContext().InLifetimeExtendingContext =
+      getSema().parentEvaluationContext().InLifetimeExtendingContext;
+  getSema().currentEvaluationContext().RebuildDefaultArgOrDefaultInit =
+      getSema().parentEvaluationContext().RebuildDefaultArgOrDefaultInit;
   SmallVector<Expr*, 8> NewArgs;
   bool ArgChanged = false;
   if (getDerived().TransformExprs(Construct->getArgs(), Construct->getNumArgs(),
@@ -6843,9 +6851,15 @@ QualType
 TreeTransform<Derived>::TransformPackIndexingType(TypeLocBuilder &TLB,
                                                   PackIndexingTypeLoc TL) {
   // Transform the index
-  ExprResult IndexExpr = getDerived().TransformExpr(TL.getIndexExpr());
-  if (IndexExpr.isInvalid())
-    return QualType();
+  ExprResult IndexExpr;
+  {
+    EnterExpressionEvaluationContext ConstantContext(
+        SemaRef, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+    IndexExpr = getDerived().TransformExpr(TL.getIndexExpr());
+    if (IndexExpr.isInvalid())
+      return QualType();
+  }
   QualType Pattern = TL.getPattern();
 
   const PackIndexingType *PIT = TL.getTypePtr();
@@ -6855,10 +6869,10 @@ TreeTransform<Derived>::TransformPackIndexingType(TypeLocBuilder &TLB,
   bool NotYetExpanded = Types.empty();
   bool FullySubstituted = true;
 
-  if (Types.empty())
+  if (Types.empty() && !PIT->expandsToEmptyPack())
     Types = llvm::ArrayRef<QualType>(&Pattern, 1);
 
-  for (const QualType &T : Types) {
+  for (QualType T : Types) {
     if (!T->containsUnexpandedParameterPack()) {
       QualType Transformed = getDerived().TransformType(T);
       if (Transformed.isNull())
@@ -7650,6 +7664,40 @@ QualType TreeTransform<Derived>::TransformBTFTagAttributedType(
     TypeLocBuilder &TLB, BTFTagAttributedTypeLoc TL) {
   // The BTFTagAttributedType is available for C only.
   llvm_unreachable("Unexpected TreeTransform for BTFTagAttributedType");
+}
+
+template <typename Derived>
+QualType TreeTransform<Derived>::TransformHLSLAttributedResourceType(
+    TypeLocBuilder &TLB, HLSLAttributedResourceTypeLoc TL) {
+
+  const HLSLAttributedResourceType *oldType = TL.getTypePtr();
+
+  QualType WrappedTy = getDerived().TransformType(TLB, TL.getWrappedLoc());
+  if (WrappedTy.isNull())
+    return QualType();
+
+  QualType ContainedTy = QualType();
+  QualType OldContainedTy = oldType->getContainedType();
+  if (!OldContainedTy.isNull()) {
+    TypeSourceInfo *oldContainedTSI = TL.getContainedTypeSourceInfo();
+    if (!oldContainedTSI)
+      oldContainedTSI = getSema().getASTContext().getTrivialTypeSourceInfo(
+          OldContainedTy, SourceLocation());
+    TypeSourceInfo *ContainedTSI = getDerived().TransformType(oldContainedTSI);
+    if (!ContainedTSI)
+      return QualType();
+    ContainedTy = ContainedTSI->getType();
+  }
+
+  QualType Result = TL.getType();
+  if (getDerived().AlwaysRebuild() || WrappedTy != oldType->getWrappedType() ||
+      ContainedTy != oldType->getContainedType()) {
+    Result = SemaRef.Context.getHLSLAttributedResourceType(
+        WrappedTy, ContainedTy, oldType->getAttrs());
+  }
+
+  TLB.push<HLSLAttributedResourceTypeLoc>(Result);
+  return Result;
 }
 
 template<typename Derived>
@@ -8919,6 +8967,7 @@ TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
   case ReflectionKind::Null:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
     llvm_unreachable("reflect expression should not have this reflection kind");
   }
   llvm_unreachable("invalid reflection");
@@ -9018,18 +9067,63 @@ TreeTransform<Derived>::TransformExtractLValueExpr(ExtractLValueExpr *E) {
 
 template <typename Derived>
 StmtResult
-TreeTransform<Derived>::TransformCXXIterableExpansionStmt(
-                                                  CXXIterableExpansionStmt *S) {
-  // TODO(P2996): Implement this.
-  llvm_unreachable("unimplemented");
-}
-
-template <typename Derived>
-StmtResult
 TreeTransform<Derived>::TransformCXXDestructurableExpansionStmt(
                                             CXXDestructurableExpansionStmt *S) {
-  // TODO(P2996): Implement this.
-  llvm_unreachable("unimplemented");
+  // Transform optional init-statement.
+  Stmt *Init = S->getInit();
+  if (Init) {
+    StmtResult SR = getDerived().TransformStmt(Init, SDK_NotDiscarded);
+    if (SR.isInvalid())
+      return StmtError();
+    Init = SR.get();
+  }
+
+  if (auto *DS = cast<DeclStmt>(S->getExpansionVarStmt()))
+    if (auto *VD = cast<VarDecl>(DS->getSingleDecl()))
+      if (auto *ESE = dyn_cast<CXXDestructurableExpansionSelectExpr>(VD->getInit()))
+        if (auto *DD = ESE->getDecompositionDecl())
+          if (DD)
+            getDerived().TransformDefinition(ESE->getBeginLoc(), DD);
+
+  // Transform expansion variable declaration (e.g., could have dependent type).
+  StmtResult SR = getDerived().TransformStmt(S->getExpansionVarStmt(),
+                                             SDK_NotDiscarded);
+  if (SR.isInvalid())
+    return StmtError();
+  DeclStmt *ExpansionVarStmt = cast<DeclStmt>(SR.get());
+
+  // Transform the range.
+  SR = getDerived().TransformStmt(S->getRange(), SDK_NotDiscarded);
+  if (SR.isInvalid())
+    return StmtError();
+  Expr *Range = cast<Expr>(SR.get());
+
+  // Build a new expansion statement.
+  SR = SemaRef.BuildCXXDestructurableExpansionStmt(S->getTemplateKWLoc(),
+                                                   S->getForLoc(),
+                                                   S->getLParenLoc(), Init,
+                                                   ExpansionVarStmt,
+                                                   S->getColonLoc(), Range,
+                                                   S->getRParenLoc(),
+                                                   S->getTemplateDepth(),
+                                                   Sema::BFRK_Rebuild);
+  if (SR.isInvalid())
+    return StmtError();
+  Stmt *Rebuilt = SR.get();
+
+  // Transform the body.
+  SR = getDerived().TransformStmt(S->getBody());
+  if (SR.isInvalid())
+    return StmtError();
+  Stmt *Body = SR.get();
+
+  // Finish expanding the statement.
+  SR = SemaRef.FinishCXXExpansionStmt(Rebuilt, Body);
+  if (SR.isInvalid())
+    return StmtError();
+
+  return SR.get();
+
 }
 
 template <typename Derived>
@@ -9100,14 +9194,32 @@ TreeTransform<Derived>::TransformCXXExpansionInitListExpr(
 
 template <typename Derived>
 ExprResult
-TreeTransform<Derived>::TransformCXXExpansionSelectExpr(
-                                                  CXXExpansionSelectExpr *E) {
-  ExprResult Base = getDerived().TransformExpr(E->getBase());
+TreeTransform<Derived>::TransformCXXExpansionInitListSelectExpr(
+                                            CXXExpansionInitListSelectExpr *E) {
+  ExprResult Range = getDerived().TransformExpr(E->getRange());
   ExprResult Idx = getDerived().TransformExpr(E->getIdx());
-  if (Base.isInvalid() || Idx.isInvalid())
+  if (Range.isInvalid() || Idx.isInvalid())
     return ExprError();
 
-  return SemaRef.ActOnCXXExpansionSelectExpr(Base.get(), Idx.get());
+  return SemaRef.ActOnCXXExpansionInitListSelectExpr(
+          cast<CXXExpansionInitListExpr>(Range.get()), Idx.get());
+}
+
+template <typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformCXXDestructurableExpansionSelectExpr(
+                                      CXXDestructurableExpansionSelectExpr *E) {
+  ExprResult Range = getDerived().TransformExpr(E->getRange());
+  ExprResult Idx = getDerived().TransformExpr(E->getIdx());
+  if (Range.isInvalid() || Idx.isInvalid())
+    return ExprError();
+
+  DecompositionDecl *DD = E->getDecompositionDecl();
+  if (DD)
+    DD = cast<DecompositionDecl>(getDerived().TransformDecl(E->getBeginLoc(), DD));
+
+  return SemaRef.BuildCXXDestructurableExpansionSelectExpr(
+          Range.get(), DD, Idx.get(), E->isConstexpr());
 }
 
 // Objective-C Statements.
@@ -9374,8 +9486,9 @@ TreeTransform<Derived>::TransformCXXForRangeStmt(CXXForRangeStmt *S) {
 
   // P2718R0 - Lifetime extension in range-based for loops.
   if (getSema().getLangOpts().CPlusPlus23) {
-    auto &LastRecord = getSema().ExprEvalContexts.back();
+    auto &LastRecord = getSema().currentEvaluationContext();
     LastRecord.InLifetimeExtendingContext = true;
+    LastRecord.RebuildDefaultArgOrDefaultInit = true;
   }
   StmtResult Init =
       S->getInit() ? getDerived().TransformStmt(S->getInit()) : StmtResult();
@@ -14914,6 +15027,13 @@ TreeTransform<Derived>::TransformCXXTemporaryObjectExpr(
     if (TransformExprs(E->getArgs(), E->getNumArgs(), true, Args,
                        &ArgumentChanged))
       return ExprError();
+
+    if (E->isListInitialization() && !E->isStdInitListInitialization()) {
+      ExprResult Res = RebuildInitList(E->getBeginLoc(), Args, E->getEndLoc());
+      if (Res.isInvalid())
+        return ExprError();
+      Args = {Res.get()};
+    }
   }
 
   if (!getDerived().AlwaysRebuild() &&
@@ -14925,12 +15045,9 @@ TreeTransform<Derived>::TransformCXXTemporaryObjectExpr(
     return SemaRef.MaybeBindToTemporary(E);
   }
 
-  // FIXME: We should just pass E->isListInitialization(), but we're not
-  // prepared to handle list-initialization without a child InitListExpr.
   SourceLocation LParenLoc = T->getTypeLoc().getEndLoc();
   return getDerived().RebuildCXXTemporaryObjectExpr(
-      T, LParenLoc, Args, E->getEndLoc(),
-      /*ListInitialization=*/LParenLoc.isInvalid());
+      T, LParenLoc, Args, E->getEndLoc(), E->isListInitialization());
 }
 
 template<typename Derived>
@@ -15802,9 +15919,14 @@ TreeTransform<Derived>::TransformPackIndexingExpr(PackIndexingExpr *E) {
     return E;
 
   // Transform the index
-  ExprResult IndexExpr = getDerived().TransformExpr(E->getIndexExpr());
-  if (IndexExpr.isInvalid())
-    return ExprError();
+  ExprResult IndexExpr;
+  {
+    EnterExpressionEvaluationContext ConstantContext(
+        SemaRef, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+    IndexExpr = getDerived().TransformExpr(E->getIndexExpr());
+    if (IndexExpr.isInvalid())
+      return ExprError();
+  }
 
   SmallVector<Expr *, 5> ExpandedExprs;
   if (!E->expandsToEmptyPack() && E->getExpressions().empty()) {
@@ -17201,6 +17323,13 @@ TreeTransform<Derived>::TransformCapturedStmt(CapturedStmt *S) {
   }
 
   return getSema().ActOnCapturedRegionEnd(Body.get());
+}
+
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformHLSLOutArgExpr(HLSLOutArgExpr *E) {
+  // We can transform the base expression and allow argument resolution to fill
+  // in the rest.
+  return getDerived().TransformExpr(E->getArgLValue());
 }
 
 } // end namespace clang

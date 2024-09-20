@@ -30,22 +30,6 @@ header_restrictions = {
     "streambuf": "!defined(_LIBCPP_HAS_NO_LOCALIZATION)",
     "strstream": "!defined(_LIBCPP_HAS_NO_LOCALIZATION)",
     "syncstream": "!defined(_LIBCPP_HAS_NO_LOCALIZATION)",
-
-    # headers with #error directives
-    "barrier": "!defined(_LIBCPP_HAS_NO_THREADS)",
-    "future": "!defined(_LIBCPP_HAS_NO_THREADS)",
-    "latch": "!defined(_LIBCPP_HAS_NO_THREADS)",
-    "semaphore": "!defined(_LIBCPP_HAS_NO_THREADS)",
-    "shared_mutex": "!defined(_LIBCPP_HAS_NO_THREADS)",
-    "stop_token": "!defined(_LIBCPP_HAS_NO_THREADS)",
-    "thread": "!defined(_LIBCPP_HAS_NO_THREADS)",
-
-    # headers with #error directives
-    "wchar.h": "!defined(_LIBCPP_HAS_NO_WIDE_CHARACTERS)",
-    "wctype.h": "!defined(_LIBCPP_HAS_NO_WIDE_CHARACTERS)",
-    # transitive includers of the above headers
-    "cwchar": "!defined(_LIBCPP_HAS_NO_WIDE_CHARACTERS)",
-    "cwctype": "!defined(_LIBCPP_HAS_NO_WIDE_CHARACTERS)",
 }
 
 lit_header_restrictions = {
@@ -56,6 +40,7 @@ lit_header_restrictions = {
     "cwchar": "// UNSUPPORTED: no-wide-characters",
     "cwctype": "// UNSUPPORTED: no-wide-characters",
     "experimental/iterator": "// UNSUPPORTED: c++03",
+    "experimental/meta": "// UNSUPPORTED: c++03, c++11, c++14, c++17, c++20, c++23",
     "experimental/propagate_const": "// UNSUPPORTED: c++03",
     "experimental/simd": "// UNSUPPORTED: c++03",
     "experimental/type_traits": "// UNSUPPORTED: c++03",
