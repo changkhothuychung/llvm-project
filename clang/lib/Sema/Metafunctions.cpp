@@ -6030,6 +6030,8 @@ bool return_type_of(APValue &Result, Sema &S, EvalFn Evaluator,
     return Diagnoser(Range.getBegin(), diag::metafn_cannot_introspect_type)
         << 3 << 2 << Range;
   }
+
+
   case ReflectionKind::Declaration:
     if (auto *FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl());
         FD && !isa<CXXConstructorDecl>(FD) && !isa<CXXDestructorDecl>(FD))
