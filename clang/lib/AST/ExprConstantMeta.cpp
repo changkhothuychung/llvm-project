@@ -2070,7 +2070,7 @@ bool type_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Null:
   case ReflectionKind::Type: {
-    QualType QT = desugarType(RV.getTypeOfReflectedResult(S.Context), 
+    QualType QT = desugarType(RV.getTypeOfReflectedResult(C), 
                               /*UnwrapAliases=*/ true, /*DropCV=*/false,
                               /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
@@ -2080,7 +2080,7 @@ bool type_of(APValue &Result, ASTContext &C, MetaActions &Meta,
     return Diagnoser(Range.getBegin(), diag::metafn_no_associated_property)
         << DescriptionOf(RV) << 0 << Range;
   case ReflectionKind::Object: {
-    QualType QT = desugarType(RV.getTypeOfReflectedResult(S.Context),
+    QualType QT = desugarType(RV.getTypeOfReflectedResult(C),
                               /*UnwrapAliases=*/ true, /*DropCV=*/false,
                               /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
