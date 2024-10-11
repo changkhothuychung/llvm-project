@@ -513,9 +513,7 @@ static void profileReflection(llvm::FoldingSetNodeID &ID, APValue V) {
     if (auto *TST = dyn_cast<TemplateSpecializationType>(QT)) {
       // Note: This sugar only kept for alias template specializations.
       ID.AddInteger(Type::TemplateSpecialization);
-      ID.AddPointer(TST->getTemplateName().getAsTemplateDecl());
-      if (auto *D = QT->getAsRecordDecl())
-        ID.AddPointer(D->getCanonicalDecl());
+      QT.getCanonicalType().Profile(ID);
     } else {
       ID.AddInteger(0);
       if (auto *TDT = dyn_cast<TypedefType>(QT)) {
@@ -530,8 +528,8 @@ static void profileReflection(llvm::FoldingSetNodeID &ID, APValue V) {
   }
   case ReflectionKind::Declaration:
     if (auto *PVD = dyn_cast<ParmVarDecl>(V.getReflectedDecl())) {
-      auto *FD = cast<FunctionDecl>(PVD->getDeclContext())->getFirstDecl();
-      PVD = FD->getParamDecl(PVD->getFunctionScopeIndex());
+      if (auto *FD = dyn_cast<FunctionDecl>(PVD->getDeclContext()))
+        PVD = FD->getFirstDecl()->getParamDecl(PVD->getFunctionScopeIndex());
       ID.AddPointer(PVD);
     } else {
       ID.AddPointer(V.getReflectedDecl());
