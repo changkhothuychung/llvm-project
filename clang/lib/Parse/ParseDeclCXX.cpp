@@ -14,10 +14,12 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/CharInfo.h"
+#include "clang/Basic/DiagnosticParse.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
@@ -5054,35 +5056,44 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
         << "invalid expression in attribute splicing";
     return true; // yea...Dont know what kind of convention that is
   }
-  if (Tok.is(tok::annot_splice)) {
-    ExprResult Result = getExprAnnotation(Tok);
-    ConsumeAnnotationToken();
-
-
-    CXXSpliceSpecifierExpr *SpliceExpr =
-          dyn_cast<CXXSpliceSpecifierExpr>(Result.get());
-    Diag(SpliceExpr->getExprLoc(), diag::p3385_trace_execution_checkpoint)
-      << "successfully parsed splice expression in attribute";
-
-    // Finish with consuming close ']' ']'
-    SourceLocation CloseLoc = Tok.getLocation();
-    if (ExpectAndConsume(tok::r_square))
-      SkipUntil(tok::r_square);
-    else if (Tok.is(tok::r_square))
-      checkCompoundToken(CloseLoc, tok::r_square, CompoundToken::AttrEnd);
-    if (EndLoc)
-      *EndLoc = Tok.getLocation();
-    if (ExpectAndConsume(tok::r_square))
-      SkipUntil(tok::r_square);
-
-    return false;
-    // if (Actions.ActOnCXXNestedNameSpecifierReflectionSplice(SS, SpliceExpr,
-    //                                                         CCLoc)) {
-    //   SS.SetInvalid(SourceRange(SpliceExpr->getExprLoc(), CCLoc));
-    //   return true;
-    // }
+  if (!Tok.is(tok::annot_splice)) {
+    return true;
   }
-  return true;
+  ExprResult Result = getExprAnnotation(Tok);
+  ConsumeAnnotationToken();
+
+  // TODO should be an ActOnBlablabla() 
+  //
+  auto *SpliceExpr = cast<CXXSpliceSpecifierExpr>(Result.get());
+  Expr::EvalResult ER;
+  if (!SpliceExpr->EvaluateAsRValue(ER, Actions.getASTContext(), true)) {
+    return false;
+  }
+  assert(ER.Val.getKind() == APValue::Reflection);
+  switch (ER.Val.getReflectionKind()) {
+    case ReflectionKind::Attribute: {
+      auto * attr = ER.Val.getReflectedAttribute();
+      Diag(Tok.getLocation(), diag::p3385_trace_execution_checkpoint)
+        << attr->getAttrName();
+      break;
+    }
+    default: 
+        Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_error)
+          << "unsupported kind in attribute splicing";
+  }
+
+  // Finish with consuming close ']' ']'
+  SourceLocation CloseLoc = Tok.getLocation();
+  if (ExpectAndConsume(tok::r_square))
+    SkipUntil(tok::r_square);
+  else if (Tok.is(tok::r_square))
+    checkCompoundToken(CloseLoc, tok::r_square, CompoundToken::AttrEnd);
+  if (EndLoc)
+    *EndLoc = Tok.getLocation();
+  if (ExpectAndConsume(tok::r_square))
+    SkipUntil(tok::r_square);
+
+  return false;
 }
 
 /// Parse a C++11 or C23 attribute-specifier.
