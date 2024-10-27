@@ -5059,10 +5059,14 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
   if (!Tok.is(tok::annot_splice)) {
     return true;
   }
+  Diag(Tok.getLocation(), diag::p3385_trace_execution_checkpoint)
+        << "Found splice in attribute expression";
+  SourceLocation loc = (Tok.getLocation());
+  SourceRange range(loc);
   ExprResult Result = getExprAnnotation(Tok);
   ConsumeAnnotationToken();
 
-  // TODO should be an ActOnBlablabla() 
+  // TODO export to ActOnBlablabla() is the `iDiOmAtIc WaY`
   //
   auto *SpliceExpr = cast<CXXSpliceSpecifierExpr>(Result.get());
   Expr::EvalResult ER;
@@ -5073,8 +5077,12 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
   switch (ER.Val.getReflectionKind()) {
     case ReflectionKind::Attribute: {
       auto * attr = ER.Val.getReflectedAttribute();
-      Diag(Tok.getLocation(), diag::p3385_trace_execution_checkpoint)
-        << attr->getAttrName();
+
+      Attrs.addNew(
+          const_cast<IdentifierInfo*>(attr->getAttrName()), // (C) Trust me bro
+          range,
+          nullptr, loc, nullptr, 0,
+          ParsedAttr::Form::CXX11());
       break;
     }
     default: 
@@ -5082,7 +5090,8 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
           << "unsupported kind in attribute splicing";
   }
 
-  // Finish with consuming close ']' ']'
+  // FIXME this shouldnt be here... but we early quit ParseCXX11AttributeSpecifierInternal 
+  // Finish with consuming close ']' ']
   SourceLocation CloseLoc = Tok.getLocation();
   if (ExpectAndConsume(tok::r_square))
     SkipUntil(tok::r_square);
