@@ -264,13 +264,6 @@ DeclResult Parser::ParseCXXSpliceAsNamespace() {
   return Result;
 }
 
-
-DeclResult Parser::ParseCXXSpliceAsAttributes()
-{
-    assert(Tok.is(tok::l_splice()) && "expected splice");
-    return DeclResult{};
-}
-
 Parser::TemplateTy Parser::ParseCXXSpliceAsTemplate() {
   assert(Tok.is(tok::annot_splice) && "expected annot_splice");
 

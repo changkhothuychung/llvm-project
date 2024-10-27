@@ -883,13 +883,6 @@ DeclResult Sema::ActOnCXXSpliceExpectingNamespace(SourceLocation LSpliceLoc,
   return BuildReflectionSpliceNamespace(LSpliceLoc, Operand, RSpliceLoc);
 }
 
-DeclResult Sema::ActOnCXXSpliceExpectingAttributes(SourceLocation LSpliceLoc,
-                                                   Expr *Operand,
-                                                   SourceLocation RSpliceLoc) {
-  // TODO P3385 : build here
-  return DeclResult{};
-}
-
 Sema::TemplateTy Sema::ActOnCXXSpliceExpectingTemplate(
       SourceLocation LSpliceLoc, Expr *Operand, SourceLocation RSpliceLoc,
       bool Complain) {
@@ -1521,14 +1514,6 @@ ExprResult Sema::BuildReflectionSpliceExpr(
                                TArgs, AllowMemberReference);
 }
 
-DeclResult Sema::BuildReflectionSpliceAttributes(SourceLocation LSplice,
-                                                 Expr *Operand,
-                                                 SourceLocation RSplice)
-{
-  // TODO P3385
-  return DeclResult{};
-}                                             
-  
 DeclResult Sema::BuildReflectionSpliceNamespace(SourceLocation LSplice,
                                                 Expr *Operand,
                                                 SourceLocation RSplice) {

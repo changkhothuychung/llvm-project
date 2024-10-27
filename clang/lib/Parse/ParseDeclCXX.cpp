@@ -13,13 +13,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/Attrs.inc"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/CharInfo.h"
-#include "clang/Basic/DiagnosticParse.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
@@ -5064,8 +5062,8 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
     CXXSpliceSpecifierExpr *SpliceExpr =
           dyn_cast<CXXSpliceSpecifierExpr>(Result.get());
     Diag(SpliceExpr->getExprLoc(), diag::p3385_trace_execution_checkpoint)
-      << "parsed splice expression in attribute";
-    
+      << "successfully parsed splice expression in attribute";
+
     // Finish with consuming close ']' ']'
     SourceLocation CloseLoc = Tok.getLocation();
     if (ExpectAndConsume(tok::r_square))
@@ -5085,7 +5083,7 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
     // }
   }
   return true;
-}                                   
+}
 
 /// Parse a C++11 or C23 attribute-specifier.
 ///
@@ -5125,8 +5123,6 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
     ParseAlignmentSpecifier(Attrs, EndLoc);
     return;
   }
-
-  Diag(Tok.getLocation(), diag::p3385_trace_execution_checkpoint) << "1";
 
   if (Tok.isRegularKeywordAttribute()) {
     SourceLocation Loc = Tok.getLocation();
@@ -5200,48 +5196,12 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
     SourceLocation ScopeLoc, AttrLoc;
     IdentifierInfo *ScopeName = nullptr, *AttrName = nullptr;
 
+    // Try parsing a `[: :]` expression
     if (!tryParseSpliceAttrSpecifier(Attrs, EndLoc)) {
+      // I'll forget in 10 minutes but... in clang convention, we end up here
+      // when we actually did succeed... so we quit parsing attributes here.
       return;
     }
-    // // TODO externalize this into a dedicated function
-    // // Try parsing a [: meta-info :] immediately following '[' '['
-    // if (Tok.is(tok::l_splice)) {
-    //   if (ParseCXXSpliceSpecifier()) {
-    //     // FIXME diagnostic is terrible...
-    //     Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_error)
-    //        << "invalid expression in attribute splicing";
-    //     return;
-    //   }
-    //   if (Tok.is(tok::annot_splice)) {
-    //     ExprResult Result = getExprAnnotation(Tok);
-    //     ConsumeAnnotationToken();
-
-
-    //     CXXSpliceSpecifierExpr *SpliceExpr =
-    //           dyn_cast<CXXSpliceSpecifierExpr>(Result.get());
-    //     Diag(SpliceExpr->getExprLoc(), diag::p3385_trace_execution_checkpoint)
-    //       << "parsed splice expression in attribute";
-        
-    //     // Finish with consuming close ']' ']'
-    //     SourceLocation CloseLoc = Tok.getLocation();
-    //     if (ExpectAndConsume(tok::r_square))
-    //       SkipUntil(tok::r_square);
-    //     else if (Tok.is(tok::r_square))
-    //       checkCompoundToken(CloseLoc, tok::r_square, CompoundToken::AttrEnd);
-    //     if (EndLoc)
-    //       *EndLoc = Tok.getLocation();
-    //     if (ExpectAndConsume(tok::r_square))
-    //       SkipUntil(tok::r_square);
-
-    //     return;
-    //     // if (Actions.ActOnCXXNestedNameSpecifierReflectionSplice(SS, SpliceExpr,
-    //     //                                                         CCLoc)) {
-    //     //   SS.SetInvalid(SourceRange(SpliceExpr->getExprLoc(), CCLoc));
-    //     //   return true;
-    //     // }
-    //   }
-    //   return;
-    // }
 
     if (Tok.is(tok::equal) && getLangOpts().AnnotationAttributes) {
       // This is a C++2c annotation.

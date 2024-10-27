@@ -19,7 +19,6 @@
 #include "clang/Basic/OperatorPrecedence.h"
 #include "clang/Lex/CodeCompletionHandler.h"
 #include "clang/Lex/Preprocessor.h"
-#include "clang/Sema/Ownership.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaCodeCompletion.h"
 #include "clang/Sema/SemaObjC.h"
@@ -3972,7 +3971,6 @@ private:
   bool ParseCXXSpliceSpecifier(SourceLocation TemplateKWLoc = {});
 
   TypeResult ParseCXXSpliceAsType(bool AllowDependent, bool Complain);
-  DeclResult ParseCXXSpliceAsAttributes();
   ExprResult ParseCXXSpliceAsExpr(bool AllowMemberReference);
   DeclResult ParseCXXSpliceAsNamespace();
   TemplateTy ParseCXXSpliceAsTemplate();  // TODO(P2996): Do we use this?
