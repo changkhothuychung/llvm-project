@@ -17,6 +17,7 @@
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
+#include "clang/Sema/Ownership.h"
 using namespace clang;
 
 ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
@@ -261,6 +262,13 @@ DeclResult Parser::ParseCXXSpliceAsNamespace() {
           Splice.getLocation(), ER.get(), Splice.getAnnotationEndLoc());
 
   return Result;
+}
+
+
+DeclResult Parser::ParseCXXSpliceAsAttributes()
+{
+    assert(Tok.is(tok::l_splice()) && "expected splice");
+    return DeclResult{};
 }
 
 Parser::TemplateTy Parser::ParseCXXSpliceAsTemplate() {

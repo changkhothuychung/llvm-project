@@ -1756,7 +1756,8 @@ def p3385_trace_execution_checkpoint : Warning<
   "(p3385) trace_execution_checkpoint %0">;
 def p3385_err_attributes_list : Error<
   "(p3385) reflection of attribute list is not supported, found %0 attributes">;
-
+def p3385_err_attribute_splicing_error : Error<
+  "(p3385) splicing of attributes error: %0">;
 }
 
 let CategoryName = "Generics Issue" in {

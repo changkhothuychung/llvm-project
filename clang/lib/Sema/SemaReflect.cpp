@@ -21,6 +21,7 @@
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Lookup.h"
+#include "clang/Sema/Ownership.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/Template.h"
@@ -882,6 +883,13 @@ DeclResult Sema::ActOnCXXSpliceExpectingNamespace(SourceLocation LSpliceLoc,
   return BuildReflectionSpliceNamespace(LSpliceLoc, Operand, RSpliceLoc);
 }
 
+DeclResult Sema::ActOnCXXSpliceExpectingAttributes(SourceLocation LSpliceLoc,
+                                                   Expr *Operand,
+                                                   SourceLocation RSpliceLoc) {
+  // TODO P3385 : build here
+  return DeclResult{};
+}
+
 Sema::TemplateTy Sema::ActOnCXXSpliceExpectingTemplate(
       SourceLocation LSpliceLoc, Expr *Operand, SourceLocation RSpliceLoc,
       bool Complain) {
@@ -1513,6 +1521,14 @@ ExprResult Sema::BuildReflectionSpliceExpr(
                                TArgs, AllowMemberReference);
 }
 
+DeclResult Sema::BuildReflectionSpliceAttributes(SourceLocation LSplice,
+                                                 Expr *Operand,
+                                                 SourceLocation RSplice)
+{
+  // TODO P3385
+  return DeclResult{};
+}                                             
+  
 DeclResult Sema::BuildReflectionSpliceNamespace(SourceLocation LSplice,
                                                 Expr *Operand,
                                                 SourceLocation RSplice) {

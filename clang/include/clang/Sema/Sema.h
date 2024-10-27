@@ -15199,6 +15199,9 @@ public:
   DeclResult ActOnCXXSpliceExpectingNamespace(SourceLocation LSplice,
                                               Expr *Operand,
                                               SourceLocation RSplice);
+  DeclResult ActOnCXXSpliceExpectingAttributes(SourceLocation LSplice,
+                                               Expr *Operand,
+                                               SourceLocation RSplice);
   TemplateTy ActOnCXXSpliceExpectingTemplate(SourceLocation LSplice,
                                              Expr *Operand,
                                              SourceLocation RSplice,
@@ -15262,6 +15265,9 @@ public:
   DeclResult BuildReflectionSpliceNamespace(SourceLocation LSplice,
                                             Expr *Operand,
                                             SourceLocation RSplice);
+  DeclResult BuildReflectionSpliceAttributes(SourceLocation LSplice,
+                                             Expr *Operand,
+                                             SourceLocation RSplice);
   TemplateTy BuildReflectionSpliceTemplate(SourceLocation LSplice,
                                            Expr *Operand,
                                            SourceLocation RSplice,
