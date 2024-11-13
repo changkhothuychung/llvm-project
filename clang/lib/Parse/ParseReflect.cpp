@@ -83,21 +83,22 @@ ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
 
   // Check for a standard attribute
   {
-    ParsedAttributes attrs(AttrFactory);
-    if (MaybeParseCXX11Attributes(attrs)) {
+    size_t last = Attrs.size();
+    if (MaybeParseCXX11Attributes(Attrs)) {
+      size_t newLast = Attrs.size();
       Diag(OperandLoc, diag::p3385_trace_attribute_parsed);
 
       // FIXME handle empty [[]] gracefully
-      if (attrs.empty()) {
+      if (last == newLast) {
         Diag(OperandLoc, diag::p3385_trace_empty_attributes_list);
         return ExprError();
       }
-      if (attrs.size() > 1) {
-        Diag(OperandLoc, diag::p3385_err_attributes_list) << attrs.size();
+      if (newLast - last > 1) {
+        Diag(OperandLoc, diag::p3385_err_attributes_list) << (newLast - last);
         return ExprError();
       }
 
-      return Actions.ActOnCXXReflectExpr(OpLoc, &attrs.front());
+      return Actions.ActOnCXXReflectExpr(OpLoc, &Attrs.back());
     }
   }
 

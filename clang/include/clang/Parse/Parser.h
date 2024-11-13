@@ -316,6 +316,8 @@ class Parser : public CodeCompletionHandler {
 
   /// Factory object for creating ParsedAttr objects.
   AttributeFactory AttrFactory;
+  /// FIXNE P3385
+  ParsedAttributes Attrs;
 
   /// Gathers and cleans up TemplateIdAnnotations when parsing of a
   /// top-level declaration is finished.
