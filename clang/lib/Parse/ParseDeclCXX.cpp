@@ -16,6 +16,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
+#include "clang/AST/Reflection.h"
 #include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/CharInfo.h"
@@ -5043,6 +5044,43 @@ bool Parser::ParseCXX11AttributeArgs(
   return true;
 }
 
+// FIXME I'm copypasting this straight from ExprConstantMeta
+//
+static NamedDecl *findTypeDecl(QualType QT) {
+  // If it's an ElaboratedType, get the underlying NamedType.
+  if (const ElaboratedType *ET = dyn_cast<ElaboratedType>(QT))
+    QT = ET->getNamedType();
+
+  // Get the type's declaration.
+  NamedDecl *D = nullptr;
+  if (auto *TDT = dyn_cast<TypedefType>(QT))
+    D = TDT->getDecl();
+  else if (auto *UT = dyn_cast<UsingType>(QT))
+    D = UT->getFoundDecl();
+  else if (auto *TD = QT->getAsTagDecl())
+    return TD;
+  else if (auto *TT = dyn_cast<TagType>(QT))
+    D = TT->getDecl();
+  else if (auto *UUTD = dyn_cast<UnresolvedUsingType>(QT))
+    D = UUTD->getDecl();
+  else if (auto *TS = dyn_cast<TemplateSpecializationType>(QT)) {
+    if (auto *CTD = dyn_cast<ClassTemplateDecl>(
+          TS->getTemplateName().getAsTemplateDecl())) {
+      void *InsertPos;
+      D = CTD->findSpecialization(TS->template_arguments(), InsertPos);
+    }
+  } else if (auto *STTP = dyn_cast<SubstTemplateTypeParmType>(QT))
+    D = findTypeDecl(STTP->getReplacementType());
+  else if (auto *ICNT = dyn_cast<InjectedClassNameType>(QT))
+    D = ICNT->getDecl();
+  else if (auto *DTT = dyn_cast<DecltypeType>(QT))
+    D = findTypeDecl(DTT->getUnderlyingType());
+
+  return D;
+}
+
+// FIXME this is get_attributes, repeated here
+//
 bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
                                          SourceLocation *EndLoc)
 {
@@ -5063,6 +5101,8 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
         << "Found splice in attribute expression";
   SourceLocation loc = (Tok.getLocation());
   SourceRange range(loc);
+
+  // FIXME What's this doing ?
   ExprResult Result = getExprAnnotation(Tok);
   ConsumeAnnotationToken();
 
@@ -5073,6 +5113,7 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
   if (!SpliceExpr->EvaluateAsRValue(ER, Actions.getASTContext(), true)) {
     return false;
   }
+
   assert(ER.Val.getKind() == APValue::Reflection);
   switch (ER.Val.getReflectionKind()) {
     case ReflectionKind::Attribute: {
@@ -5083,6 +5124,23 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
           range,
           nullptr, loc, nullptr, 0,
           ParsedAttr::Form::CXX11());
+      break;
+    }
+    case ReflectionKind::Type: {
+      QualType qType = ER.Val.getReflectedType();
+      Decl *D = findTypeDecl(qType);
+      if (!D) {
+        // FIXME how would we end up here ?
+        Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_error)
+          << "Error while splicing type attributes inside a [[ ]]";
+      }
+      for (auto *const attr : D->attrs()) {
+        Attrs.addNew(
+          const_cast<IdentifierInfo*>(attr->getAttrName()), // (C) Trust me bro 2
+          range,
+          nullptr, loc, nullptr, 0,
+          ParsedAttr::Form::CXX11());
+      }
       break;
     }
     default: 
