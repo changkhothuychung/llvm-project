@@ -2079,12 +2079,16 @@ bool has_identifier(APValue &Result, ASTContext &C, MetaActions &Meta,
     HasIdentifier = TDMS->Name && !TDMS->Name->empty();
     break;
   }
+  case ReflectionKind::Attribute: {
+    // FIXME deal with ^^ [[ ]]
+    HasIdentifier = true;
+    break;
+  }
   case ReflectionKind::Null:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::Object:
   case ReflectionKind::Value:
   case ReflectionKind::Annotation:
-  case ReflectionKind::Attribute:
     break;
   }
 
