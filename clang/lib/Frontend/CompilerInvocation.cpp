@@ -615,8 +615,12 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
   if (LangOpts.Reflection) {
     if (LangOpts.Blocks && !LangOpts.ReflectionNewSyntax)
       Diags.Report(diag::err_fe_reflection_incompatible_with_blocks);
-  } else if (LangOpts.ParameterReflection) {
-    Diags.Report(diag::err_fe_parameter_reflection_without_reflection);
+  } else {
+    if (LangOpts.ParameterReflection) {
+      Diags.Report(diag::err_fe_parameter_reflection_without_reflection);
+    } else if (LangOpts.AttributeReflection) {
+      Diags.Report(diag::err_fe_attribute_reflection_without_reflection);
+    }
   }
 
   // The -f[no-]raw-string-literals option is only valid in C and in C++

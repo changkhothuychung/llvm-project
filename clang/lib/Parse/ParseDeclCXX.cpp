@@ -5088,11 +5088,18 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
   if (!Tok.is(tok::l_splice)) {
     return true;
   }
+  if(!getLangOpts().AttributeReflection) {
+    Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_error)
+        << "attribute splicing is gated behind -fattribute-reflection";
+    SkipUntil(tok::r_splice);
+    ExpectAndConsume(tok::r_splice);
+  }
+
   if (ParseCXXSpliceSpecifier()) {
     // FIXME diagnostic is terrible...
     Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_error)
         << "invalid expression in attribute splicing";
-    return true; // yea...Dont know what kind of convention that is
+    return true;
   }
   if (!Tok.is(tok::annot_splice)) {
     return true;
@@ -5106,7 +5113,7 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
   ExprResult Result = getExprAnnotation(Tok);
   ConsumeAnnotationToken();
 
-  // TODO export to ActOnBlablabla() is the `iDiOmAtIc WaY`
+  // TODO offload to ActOnBlablabla() is the `iDiOmAtIc WaY`
   //
   auto *SpliceExpr = cast<CXXSpliceSpecifierExpr>(Result.get());
   Expr::EvalResult ER;
