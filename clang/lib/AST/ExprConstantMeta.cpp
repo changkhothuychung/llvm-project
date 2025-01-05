@@ -29,6 +29,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
@@ -768,7 +769,7 @@ static APValue makeReflection(CXX26AnnotationAttr *A) {
   return APValue(ReflectionKind::Annotation, A);
 }
 
-static APValue makeReflection(const AttributeCommonInfo * Attr) {
+static APValue makeReflection(const ParsedAttr * Attr) {
   return APValue(ReflectionKind::Attribute, Attr);
 }
 
@@ -1448,6 +1449,12 @@ bool DiagnoseReflectionKind(DiagFn Diagnoser, SourceRange Range,
   return true;
 }
 
+struct AttributeScratchpad {
+      AttributeFactory factory;
+      ParsedAttributes attributes;
+      AttributeScratchpad() : factory(), attributes(factory) {}
+};
+
 // -----------------------------------------------------------------------------
 // Metafunction implementations
 // -----------------------------------------------------------------------------
@@ -1478,7 +1485,7 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
       if (idx != 0) {
       return SetAndSucceed(Result, Sentinel);
       }
-      AttributeCommonInfo *attr = RV.getReflectedAttribute();
+      ParsedAttr *attr = RV.getReflectedAttribute();
       if (attr->getForm().getSyntax() == AttributeCommonInfo::Syntax::AS_CXX11) {
         return SetAndSucceed(Result, makeReflection(attr));
       }
@@ -1499,16 +1506,33 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
         return SetAndSucceed(Result, Sentinel);
       }
 
-      // FIXME cache this...
-      if (auto* attr = attrs.begin(); attr != attrs.end()) {
-          while(idx != 0) {
-            ++attr;
-            --idx;
-            if (attr == attrs.end()) {
-              return SetAndSucceed(Result, Sentinel);
-            }
+      // FIXME this assumes we arent decorating them with anything besides CXX11 attributes
+      if (Attr *const *attr = attrs.begin(); attr != attrs.end()) {
+          while (idx != 0) {
+          ++attr;
+          --idx;
+          if (attr == attrs.end()) {
+            return SetAndSucceed(Result, Sentinel);
           }
-          return SetAndSucceed(Result, makeReflection(*attr));
+        }
+        // Attr -> ParsedAttr
+        Attr * const val = *attr;
+        static AttributeScratchpad scratchpad;
+
+        if (val->getForm().getSyntax() != AttributeCommonInfo::Syntax::AS_CXX11) {
+          // FIXME Filter them instead of erroring
+          return DiagnoseReflectionKind(Diagnoser, Range, "a standard CXX11 attribute",
+                                      DescriptionOf(RV));
+        }
+        auto * fetchedAttribute = scratchpad.attributes.addNew(
+          const_cast<IdentifierInfo*>(val->getAttrName()), // FIXME...
+          val->getRange(),
+          nullptr,
+          val->getLocation(),
+          nullptr, nullptr, nullptr,
+          val->getForm());
+
+        return SetAndSucceed(Result, makeReflection(fetchedAttribute));
       }
       return SetAndSucceed(Result, Sentinel);
     }

@@ -23,6 +23,7 @@
 #include "clang/AST/LocInfoType.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/AttributeCommonInfo.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 using namespace clang;
@@ -944,10 +945,10 @@ CXX26AnnotationAttr *APValue::getReflectedAnnotation() const {
           const_cast<void *>(getOpaqueReflectionData()));
 }
 
-AttributeCommonInfo *APValue::getReflectedAttribute() const {
+ParsedAttr *APValue::getReflectedAttribute() const {
   assert(getReflectionKind() == ReflectionKind::Attribute &&
          "not a reflection of an attribute");
-  return reinterpret_cast<AttributeCommonInfo *>(
+  return reinterpret_cast<ParsedAttr *>(
           const_cast<void *>(getOpaqueReflectionData()));
 }
 

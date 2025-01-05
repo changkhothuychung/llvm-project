@@ -32,7 +32,6 @@ template <typename T> class BasicReaderBase;
 
   class AddrLabelExpr;
   class ASTContext;
-  class AttributeCommonInfo;
   class CharUnits;
   class CXX26AnnotationAttr;
   class CXXRecordDecl;
@@ -41,6 +40,7 @@ template <typename T> class BasicReaderBase;
   class Expr;
   class FieldDecl;
   class NamespaceDecl;
+  class ParsedAttr;
   struct PrintingPolicy;
   class Type;
   class ValueDecl;
@@ -683,7 +683,7 @@ public:
   CXXBaseSpecifier *getReflectedBaseSpecifier() const;
   TagDataMemberSpec *getReflectedDataMemberSpec() const;
   CXX26AnnotationAttr *getReflectedAnnotation() const;
-  AttributeCommonInfo *getReflectedAttribute() const;
+  ParsedAttr *getReflectedAttribute() const;
 
   void setInt(APSInt I) {
     assert(isInt() && "Invalid accessor");
