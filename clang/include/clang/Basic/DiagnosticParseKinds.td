@@ -1749,15 +1749,17 @@ def err_annotation_with_using : Error<
 let CategoryName = "P3385" in {
 
 def p3385_trace_attribute_parsed : Warning<
-  "(p3385) found attribute to parse following caret operator">;
+  "(p3385-Parse) found attribute to parse following caret operator">;
 def p3385_trace_empty_attributes_list : Warning<
-  "(p3385) reflection of an empty attribute list">;
+  "(p3385-Parse) reflection of an empty attribute list">;
 def p3385_trace_execution_checkpoint : Warning<
-  "(p3385) trace_execution_checkpoint %0">;
+  "(p3385-Parse) trace_execution_checkpoint %0">;
 def p3385_err_attributes_list : Error<
-  "(p3385) reflection of attribute list is not supported, found %0 attributes">;
+  "(p3385-Parse) reflection of attribute list is not supported, found %0 attributes">;
 def p3385_err_attribute_splicing_error : Error<
-  "(p3385) splicing of attributes error: %0">;
+  "(p3385-Parse) error while splicing attributes reflection: %0">;
+def p3385_err_attribute_splicing_with_using_namespace_error : Error<
+  "(p3385-Parse) using prefix with splice expression is not supported: %0">;
 }
 
 let CategoryName = "Generics Issue" in {

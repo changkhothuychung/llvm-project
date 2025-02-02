@@ -35,6 +35,7 @@
 #include "clang/Sema/SemaCodeCompletion.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/TimeProfiler.h"
+#include <cstddef>
 #include <optional>
 
 using namespace clang;
@@ -5122,31 +5123,60 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
   }
 
   assert(ER.Val.getKind() == APValue::Reflection);
+  // FIXME this is attributes_of(), more or less...
   switch (ER.Val.getReflectionKind()) {
     case ReflectionKind::Attribute: {
       auto * attr = ER.Val.getReflectedAttribute();
-
+      ArgsVector ArgExprs;
+      if (attr->getNumArgs() != 0) {
+        Diag(Tok.getLocation(), diag::p3385_trace_execution_checkpoint)
+          << "Found argument while splicing a reflected attribute";
+        ArgExprs.push_back(attr->getArg(0));
+      }
       Attrs.addNew(
           const_cast<IdentifierInfo*>(attr->getAttrName()), // (C) Trust me bro
           range,
-          nullptr, loc, nullptr, 0,
+          nullptr, loc, ArgExprs.data(), ArgExprs.size(),
           ParsedAttr::Form::CXX11());
       break;
     }
     case ReflectionKind::Type: {
       QualType qType = ER.Val.getReflectedType();
-      Decl *D = findTypeDecl(qType);
+      NamedDecl *D = findTypeDecl(qType);
       if (!D) {
         // FIXME how would we end up here ?
         Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_error)
           << "Error while splicing type attributes inside a [[ ]]";
+        return true;
       }
+      // FIXME we have an issue here , an 'attr' no longer has arguments, only 'parsedAttr' do
       for (auto *const attr : D->attrs()) {
-        Attrs.addNew(
-          const_cast<IdentifierInfo*>(attr->getAttrName()), // (C) Trust me bro 2
-          range,
-          nullptr, loc, nullptr, 0,
-          ParsedAttr::Form::CXX11());
+        const ParsedAttr * parsedAttr = attr->fromParsedAttr();
+        if (!parsedAttr) {
+          Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_error)
+            << "Found no backlink to parsed attribute";
+            Attrs.addNew(
+              const_cast<IdentifierInfo*>(attr->getAttrName()),
+              range,
+              nullptr, loc, nullptr, 0,
+              ParsedAttr::Form::CXX11());
+          } else {
+            Diag(Tok.getLocation(), diag::p3385_trace_execution_checkpoint)
+              << "Found backlink to parsed attribute";
+            // TODO P3385 factor this garbage
+            ArgsVector ArgExprs;
+            if (parsedAttr->getNumArgs() != 0) {
+              Diag(Tok.getLocation(), diag::p3385_trace_execution_checkpoint)
+                << "Found argument while splicing a reflected attribute";
+              ArgExprs.push_back(parsedAttr->getArg(0));
+            }
+            Attrs.addNew(
+                const_cast<IdentifierInfo*>(attr->getAttrName()),
+                range,
+                nullptr, loc, ArgExprs.data(), ArgExprs.size(),
+                ParsedAttr::Form::CXX11()
+            );
+          }
       }
       break;
     }
@@ -5155,7 +5185,7 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
           << "unsupported kind in attribute splicing";
   }
 
-  // FIXME this shouldnt be here... but we early quit ParseCXX11AttributeSpecifierInternal 
+  // This doesnt really belong here... but we early quit ParseCXX11AttributeSpecifierInternal
   // Finish with consuming close ']' ']
   SourceLocation CloseLoc = Tok.getLocation();
   if (ExpectAndConsume(tok::r_square))
@@ -5245,7 +5275,8 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
 
   SourceLocation CommonScopeLoc;
   IdentifierInfo *CommonScopeName = nullptr;
-  if (Tok.is(tok::kw_using)) {
+  bool hasAttributeUsing = Tok.is(tok::kw_using);
+  if (hasAttributeUsing) {
     Diag(Tok.getLocation(), getLangOpts().CPlusPlus17
                                 ? diag::warn_cxx14_compat_using_attribute_ns
                                 : diag::ext_using_attribute_ns);
@@ -5260,6 +5291,18 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
     if (!TryConsumeToken(tok::colon) && !Tok.is(tok::r_splice) &&
         CommonScopeName)
       Diag(Tok.getLocation(), diag::err_expected) << tok::colon;
+  }
+
+  // Try parsing a `[: :]` expression
+  if (!tryParseSpliceAttrSpecifier(Attrs, EndLoc)) {
+    if (hasAttributeUsing) {
+      Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_with_using_namespace_error)
+        << "Using prefix is not supported alongside a splice expression in attributes";
+      return;
+    }
+    // I'll forget in 10 minutes but... in clang convention, we end up here
+    // when we actually did succeed... so we quit parsing attributes here.
+    return;
   }
 
   bool AttrParsed = false;
@@ -5281,12 +5324,7 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
     SourceLocation ScopeLoc, AttrLoc;
     IdentifierInfo *ScopeName = nullptr, *AttrName = nullptr;
 
-    // Try parsing a `[: :]` expression
-    if (!tryParseSpliceAttrSpecifier(Attrs, EndLoc)) {
-      // I'll forget in 10 minutes but... in clang convention, we end up here
-      // when we actually did succeed... so we quit parsing attributes here.
-      return;
-    }
+
 
     if (Tok.is(tok::equal) && getLangOpts().AnnotationAttributes) {
       // This is a C++2c annotation.

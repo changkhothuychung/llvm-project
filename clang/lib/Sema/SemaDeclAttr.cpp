@@ -2652,8 +2652,33 @@ static void handleVisibilityAttr(Sema &S, Decl *D, const ParsedAttr &AL,
   } else {
     newAttr = S.mergeVisibilityAttr(D, AL, type);
   }
+
+  // P3385 Garbage starts here... Need to figure out where to extend lifetime of
+  // the backlink from the semantic back to the syntactic attribute
+  static struct AttributeScratchpad {
+    AttributeFactory factory;
+    ParsedAttributes attributes;
+    ArgsVector ArgExprs;
+    bool argFound;
+    AttributeScratchpad() : factory(), attributes(factory), ArgExprs(), argFound(false) {}
+  } scratchpad;
+  if (scratchpad.argFound = AL.getNumArgs() != 0; scratchpad.argFound) {
+    scratchpad.ArgExprs.push_back(AL.getArg(0));
+  } else {
+    scratchpad.ArgExprs.clear();
+  }
+  auto * stashedSyntacticAttribute = scratchpad.attributes.addNew(
+    const_cast<IdentifierInfo*>(AL.getAttrName()),
+    AL.getRange(),
+    nullptr,
+    AL.getLoc(),
+    scratchpad.ArgExprs.data(), scratchpad.argFound,
+    AL.getForm()
+  );
+
+  S.Diag(AL.getLoc(), diag::p3385_sema_trace_execution_checkpoint) << "Adding backlink in handleVisibilityAttr";
   if (newAttr)
-    D->addAttr(newAttr);
+    D->addAttr(newAttr, stashedSyntacticAttribute);
 }
 
 static void handleSentinelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -2795,7 +2820,30 @@ static void handleWarnUnusedResult(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  D->addAttr(::new (S.Context) WarnUnusedResultAttr(S.Context, AL, Str));
+  static struct AttributeScratchpad {
+    AttributeFactory factory;
+    ParsedAttributes attributes;
+    ArgsVector ArgExprs;
+    bool argFound;
+    AttributeScratchpad() : factory(), attributes(factory), ArgExprs(), argFound(false) {}
+  } scratchpad;
+  if (scratchpad.argFound = AL.getNumArgs() != 0; scratchpad.argFound) {
+    scratchpad.ArgExprs.push_back(AL.getArg(0));
+  } else {
+    scratchpad.ArgExprs.clear();
+  }
+  auto * stashedSyntacticAttribute = scratchpad.attributes.addNew(
+    const_cast<IdentifierInfo*>(AL.getAttrName()),
+    AL.getRange(),
+    nullptr,
+    AL.getLoc(),
+    scratchpad.ArgExprs.data(), scratchpad.argFound,
+    AL.getForm()
+  );
+
+  // Add semantic attribute and backlink to syntactic one
+  S.Diag(AL.getLoc(), diag::p3385_sema_trace_execution_checkpoint) << "Adding backlink in handleWarnUnusedResult";
+  D->addAttr(::new (S.Context) WarnUnusedResultAttr(S.Context, AL, Str), stashedSyntacticAttribute);
 }
 
 static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -5866,7 +5914,30 @@ static void handleDeprecatedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!S.getLangOpts().CPlusPlus14 && AL.isCXX11Attribute() && !AL.isGNUScope())
     S.Diag(AL.getLoc(), diag::ext_cxx14_attr) << AL;
 
-  D->addAttr(::new (S.Context) DeprecatedAttr(S.Context, AL, Str, Replacement));
+  static struct AttributeScratchpad {
+    AttributeFactory factory;
+    ParsedAttributes attributes;
+    ArgsVector ArgExprs;
+    bool argFound;
+    AttributeScratchpad() : factory(), attributes(factory), ArgExprs(), argFound(false) {}
+  } scratchpad;
+  if (scratchpad.argFound = AL.getNumArgs() != 0; scratchpad.argFound) {
+    scratchpad.ArgExprs.push_back(AL.getArg(0));
+  } else {
+    scratchpad.ArgExprs.clear();
+  }
+  auto * stashedSyntacticAttribute = scratchpad.attributes.addNew(
+    const_cast<IdentifierInfo*>(AL.getAttrName()),
+    AL.getRange(),
+    nullptr,
+    AL.getLoc(),
+    scratchpad.ArgExprs.data(), scratchpad.argFound,
+    AL.getForm()
+  );
+
+  // Add semantic attribute and backlink to syntactic one
+  S.Diag(AL.getLoc(), diag::p3385_sema_trace_execution_checkpoint) << "Adding backlink in handleDeprecatedAttr";
+  D->addAttr(::new (S.Context) DeprecatedAttr(S.Context, AL, Str, Replacement), stashedSyntacticAttribute);
 }
 
 static bool isGlobalVar(const Decl *D) {

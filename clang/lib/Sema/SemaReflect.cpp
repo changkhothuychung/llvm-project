@@ -1139,7 +1139,7 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
 
 ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
                                      ParsedAttr *A) {
-  Diag(A->getLoc(), diag::p3385_trace_building_attribute_reflection)
+  Diag(A->getLoc(), diag::p3385_sema_trace_execution_checkpoint)
       << A->getAttrName()->getName();
 
   return CXXReflectExpr::Create(
