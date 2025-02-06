@@ -492,7 +492,7 @@ public:
     return Visit(E->getSubExpr());
   }
   Value *VisitCXXSpliceExpr(const CXXSpliceExpr *E) {
-    return Visit(E->getOperand());
+    return Visit(E->getModel());
   }
 
   // Leaves.

@@ -1439,6 +1439,8 @@ void CXXNameMangler::mangleUnresolvedPrefix(NestedNameSpecifier *qualifier,
     // An Identifier has no type information, so we can't emit abi tags for it.
     break;
   case NestedNameSpecifier::Splice:
+  case NestedNameSpecifier::SpliceSpecialization:
+  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
     llvm_unreachable("should not get this far");
   }
 
@@ -2226,9 +2228,21 @@ void CXXNameMangler::manglePrefix(NestedNameSpecifier *qualifier) {
   }
   case NestedNameSpecifier::Splice:
     Out << "s";
-    mangleExpression(qualifier->getAsSpliceExpr()->getOperand());
+    mangleExpression(qualifier->getAsSplice()->getOperand());
     Out << "E";
     return;
+  case NestedNameSpecifier::SpliceSpecialization:
+  case NestedNameSpecifier::SpliceSpecializationWithTemplate: {
+    Out << "s";
+
+    const SpliceSpecializationSpecifier *SSS =
+        qualifier->getAsSpliceSpecialization();
+    mangleExpression(SSS->getSpliceSpecifier()->getOperand());
+    for (const TemplateArgumentLoc &Arg : SSS->getTemplateArgs()->arguments())
+      mangleTemplateArg(Arg.getArgument(), false);
+    Out << "E";
+    return;
+  }
   }
 
   llvm_unreachable("unexpected nested name specifier");
@@ -2299,7 +2313,7 @@ void CXXNameMangler::mangleTemplatePrefix(TemplateName Template) {
   if (Dependent->isIdentifier())
     mangleSourceName(Dependent->getIdentifier());
   else if (Dependent->isSpliceSpecifier())
-    mangleExpression(Dependent->getSpliceSpecifier());
+    mangleExpression(Dependent->getSpliceSpecifier()->getOperand());
   else
     mangleOperatorName(Dependent->getOperator(), UnknownArity);
 
@@ -2612,7 +2626,7 @@ bool CXXNameMangler::mangleUnresolvedTypeOrSimpleId(QualType Ty,
       mangleSourceName(DTST->getIdentifier());
     } else if (DTST->hasSplice()) {
       Template = getASTContext().getDependentTemplateName(DTST->getSplice());
-      mangleExpression(DTST->getSplice());
+      mangleExpression(DTST->getSplice()->getOperand());
     }
     mangleTemplateArgs(Template, DTST->template_arguments());
     break;
@@ -4585,7 +4599,8 @@ void CXXNameMangler::mangleType(const ReflectionSpliceType *T) {
   // FIXME(P2996): This should probably mangle 'UnderlyingType' instead of
   // 'Operand', but this is crashing the compiler. Revisit this, definitely
   // something wrong here.
-  mangleExpression(T->getOperand());
+  //mangleExpression(T->getSplice()->getOperand());
+  mangleType(T->getUnderlyingType());
   Out << "E";
 }
 
@@ -5098,10 +5113,6 @@ recurse:
       mangleReflection(RE->getReflection());
     break;
   }
-
-  case Expr::CXXSpliceSpecifierExprClass:
-    E = cast<CXXSpliceSpecifierExpr>(E)->getOperand();
-    goto recurse;
 
   case Expr::ConstantExprClass:
     if (const Expr *SubExpr = cast<ConstantExpr>(E)->getSubExpr()) {

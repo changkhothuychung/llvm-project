@@ -1183,21 +1183,6 @@ protected:
     unsigned IsImplicit : 1;
   };
 
-  //===--- C++26 Reflect Expression bitfields classes ---===//
-
-  class CXXSpliceExprBitfields {
-    friend class ASTStmtReader;
-    friend class CXXSpliceExpr;
-
-    LLVM_PREFERRED_TYPE(ExprBitfields)
-    unsigned : NumExprBits;
-
-    /// Whether the name includes info for explicit template
-    /// keyword and arguments.
-    LLVM_PREFERRED_TYPE(bool)
-    unsigned HasTemplateKWAndArgsInfo : 1;
-  };
-
   //===--- Obj-C Expression bitfields classes ---===//
 
   class ObjCIndirectCopyRestoreExprBitfields {
@@ -1313,9 +1298,6 @@ protected:
 
     // C++ Coroutines expressions
     CoawaitExprBitfields CoawaitBits;
-
-    // C++ Reflection expressions
-    CXXSpliceExprBitfields CXXSpliceExprBits;
 
     // Obj-C Expressions
     ObjCIndirectCopyRestoreExprBitfields ObjCIndirectCopyRestoreExprBits;

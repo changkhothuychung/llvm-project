@@ -942,6 +942,29 @@ private:
     Tok.setAnnotationValue(ER.getAsOpaquePointer());
   }
 
+  /// Read an already-translated splice specifier out of an annotation token.
+  static SpliceResult getSpliceAnnotation(const Token &Tok) {
+    return SpliceResult::getFromOpaquePointer(Tok.getAnnotationValue());
+  }
+
+  /// Set the splice specifier corresponding to the given annotation token.
+  static void setSpliceAnnotation(Token &Tok, SpliceResult SR) {
+    Tok.setAnnotationValue(SR.getAsOpaquePointer());
+  }
+
+  /// Read an already-translated splice specialization specifier out of an
+  /// annotation token.
+  static SpliceSpecResult getSpliceSpecializationAnnotation(Token &Tok) {
+    return SpliceSpecResult::getFromOpaquePointer(Tok.getAnnotationValue());
+  }
+
+  /// Set the splice specialization specifier corresponding to the given
+  /// annotation token.
+  static void setSpliceSpecializationAnnotation(Token &Tok,
+                                                SpliceSpecResult SR) {
+    Tok.setAnnotationValue(SR.getAsOpaquePointer());
+  }
+
 public:
   // If NeedType is true, then TryAnnotateTypeOrScopeToken will try harder to
   // find a type name by attempting typo correction.
@@ -958,8 +981,9 @@ public:
            (Tok.is(tok::identifier) || Tok.is(tok::coloncolon) ||
             (Tok.is(tok::annot_template_id) &&
              NextToken().is(tok::coloncolon)) ||
-            Tok.is(tok::kw_decltype) || Tok.is(tok::kw___super) || 
-            Tok.isOneOf(tok::l_splice, tok::annot_splice));
+            Tok.is(tok::kw_decltype) || Tok.is(tok::kw___super) ||
+            Tok.isOneOf(tok::l_splice, tok::annot_splice,
+                        tok::kw_template, tok::annot_splice_specialization));
   }
   bool TryAnnotateOptionalCXXScopeToken(bool EnteringContext = false) {
     return MightBeCXXScopeToken() && TryAnnotateCXXScopeToken(EnteringContext);
@@ -3343,8 +3367,6 @@ private:
   };
   using InnerNamespaceInfoList = llvm::SmallVector<InnerNamespaceInfo, 4>;
 
-  Decl *ParseNamespaceName(CXXScopeSpec &SS, SourceLocation &IdentLoc);
-
   void ParseInnerNamespace(const InnerNamespaceInfoList &InnerNSs,
                            unsigned int index, SourceLocation &InlineLoc,
                            ParsedAttributes &attrs,
@@ -3953,7 +3975,7 @@ private:
   bool ParseTemplateArgumentList(TemplateArgList &TemplateArgs,
                                  TemplateTy Template, SourceLocation OpenLoc);
   ParsedTemplateArgument ParseTemplateTemplateArgument();
-  ParsedTemplateArgument ParseSpliceSpecifierTemplateArgument();
+  ParsedTemplateArgument ParseSpliceTemplateArgument();
   ParsedTemplateArgument ParseTemplateArgument();
   DeclGroupPtrTy ParseExplicitInstantiation(DeclaratorContext Context,
                                             SourceLocation ExternLoc,
@@ -4013,17 +4035,14 @@ private:
   ExprResult ParseCXXReflectExpression(SourceLocation OpLoc);
   ExprResult ParseCXXMetafunctionExpression();
 
-  bool ParseCXXSpliceSpecifier(SourceLocation TemplateKWLoc = {});
+  bool ParseSpliceSpecifier();
+  bool ParseSpliceSpecializationSpecifier();
 
-  TypeResult ParseCXXSpliceAsType(bool AllowDependent, bool Complain);
-  ExprResult ParseCXXSpliceAsExpr(bool AllowMemberReference);
+  ExprResult ParseCXXSpliceAsExpr(SourceLocation TemplateKWLoc,
+                                  bool AllowMemberReference);
+  TypeResult ParseCXXSpliceAsType(SourceLocation TypenameKWLoc,
+                                  bool AllowDependent, bool Complain);
   DeclResult ParseCXXSpliceAsNamespace();
-  TemplateTy ParseCXXSpliceAsTemplate();  // TODO(P2996): Do we use this?
-
-  bool ParseTemplateAnnotationFromSplice(SourceLocation TemplateKWLoc,
-                                         bool AllowTypeAnnotation = true,
-                                         bool TypeConstraint = false,
-                                         bool Complain = true);
 
   void ParseAnnotationSpecifier(ParsedAttributes &Attrs,
                                 SourceLocation *endLoc = nullptr);

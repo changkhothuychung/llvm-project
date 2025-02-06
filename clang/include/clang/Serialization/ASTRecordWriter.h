@@ -245,6 +245,26 @@ public:
   // Emits a concept reference.
   void AddConceptReference(const ConceptReference *CR);
 
+  // Emits a splice specifier.
+  void AddSpliceSpecifier(const SpliceSpecifier *SS);
+  void writeSpliceSpecifierRef(const SpliceSpecifier *SS) {
+    AddSpliceSpecifier(SS);
+  }
+
+  // Emits a splice specialization specifier.
+  void AddSpliceSpecializationSpecifier(
+                                      const SpliceSpecializationSpecifier *SSS);
+  void writeSpliceSpecializationSpecifierRef(
+                                     const SpliceSpecializationSpecifier *SSS) {
+    AddSpliceSpecializationSpecifier(SSS);
+  }
+
+  // Emits a splice template argument.
+  void AddSpliceTemplateArgument(const SpliceTemplateArgument *STA);
+  void writeSpliceTemplateArgumentRef(const SpliceTemplateArgument *STA) {
+    AddSpliceTemplateArgument(STA);
+  }
+
   /// Emit a reference to a declaration.
   void AddDeclRef(const Decl *D) {
     return Writer->AddDeclRef(D, *Record);

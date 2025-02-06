@@ -2639,39 +2639,44 @@ public:
   }
 };
 
-struct ReflectionSpliceTypeLocInfo {
-  SourceLocation LSpliceLoc, RSpliceLoc;
-};
+struct ReflectionSpliceTypeLocInfo { };
 
 class ReflectionSpliceTypeLoc
   : public ConcreteTypeLoc<UnqualTypeLoc, ReflectionSpliceTypeLoc,
                            ReflectionSpliceType, ReflectionSpliceTypeLocInfo> {
 public:
-  Expr *getOperand() const {
-    return getTypePtr()->getOperand();
+  SourceLocation getTypenameKWLoc() const {
+    return getTypePtr()->getTypenameKWLoc();
   }
 
-  SourceLocation getLSpliceLoc() const {
-    return this->getLocalData()->LSpliceLoc;
+  MaybeSpecializedSplicePtr getSplice() const {
+    return getTypePtr()->getSplice();
   }
 
-  void setLSpliceLoc(SourceLocation Loc) {
-    this->getLocalData()->LSpliceLoc = Loc;
+  void initializeLocal(ASTContext &Context, SourceLocation Loc) {
+    // nothing to do
   }
-
-  SourceLocation getRSpliceLoc() const {
-    return this->getLocalData()->RSpliceLoc;
-  }
-
-  void setRSpliceLoc(SourceLocation Loc) {
-    this->getLocalData()->RSpliceLoc = Loc;
-  }
-
-  void initializeLocal(ASTContext &Context, SourceLocation Loc);
 
   SourceRange getLocalSourceRange() const {
-    return SourceRange(getLSpliceLoc(), getRSpliceLoc());
+    SourceLocation Begin = getTypePtr()->getTypenameKWLoc();
+    SourceLocation End;
+    if (auto *SS = dyn_cast<SpliceSpecifier *>(getTypePtr()->getSplice())) {
+      if (Begin.isInvalid())
+        Begin = SS->getBeginLoc();
+      End = SS->getEndLoc();
+    } else {
+      auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(
+          getTypePtr()->getSplice());
+      assert(Begin.isInvalid());
+
+      Begin = SSS->getBeginLoc();
+      End = SSS->getEndLoc();
+    }
+    return SourceRange(Begin, End);
   }
+
+  // LocalData is empty and TypeLocBuilder doesn't handle DataSize 1.
+  unsigned getLocalDataSize() const { return 0; }
 };
 
 struct AtomicTypeLocInfo {

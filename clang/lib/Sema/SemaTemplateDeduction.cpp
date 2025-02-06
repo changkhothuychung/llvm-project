@@ -281,11 +281,11 @@ checkDeducedTemplateArguments(ASTContext &Context,
     // All other combinations are incompatible.
     return DeducedTemplateArgument();
 
-  case TemplateArgument::SpliceSpecifier:
+  case TemplateArgument::Splice:
     if (Y.getKind() == TemplateArgument::Type ||
         Y.getKind() == TemplateArgument::Expression ||
         Y.getKind() == TemplateArgument::Declaration ||
-        Y.getKind() == TemplateArgument::SpliceSpecifier ||
+        Y.getKind() == TemplateArgument::Splice ||
         Y.getKind() == TemplateArgument::Template)
       return X;
 
@@ -2581,7 +2581,7 @@ DeduceTemplateArguments(Sema &S, TemplateParameterList *TemplateParams,
     Info.SecondArg = A;
     return TemplateDeductionResult::NonDeducedMismatch;
 
-  case TemplateArgument::SpliceSpecifier:
+  case TemplateArgument::Splice:
     llvm_unreachable("TODO");
 
   case TemplateArgument::StructuralValue:
@@ -2625,7 +2625,7 @@ DeduceTemplateArguments(Sema &S, TemplateParameterList *TemplateParams,
       }
       case TemplateArgument::Integral:
       case TemplateArgument::StructuralValue:
-      case TemplateArgument::SpliceSpecifier:
+      case TemplateArgument::Splice:
         return DeduceNonTypeTemplateArgument(
             S, TemplateParams, NTTP, DeducedTemplateArgument(A),
             A.getNonTypeTemplateArgumentType(), Info, PartialOrdering, Deduced,
@@ -2870,7 +2870,7 @@ static bool isSameTemplateArg(ASTContext &Context,
     case TemplateArgument::Integral:
       return hasSameExtendedValue(X.getAsIntegral(), Y.getAsIntegral());
 
-    case TemplateArgument::SpliceSpecifier:
+    case TemplateArgument::Splice:
       return false;
 
     case TemplateArgument::StructuralValue:
@@ -2951,7 +2951,7 @@ Sema::getTrivialTemplateArgumentLoc(const TemplateArgument &Arg,
     return TemplateArgumentLoc(TemplateArgument(E), E);
   }
 
-  case TemplateArgument::SpliceSpecifier:
+  case TemplateArgument::Splice:
     llvm_unreachable("TODO: unimplemented");
 
     case TemplateArgument::Template:
@@ -5198,6 +5198,15 @@ namespace {
       return Result;
     }
 
+    QualType TransformReflectionSpliceType(TypeLocBuilder &TLB,
+                                           ReflectionSpliceTypeLoc TL) {
+      QualType Result = SemaRef.Context.getReflectionSpliceType(
+          TL.getTypePtr()->getTypenameKWLoc(), TL.getTypePtr()->getSplice(),
+          Replacement);
+      TLB.push<ReflectionSpliceTypeLoc>(Result);
+      return Result;
+    }
+
     ExprResult TransformLambdaExpr(LambdaExpr *E) {
       // Lambdas never need to be transformed.
       return E;
@@ -7078,13 +7087,18 @@ MarkUsedTemplateParameters(ASTContext &Ctx, QualType T,
                                  OnlyDeduced, Depth, Used);
     break;
 
-  case Type::ReflectionSplice:
-    if (!OnlyDeduced)
-      MarkUsedTemplateParameters(Ctx,
-                                 cast<ReflectionSpliceType>(T)->getOperand(),
-                                 OnlyDeduced, Depth, Used);
-    break;
+  case Type::ReflectionSplice: {
+    auto *RST = cast<ReflectionSpliceType>(T);
+    auto *SS = dyn_cast<SpliceSpecifier *>(RST->getSplice());
+    if (!SS)
+      SS = cast<SpliceSpecializationSpecifier *>(RST->getSplice())
+          ->getSpliceSpecifier();
 
+    if (!OnlyDeduced)
+      MarkUsedTemplateParameters(Ctx, SS->getOperand(), OnlyDeduced, Depth,
+                                 Used);
+    break;
+  }
   case Type::PackIndexing:
     if (!OnlyDeduced) {
       MarkUsedTemplateParameters(Ctx, cast<PackIndexingType>(T)->getPattern(),
@@ -7161,7 +7175,7 @@ MarkUsedTemplateParameters(ASTContext &Ctx,
   switch (TemplateArg.getKind()) {
   case TemplateArgument::Null:
   case TemplateArgument::Integral:
-  case TemplateArgument::SpliceSpecifier:
+  case TemplateArgument::Splice:
   case TemplateArgument::Declaration:
   case TemplateArgument::NullPtr:
   case TemplateArgument::StructuralValue:

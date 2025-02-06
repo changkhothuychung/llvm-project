@@ -244,7 +244,7 @@ public:
   }
 
   void VisitCXXSpliceExpr(CXXSpliceExpr *E) {
-    Visit(E->getOperand());
+    Visit(E->getModel());
   }
 };
 }  // end anonymous namespace.

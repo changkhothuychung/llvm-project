@@ -12426,7 +12426,7 @@ Decl *Sema::ActOnUsingDirective(Scope *S, SourceLocation UsingLoc,
   // Check for dependent namespaces.
   if (auto *DNSD = dyn_cast<DependentNamespaceDecl>(NS)) {
     Diag(IdentLoc, diag::err_using_dependent_namespace)
-        << DNSD->getSpliceExpr()->getSourceRange();
+        << DNSD->getSplice()->getSourceRange();
     return nullptr;
   } else if (auto *A = dyn_cast<NamespaceAliasDecl>(NS); A && A->isDependent()) {
     Diag(IdentLoc, diag::err_using_dependent_namespace) << IdentLoc;

@@ -27,6 +27,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjCCommon.h"
 #include "clang/AST/NestedNameSpecifier.h"
+#include "clang/AST/SpliceSpecifier.h"
 #include "clang/Basic/ExceptionSpecificationType.h"
 #include "clang/Basic/Lambda.h"
 #include "clang/Basic/OperatorKinds.h"
@@ -50,6 +51,7 @@ namespace clang {
   class NamespaceDecl;
   class ObjCDeclSpec;
   class Sema;
+  class SpliceSpecifier;
   class Declarator;
   struct TemplateIdAnnotation;
 
@@ -176,7 +178,7 @@ public:
                  SourceLocation SuperLoc, SourceLocation ColonColonLoc);
 
   /// Turns this (empty) nested-name-specifier into a specifier having a single
-  /// component of splice specifier kind.
+  /// component of splice-scope-specifier kind.
   ///
   /// \param Context The AST context in which this nested-name-specifier
   /// resides.
@@ -184,8 +186,10 @@ public:
   /// \param Expr The splice specifier.
   ///
   /// \param ColonColonLoc The location of the trailing '::'.
-  void MakeSpliceSpecifier(ASTContext &Context, CXXSpliceSpecifierExpr *Expr,
-                           SourceLocation ColonColonLoc);
+  void MakeSpliceScopeSpecifier(ASTContext &Context,
+                                SourceLocation TemplateKWLoc,
+                                MaybeSpecializedSplicePtr Splice,
+                                SourceLocation ColonColonLoc);
 
   /// Make a new nested-name-specifier from incomplete source-location
   /// information.
@@ -427,6 +431,7 @@ private:
     Decl *DeclRep;
     Expr *ExprRep;
     TemplateIdAnnotation *TemplateIdRep;
+    MaybeSpecializedSplicePtr SpliceRep;
   };
   Expr *PackIndexingExpr = nullptr;
 
@@ -472,10 +477,13 @@ private:
   }
   static bool isExprRep(TST T) {
     return T == TST_typeofExpr || T == TST_typeof_unqualExpr ||
-           T == TST_decltype || T == TST_type_splice || T == TST_bitint;
+           T == TST_decltype || T == TST_bitint;
   }
   static bool isTemplateIdRep(TST T) {
     return (T == TST_auto || T == TST_decltype_auto);
+  }
+  static bool isSpliceRep(TST T) {
+    return (T == TST_type_splice);
   }
 
   DeclSpec(const DeclSpec &) = delete;
@@ -570,6 +578,11 @@ public:
   Expr *getRepAsExpr() const {
     assert(isExprRep((TST) TypeSpecType) && "DeclSpec does not store an expr");
     return ExprRep;
+  }
+  MaybeSpecializedSplicePtr getRepAsSpliceSpecifier() const {
+    assert(isSpliceRep((TST) TypeSpecType) &&
+           "DeclSpec does not store a splice");
+    return SpliceRep;
   }
 
   Expr *getPackIndexingExpr() const {
@@ -774,6 +787,9 @@ public:
 
   bool SetTypeSpecType(TST T, SourceLocation Loc, const char *&PrevSpec,
                        unsigned &DiagID, Expr *Rep,
+                       const PrintingPolicy &policy);
+  bool SetTypeSpecType(TST T, SourceLocation Loc, const char *&PrevSpec,
+                       unsigned &DiagID, MaybeSpecializedSplicePtr Rep,
                        const PrintingPolicy &policy);
   bool SetTypeAltiVecVector(bool isAltiVecVector, SourceLocation Loc,
                        const char *&PrevSpec, unsigned &DiagID,

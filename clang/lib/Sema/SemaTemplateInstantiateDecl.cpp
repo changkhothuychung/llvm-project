@@ -1401,16 +1401,11 @@ Decl *TemplateDeclInstantiator::VisitOpenACCRoutineDecl(OpenACCRoutineDecl *D) {
 Decl *
 TemplateDeclInstantiator::VisitDependentNamespaceDecl(
       DependentNamespaceDecl *D) {
-  ExprResult ER = SemaRef.SubstExpr(D->getSpliceExpr(), TemplateArgs);
-  if (ER.isInvalid())
+  SpliceResult SR = SemaRef.SubstSpliceSpecifier(D->getSplice(), TemplateArgs);
+  if (SR.isInvalid())
     return nullptr;
-  auto *Splice = cast<CXXSpliceSpecifierExpr>(ER.get());
-  assert(!Splice->isValueDependent());
 
-  DeclResult DR =
-        SemaRef.ActOnCXXSpliceExpectingNamespace(Splice->getLSpliceLoc(),
-                                                 Splice->getOperand(),
-                                                 Splice->getRSpliceLoc());
+  DeclResult DR = SemaRef.ActOnCXXSpliceExpectingNamespace(SR.get());
   if (DR.isInvalid())
     return nullptr;
   return DR.get();
@@ -2045,7 +2040,7 @@ Decl *TemplateDeclInstantiator::VisitConstevalBlockDecl(ConstevalBlockDecl *D) {
 }
 
 Decl *TemplateDeclInstantiator::VisitExpansionStmtDecl(ExpansionStmtDecl *D) {
-  Decl *NTTP = VisitNonTypeTemplateParmDecl(D->getTemplateParm()); 
+  Decl *NTTP = VisitNonTypeTemplateParmDecl(D->getTemplateParm());
 
   ExpansionStmtDecl *Result =
       cast<ExpansionStmtDecl>(

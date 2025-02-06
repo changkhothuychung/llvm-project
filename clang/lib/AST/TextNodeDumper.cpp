@@ -1044,6 +1044,12 @@ void clang::TextNodeDumper::dumpNestedNameSpecifier(const NestedNameSpecifier *N
     case NestedNameSpecifier::Splice:
       OS << " SpliceSpecifier";
       break;
+    case NestedNameSpecifier::SpliceSpecialization:
+      OS << " SpliceSpecialization";
+      break;
+    case NestedNameSpecifier::SpliceSpecializationWithTemplate:
+      OS << " SpliceSpecializationWithTemplate";
+      break;
     }
 
     dumpNestedNameSpecifier(NNS->getPrefix());

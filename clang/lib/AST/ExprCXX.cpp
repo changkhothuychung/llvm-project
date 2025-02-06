@@ -2015,49 +2015,13 @@ CXXMetafunctionExpr *CXXMetafunctionExpr::CreateEmpty(ASTContext &C) {
   return new (C) CXXMetafunctionExpr(EmptyShell());
 }
 
-CXXSpliceSpecifierExpr::CXXSpliceSpecifierExpr(
-        QualType ResultTy, SourceLocation TemplateKWLoc,
-        SourceLocation LSpliceLoc, Expr *Operand, SourceLocation RSpliceLoc)
-  : Expr(CXXSpliceSpecifierExprClass, ResultTy, VK_PRValue, OK_Ordinary),
-    TemplateKWLoc(TemplateKWLoc), LSpliceLoc(LSpliceLoc), Operand(Operand),
-    RSpliceLoc(RSpliceLoc) {
-  setDependence(computeDependence(this));
-}
-
-CXXSpliceSpecifierExpr::CXXSpliceSpecifierExpr(EmptyShell Empty)
-  : Expr(CXXSpliceSpecifierExprClass, Empty) {
-}
-
-CXXSpliceSpecifierExpr *CXXSpliceSpecifierExpr::Create(
-        ASTContext &C, SourceLocation TemplateKWLoc, SourceLocation LSpliceLoc,
-        Expr *Operand, SourceLocation RSpliceLoc) {
-  return new (C) CXXSpliceSpecifierExpr(C.MetaInfoTy, TemplateKWLoc,
-                                        LSpliceLoc, Operand, RSpliceLoc);
-}
-
-CXXSpliceSpecifierExpr *CXXSpliceSpecifierExpr::CreateEmpty(ASTContext &C) {
-  return new (C) CXXSpliceSpecifierExpr(EmptyShell());
-}
-
 CXXSpliceExpr::CXXSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
                              SourceLocation TemplateKWLoc,
-                             SourceLocation LSpliceLoc, Expr *Operand,
-                             SourceLocation RSpliceLoc,
-                             const TemplateArgumentListInfo *TArgs,
+                             MaybeSpecializedSplicePtr Splice, Expr *Model,
                              bool AllowMemberReference)
   : Expr(CXXSpliceExprClass, ResultTy, ValueKind, OK_Ordinary),
-    LSpliceLoc(LSpliceLoc), Operand(Operand), RSpliceLoc(RSpliceLoc),
+    TemplateKWLoc(TemplateKWLoc), Splice(Splice), Model(Model),
     AllowMemberReference(AllowMemberReference) {
-  CXXSpliceExprBits.HasTemplateKWAndArgsInfo =
-      (TArgs != nullptr ) || TemplateKWLoc.isValid();
-
-  if (TArgs) {
-    getTrailingASTTemplateKWAndArgsInfo()->initializeFrom(
-          TemplateKWLoc, *TArgs, getTrailingTemplateArgumentLoc());
-  } else if (TemplateKWLoc.isValid()) {
-    getTrailingASTTemplateKWAndArgsInfo()->initializeFrom(TemplateKWLoc);
-  }
-
   setDependence(computeDependence(this));
 }
 
@@ -2065,26 +2029,22 @@ CXXSpliceExpr::CXXSpliceExpr(EmptyShell Empty)
   : Expr(CXXSpliceExprClass, Empty) {
 }
 
-CXXSpliceExpr *CXXSpliceExpr::Create(ASTContext &C,
-                                     ExprValueKind ValueKind,
+CXXSpliceExpr *CXXSpliceExpr::Create(ASTContext &C, ExprValueKind ValueKind,
                                      SourceLocation TemplateKWLoc,
-                                     SourceLocation LSpliceLoc,
-                                     Expr *Operand,
-                                     SourceLocation RSpliceLoc,
-                                     const TemplateArgumentListInfo *TArgs,
-                                     bool AllowMemberReference) {
-  QualType ResultTy = Operand->getType();
-  if (Operand->isTypeDependent() || Operand->isValueDependent())
+                                     MaybeSpecializedSplicePtr Splice,
+                                     Expr *Model, bool AllowMemberReference) {
+  QualType ResultTy = Model->getType();
+  if (auto *SS = dyn_cast<SpliceSpecifier *>(Splice); SS && SS->isDependent())
     ResultTy = C.DependentTy;
+  else if (auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(Splice);
+           SSS && SSS->isDependent())
+    ResultTy = C.DependentTy;
+  else if (Model)
+    ResultTy = Model->getType();
+  assert(!ResultTy.isNull());
 
-  unsigned Size = totalSizeToAlloc<ASTTemplateKWAndArgsInfo,
-                                   TemplateArgumentLoc>(
-        (TemplateKWLoc.isValid() || TArgs) ? 1 : 0,
-        TArgs ? TArgs->size() : 0);
-  void *Mem = C.Allocate(Size, alignof(CXXSpliceExpr));
-  return new (Mem) CXXSpliceExpr(ResultTy, ValueKind, TemplateKWLoc,
-                                 LSpliceLoc, Operand, RSpliceLoc, TArgs,
-                                 AllowMemberReference);
+  return new (C) CXXSpliceExpr(ResultTy, ValueKind, TemplateKWLoc, Splice,
+                               Model, AllowMemberReference);
 }
 
 CXXSpliceExpr *CXXSpliceExpr::CreateEmpty(ASTContext &C) {

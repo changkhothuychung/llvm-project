@@ -887,9 +887,9 @@ ANNOTATION(decltype)     // annotation for a decltype expression,
 ANNOTATION(pack_indexing_type) // annotation for an indexed pack of type,
                               // e.g., "T...[expr]"
 
-ANNOTATION(splice)       // annotation for a splice of a reflection whose kind
-                         // is yet to be determined (e.g., expression, type,
-                         // namespace, template).
+ANNOTATION(splice)       // annotation for a splice specifier
+ANNOTATION(splice_specialization) // annotation for a splice specialization
+                                  // specifier
 
 // Annotation for #pragma unused(...)
 // For each argument inside the parentheses the pragma handler will produce

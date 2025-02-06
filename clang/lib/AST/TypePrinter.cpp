@@ -1303,8 +1303,9 @@ void TypePrinter::printReflectionSpliceBefore(const ReflectionSpliceType *T,
                                               raw_ostream &OS) {
   if (T->isDependentType()) {
     OS << "typename [:";
-    if (T->getOperand())
-      T->getOperand()->printPretty(OS, nullptr, Policy);
+    /*if (T->getOperand())
+      T->getOperand()->printPretty(OS, nullptr, Policy);*/
+    OS << "TODO(expr)";
     OS << ":]";
   } else {
     print(T->getUnderlyingType(), OS, StringRef());

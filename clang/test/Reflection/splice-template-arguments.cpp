@@ -41,24 +41,16 @@ namespace non_dependent_arguments {
 constexpr unsigned x = 4;
 constexpr info R1a = ^^ArrayCls, R1b = ^^Array, R2 = ^^int, R3 = ^^x;
 static_assert(TCls<[:R1a:], [:R2:], [:R3:]>::value == sizeof(int) * 4);
-static_assert(TCls<template [:R1a:], typename [:R2:], ([:R3:])>::value ==
-              sizeof(int) * 4);
 static_assert(TCls<[:R1b:], [:R2:], [:R3:]>::value == sizeof(int) * 4);
 static_assert(TAlias<[:R1a:], [:R2:], [:R3:]>::value == sizeof(int) * 4);
 static_assert(TAlias<[:R1b:], [:R2:], [:R3:]>::value == sizeof(int) * 4);
-static_assert(TAlias<template [:R1b:], typename [:R2:], ([:R3:])>::value ==
-              sizeof(int) * 4);
 static_assert(TFn<[:R1a:], [:R2:], [:R3:]>() == sizeof(int) * 4);
 static_assert(TFn<[:R1b:], [:R2:], [:R3:]>() == sizeof(int) * 4);
-static_assert(TFn<template [:R1b:], typename [:R2:], ([:R3:])>() ==
-              sizeof(int) * 4);
 static_assert(TVar<[:R1a:], [:R2:], [:R3:]> == sizeof(int) * 4);
 static_assert(TVar<[:R1b:], [:R2:], [:R3:]> == sizeof(int) * 4);
-static_assert(TVar<template [:R1b:], typename [:R2:], ([:R3:])> ==
-              sizeof(int) * 4);
 static_assert(Concept<[:R1a:], [:R2:], [:R3:]>);
 static_assert(Concept<[:R1b:], [:R2:], [:R3:]>);
-static_assert(Concept<template [:R1b:], typename [:R2:], ([:R3:])>);
+static_assert(Concept<[:R1b:], typename [:R2:], ([:R3:])>);
 }  // namespace non_dependent_arguments
 
                              // ===================
@@ -71,7 +63,7 @@ consteval unsigned szTCls() { return TCls<[:TN:], [:T:], [:Sz:]>::value; }
 
 template <info TN, info T, info Sz>
 consteval unsigned constrainedSzTCls() {
-  return TCls<template [:TN:], typename [:T:], ([:Sz:])>::value;
+  return TCls<[:TN:], typename [:T:], ([:Sz:])>::value;
 }
 
 template <info TN, info T, info Sz>
@@ -236,7 +228,7 @@ consteval unsigned depCountCls() { return TN<[:Rs:]...>::sz; }
 
 template <template <template <typename> class...> class TN, info... Rs>
 consteval unsigned constrainedDepCountCls() {
-  return TN<template [:Rs:]...>::sz;
+  return TN<[:Rs:]...>::sz;
 }
 
 template <info... Rs>

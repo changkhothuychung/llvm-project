@@ -120,8 +120,7 @@ public:
   // Synthesizes a member-access expression for 'Obj.Mem', eliding member
   // lookup.
   virtual Expr *
-  SynthesizeDirectMemberAccess(Expr *Obj, DeclRefExpr *Mem,
-                               ArrayRef<TemplateArgument> TArgs,
+  SynthesizeDirectMemberAccess(Expr *Obj, CXXReflectExpr *Mem,
                                SourceLocation PlaceholderLoc) = 0;
 
   // Synthesizes a call expression for 'Fn(Args...)'.

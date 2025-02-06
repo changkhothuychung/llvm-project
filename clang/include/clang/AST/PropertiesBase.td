@@ -141,8 +141,10 @@ def Selector : PropertyType;
 def SourceLocation : PropertyType;
 def StmtRef : RefPropertyType<"Stmt"> { let ConstWhenWriting = 1; }
   def ExprRef : SubclassPropertyType<"Expr", StmtRef>;
-  def CXXSpliceSpecifierExprRef :
-      SubclassPropertyType<"CXXSpliceSpecifierExpr", ExprRef>;
+def SpliceSpecifierRef : RefPropertyType<"SpliceSpecifier">;
+def SpliceSpecializationSpecifierRef :
+    RefPropertyType<"SpliceSpecializationSpecifier">;
+def SpliceTemplateArgumentRef : RefPropertyType<"SpliceTemplateArgument">;
 def SubstTemplateTypeParmTypeFlag : EnumPropertyType;
 def TemplateArgument : PropertyType;
 def TemplateArgumentKind : EnumPropertyType<"TemplateArgument::ArgKind">;
@@ -994,9 +996,9 @@ let Class = PropertyTypeCase<TemplateArgument, "Integral"> in {
     return TemplateArgument(ctx, value, type, isDefaulted);
   }]>;
 }
-let Class = PropertyTypeCase<TemplateArgument, "SpliceSpecifier"> in {
-  def : Property<"value", CXXSpliceSpecifierExprRef> {
-    let Read = [{ node.getAsSpliceSpecifier() }];
+let Class = PropertyTypeCase<TemplateArgument, "Splice"> in {
+  def : Property<"value", SpliceTemplateArgumentRef> {
+    let Read = [{ node.getAsSpliceTemplateArgument() }];
   }
   def : Property<"isDefaulted", Bool> {
     let Read = [{ node.getIsDefaulted() }];

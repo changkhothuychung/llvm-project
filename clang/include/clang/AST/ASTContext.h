@@ -1865,12 +1865,14 @@ public:
   QualType getDependentTemplateSpecializationType(
       ElaboratedTypeKeyword Keyword, NestedNameSpecifier *NNS,
       const IdentifierInfo *Name, ArrayRef<TemplateArgument> Args) const;
+
   QualType getDependentTemplateSpecializationType(
-      ElaboratedTypeKeyword Keyword, const CXXSpliceSpecifierExpr *Splice,
-      ArrayRef<TemplateArgumentLoc> Args) const;
+      ElaboratedTypeKeyword Keyword,
+      const SpliceSpecifier *Splice, ArrayRef<TemplateArgumentLoc> Args) const;
   QualType getDependentTemplateSpecializationType(
-      ElaboratedTypeKeyword Keyword, const CXXSpliceSpecifierExpr *Splice,
-      ArrayRef<TemplateArgument> Args) const;
+      ElaboratedTypeKeyword Keyword,
+      const SpliceSpecifier *Splice, ArrayRef<TemplateArgument> Args) const;
+
 
   TemplateArgument getInjectedTemplateArg(NamedDecl *ParamDecl) const;
 
@@ -1885,7 +1887,9 @@ public:
                                 std::optional<unsigned> NumExpansions,
                                 bool ExpectPackInType = true) const;
 
-  QualType getReflectionSpliceType(Expr *E, QualType UnderlyingType) const;
+  QualType getReflectionSpliceType(SourceLocation TypenameKWLoc,
+                                   MaybeSpecializedSplicePtr Splice,
+                                   QualType UnderlyingType) const;
 
   QualType getObjCInterfaceType(const ObjCInterfaceDecl *Decl,
                                 ObjCInterfaceDecl *PrevDecl = nullptr) const;
@@ -2426,7 +2430,7 @@ public:
   TemplateName getDependentTemplateName(NestedNameSpecifier *NNS,
                                         OverloadedOperatorKind Operator) const;
   TemplateName
-  getDependentTemplateName(const CXXSpliceSpecifierExpr *S) const;
+  getDependentTemplateName(const SpliceSpecifier *S) const;
   TemplateName
   getSubstTemplateTemplateParm(TemplateName replacement, Decl *AssociatedDecl,
                                unsigned Index,

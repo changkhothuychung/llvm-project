@@ -855,15 +855,32 @@ let Class = PackExpansionType in {
 }
 
 let Class = ReflectionSpliceType in {
+  def : Property<"typenameLoc", SourceLocation> {
+    let Read = [{ node->getTypenameKWLoc() }];
+  }
+  def : Property<"isSpecialization", Bool> {
+    let Read = [{ isa<SpliceSpecializationSpecifier *>(node->getSplice()) }];
+  }
+  def : Property<"spliceSpecifier", SpliceSpecifierRef> {
+    let Read = [{ cast<SpliceSpecifier *>(node->getSplice()) }];
+    let Conditional = [{ !isSpecialization }];
+  }
+  def : Property<"specializationSpecifier", SpliceSpecializationSpecifierRef> {
+    let Read = [{ cast<SpliceSpecializationSpecifier *>(node->getSplice()) }];
+    let Conditional = [{ isSpecialization }];
+  }
   def : Property<"underlyingType", QualType> {
     let Read = [{ node->getUnderlyingType() }];
   }
-  def : Property<"operand", ExprRef> {
-    let Read = [{ node->getOperand() }];
-  }
 
   def : Creator<[{
-    return ctx.getReflectionSpliceType(operand, underlyingType);
+    if (isSpecialization)
+      return ctx.getReflectionSpliceType(typenameLoc,
+                                         specializationSpecifier.value(),
+                                         underlyingType);
+    else
+      return ctx.getReflectionSpliceType(typenameLoc, spliceSpecifier.value(),
+                                         underlyingType);
   }]>;
 }
 

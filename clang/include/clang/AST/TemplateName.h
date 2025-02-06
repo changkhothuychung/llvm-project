@@ -26,7 +26,6 @@
 namespace clang {
 
 class ASTContext;
-class CXXSpliceSpecifierExpr;
 class Decl;
 class DependentTemplateName;
 class IdentifierInfo;
@@ -38,6 +37,7 @@ class AssumedTemplateStorage;
 class DeducedTemplateStorage;
 struct PrintingPolicy;
 class QualifiedTemplateName;
+class SpliceSpecifier;
 class SubstTemplateTemplateParmPackStorage;
 class SubstTemplateTemplateParmStorage;
 class TemplateArgument;
@@ -578,7 +578,7 @@ class DependentTemplateName : public llvm::FoldingSetNode {
     /// The dependent splice expression.
     ///
     /// Only valid when the NestedNameSpecifier on \c Qualifier is unset.
-    const CXXSpliceSpecifierExpr *SpliceExpr;
+    const SpliceSpecifier *Splice;
   };
 
   /// The canonical template name to which this dependent
@@ -611,8 +611,8 @@ class DependentTemplateName : public llvm::FoldingSetNode {
        : Qualifier(Qualifier, DTNK_Operator), Operator(Operator),
          CanonicalTemplateName(Canon) {}
 
-  DependentTemplateName(const CXXSpliceSpecifierExpr *SpliceExpr)
-       : Qualifier(nullptr, DTNK_SpliceSpecifier), SpliceExpr(SpliceExpr),
+  DependentTemplateName(const SpliceSpecifier *Splice)
+       : Qualifier(nullptr, DTNK_SpliceSpecifier), Splice(Splice),
          CanonicalTemplateName(this) {}
 
 public:
@@ -646,9 +646,9 @@ public:
     return Qualifier.getInt() == DTNK_SpliceSpecifier;
   }
 
-  const CXXSpliceSpecifierExpr *getSpliceSpecifier() const {
+  const SpliceSpecifier *getSpliceSpecifier() const {
     assert(isSpliceSpecifier() && "Template name isn't a splice specifier?");
-    return SpliceExpr;
+    return Splice;
   }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
@@ -675,7 +675,7 @@ public:
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID,
-                      const CXXSpliceSpecifierExpr *Splice) {
+                      const SpliceSpecifier *Splice) {
     ID.AddPointer(nullptr);
     ID.AddPointer(Splice);
     ID.AddInteger(DTNK_SpliceSpecifier);

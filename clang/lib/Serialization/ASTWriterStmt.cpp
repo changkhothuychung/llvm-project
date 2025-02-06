@@ -497,22 +497,19 @@ void ASTStmtWriter::VisitCXXMetafunctionExpr(CXXMetafunctionExpr *E) {
   Code = serialization::EXPR_METAFUNCTION;
 }
 
-void ASTStmtWriter::VisitCXXSpliceSpecifierExpr(CXXSpliceSpecifierExpr *E) {
-  VisitExpr(E);
-  Record.AddSourceLocation(E->getTemplateKWLoc());
-  Record.AddSourceLocation(E->getLSpliceLoc());
-  Record.AddSourceLocation(E->getRSpliceLoc());
-  Record.AddStmt(E->getOperand());
-
-  Code = serialization::EXPR_SPLICE_SPECIFIER;
-}
-
 void ASTStmtWriter::VisitCXXSpliceExpr(CXXSpliceExpr *E) {
   VisitExpr(E);
-  Record.AddSourceLocation(E->getLSpliceLoc());
-  Record.AddSourceLocation(E->getRSpliceLoc());
+  Record.AddSourceLocation(E->getTemplateKWLoc());
+  Record.writeBool(E->hasExplicitTemplateArgs());
+
+  if (E->hasExplicitTemplateArgs())
+    Record.AddSpliceSpecializationSpecifier(
+        dyn_cast<SpliceSpecializationSpecifier *>(E->getSplice()));
+  else
+    Record.AddSpliceSpecifier(dyn_cast<SpliceSpecifier *>(E->getSplice()));
+
+  Record.AddStmt(E->getModel());
   Record.writeBool(E->allowMemberReference());
-  Record.AddStmt(E->getOperand());
 
   Code = serialization::EXPR_SPLICE;
 }

@@ -252,32 +252,6 @@ Parser::DeclGroupPtrTy Parser::ParseNamespace(DeclaratorContext Context,
                                         ImplicitUsingDirectiveDecl);
 }
 
-/// ParseNamespaceName - Parse the name of a namespace.
-Decl *Parser::ParseNamespaceName(CXXScopeSpec &SS, SourceLocation &IdentLoc) {
-  // Will be one of:
-  // - A nested-names-specifier followed by an identifier, or
-  // - An unqualified splice (C++2c, P2996).
-
-  ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
-                                 /*ObjectHadErrors=*/false,
-                                 /*EnteringContext=*/false,
-                                 /*MayBePseudoDestructor=*/nullptr,
-                                 /*IsTypename=*/false,
-                                 /*LastII=*/nullptr,
-                                 /*OnlyNamespace=*/false);
-
-  if (Tok.is(tok::identifier)) {
-    IdentifierInfo *II = Tok.getIdentifierInfo();
-    IdentLoc = ConsumeToken();
-    return Actions.ActOnNamespaceName(getCurScope(), SS, II, IdentLoc);
-  } else if (SS.isValid() &&
-             SS.getScopeRep()->getKind() == NestedNameSpecifier::Global) {
-    return Actions.getASTContext().getTranslationUnitDecl();
-  }
-
-  return nullptr;
-}
-
 /// ParseInnerNamespace - Parse the contents of a namespace.
 void Parser::ParseInnerNamespace(const InnerNamespaceInfoList &InnerNSs,
                                  unsigned int index, SourceLocation &InlineLoc,
@@ -808,6 +782,10 @@ Parser::DeclGroupPtrTy Parser::ParseUsingDeclaration(
       SkipUntil(tok::semi);
       return nullptr;
     }
+
+    SourceLocation TypenameKWLoc;
+    TryConsumeToken(tok::kw_typename, TypenameKWLoc);
+
     CXXScopeSpec SS;
     if (ParseOptionalCXXScopeSpecifier(SS, /*ParsedType=*/nullptr,
                                        /*ObectHasErrors=*/false,
@@ -827,14 +805,16 @@ Parser::DeclGroupPtrTy Parser::ParseUsingDeclaration(
       return nullptr;
     }
 
-    if (Tok.is(tok::annot_splice)) {
+    if (Tok.is(tok::annot_typename)) {
       SourceLocation SpliceLoc = Tok.getLocation();
-      TypeResult TR = ParseCXXSpliceAsType(/*AllowDependent=*/true,
-                                           /*Complain=*/true);
+      // Dependent type will be diagnosed by ActOnUsingEnumDeclaration.
+      TypeResult TR = getTypeAnnotation(Tok);
       if (TR.isInvalid()) {
         SkipUntil(tok::semi);
         return nullptr;
       }
+      ConsumeAnnotationToken();
+
       TypeSourceInfo *TSI;
       QualType EnumTy = Actions.GetTypeFromParser(TR.get(), &TSI);
       if (EnumTy.isNull()) {
@@ -851,6 +831,11 @@ Parser::DeclGroupPtrTy Parser::ParseUsingDeclaration(
       }
 
       return Actions.ConvertDeclToDeclGroup(UED);
+    }
+
+    if (TypenameKWLoc.isValid()) {
+      SkipUntil(tok::semi);
+      return nullptr;
     }
 
     Decl *UED = nullptr;
@@ -1549,8 +1534,10 @@ bool Parser::MaybeParseTypeTransformTypeSpecifier(DeclSpec &DS) {
 ///         ::[opt] nested-name-specifier[opt] class-name
 TypeResult Parser::ParseBaseTypeSpecifier(SourceLocation &BaseLoc,
                                           SourceLocation &EndLocation) {
-  // Ignore attempts to use typename
-  if (Tok.is(tok::kw_typename)) {
+  // Disallow attempts to use typename except for splice-type-specifiers.
+  SourceLocation TypenameKWLoc;
+  if (TryConsumeToken(tok::kw_typename, TypenameKWLoc) &&
+      !Tok.is(tok::l_splice)) {
     Diag(Tok, diag::err_expected_class_name_not_template)
         << FixItHint::CreateRemoval(Tok.getLocation());
     ConsumeToken();
@@ -1610,7 +1597,8 @@ TypeResult Parser::ParseBaseTypeSpecifier(SourceLocation &BaseLoc,
   }
 
   if (Tok.is(tok::annot_splice))
-    return ParseCXXSpliceAsType(/*AllowDependent=*/true, /*Complain=*/true);
+    return ParseCXXSpliceAsType(TypenameKWLoc, /*AllowDependent=*/true,
+                                /*Complain=*/true);
 
   if (Tok.isNot(tok::identifier)) {
     Diag(Tok, diag::err_expected_class_name);

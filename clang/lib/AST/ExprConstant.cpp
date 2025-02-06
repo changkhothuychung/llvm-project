@@ -8756,12 +8756,8 @@ public:
   /// Visit a metafunction evaluation (P2996).
   bool VisitCXXMetafunctionExpr(const CXXMetafunctionExpr *E);
 
-  bool VisitCXXSpliceSpecifierExpr(const CXXSpliceSpecifierExpr *E) {
-    return this->Visit(E->getOperand());
-  }
-
   bool VisitCXXSpliceExpr(const CXXSpliceExpr *E) {
-    return this->Visit(E->getOperand());
+    return this->Visit(E->getModel());
   }
 
   bool VisitStackLocationExpr(const StackLocationExpr *E);
@@ -16831,7 +16827,6 @@ public:
 
   bool VisitCXXReflectExpr(const CXXReflectExpr *E);
   bool VisitCXXMetafunctionExpr(const CXXMetafunctionExpr *E);
-  bool VisitCXXSpliceSpecifierExpr(const CXXSpliceSpecifierExpr *E);
   bool VisitCXXSpliceExpr(const CXXSpliceExpr *E);
 };
 
@@ -16843,11 +16838,6 @@ bool ReflectionEvaluator::VisitCXXReflectExpr(const CXXReflectExpr *E) {
 bool ReflectionEvaluator::VisitCXXMetafunctionExpr(
                                                  const CXXMetafunctionExpr *E) {
   return BaseType::VisitCXXMetafunctionExpr(E);
-}
-
-bool ReflectionEvaluator::VisitCXXSpliceSpecifierExpr(
-                                              const CXXSpliceSpecifierExpr *E) {
-  return BaseType::VisitCXXSpliceSpecifierExpr(E);
 }
 
 bool ReflectionEvaluator::VisitCXXSpliceExpr(const CXXSpliceExpr *E) {
@@ -17678,7 +17668,6 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CXXNoexceptExprClass:
   case Expr::CXXReflectExprClass:
   case Expr::CXXMetafunctionExprClass:
-  case Expr::CXXSpliceSpecifierExprClass:
   case Expr::CXXSpliceExprClass:
   case Expr::StackLocationExprClass:
   case Expr::ExtractLValueExprClass:

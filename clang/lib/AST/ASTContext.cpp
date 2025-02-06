@@ -3388,6 +3388,10 @@ static void encodeTypeForFunctionPointerAuth(const ASTContext &Ctx,
       OS << "v";
       return;
 
+    case BuiltinType::MetaInfo:
+      OS << "m";
+      return;
+
     case BuiltinType::ObjCId:
     case BuiltinType::ObjCClass:
     case BuiltinType::ObjCSel:
@@ -5836,7 +5840,7 @@ ASTContext::getDependentTemplateSpecializationType(
 }
 
 QualType ASTContext::getDependentTemplateSpecializationType(
-    ElaboratedTypeKeyword Keyword, const CXXSpliceSpecifierExpr *Splice,
+    ElaboratedTypeKeyword Keyword, const SpliceSpecifier *Splice,
     ArrayRef<TemplateArgumentLoc> Args) const {
   // TODO: avoid this copy
   SmallVector<TemplateArgument, 16> ArgCopy;
@@ -5848,7 +5852,7 @@ QualType ASTContext::getDependentTemplateSpecializationType(
 QualType
 ASTContext::getDependentTemplateSpecializationType(
                                  ElaboratedTypeKeyword Keyword,
-                                 const CXXSpliceSpecifierExpr *Splice,
+                                 const SpliceSpecifier *Splice,
                                  ArrayRef<TemplateArgument> Args) const {
   llvm::FoldingSetNodeID ID;
   DependentTemplateSpecializationType::Profile(ID, *this, Keyword, Splice,
@@ -5970,7 +5974,8 @@ QualType ASTContext::getPackExpansionType(QualType Pattern,
   return QualType(T, 0);
 }
 
-QualType ASTContext::getReflectionSpliceType(Expr *Operand,
+QualType ASTContext::getReflectionSpliceType(SourceLocation TypenameKWLoc,
+                                             MaybeSpecializedSplicePtr Splice,
                                              QualType UnderlyingType) const {
   ReflectionSpliceType *RST;
 
@@ -5979,27 +5984,9 @@ QualType ASTContext::getReflectionSpliceType(Expr *Operand,
   if (const LocInfoType *LIT = dyn_cast_or_null<LocInfoType>(UnderlyingTyPtr))
     UnderlyingType = LIT->getType();
 
-  if (Operand->isInstantiationDependent()) {
-    llvm::FoldingSetNodeID ID;
-    DependentReflectionSpliceType::Profile(ID, *this, Operand);
-
-    void *InsertPos = nullptr;
-    DependentReflectionSpliceType *Canon =
-        DependentReflectionSpliceTypes.FindNodeOrInsertPos(ID, InsertPos);
-    if (!Canon) {  // Build a new canonical splice type.
-      Canon = new (*this, TypeAlignment) DependentReflectionSpliceType(
-          *this, Operand);
-      DependentReflectionSpliceTypes.InsertNode(Canon, InsertPos);
-    }
-    RST = new (*this, TypeAlignment) ReflectionSpliceType(Operand,
-                                                          UnderlyingType,
-                                                          QualType(Canon, 0));
-  } else {
-    CanQualType Canon = getCanonicalType(UnderlyingType);
-    RST = new (*this, TypeAlignment) ReflectionSpliceType(Operand,
-                                                          UnderlyingType,
-                                                          Canon);
-  }
+  CanQualType Canon = getCanonicalType(UnderlyingType);
+  RST = new (*this, TypeAlignment) ReflectionSpliceType(TypenameKWLoc, Splice,
+                                                        Canon);
   Types.push_back(RST);
   return QualType(RST, 0);
 }
@@ -7340,7 +7327,12 @@ static bool isSameQualifier(const NestedNameSpecifier *X,
     break;
   case NestedNameSpecifier::Splice:
     // TODO(P2996): This might not be good enough.
-    if (X->getAsSpliceExpr() != Y->getAsSpliceExpr())
+    if (X->getAsSplice() != Y->getAsSplice())
+      return false;
+    break;
+  case NestedNameSpecifier::SpliceSpecialization:
+  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
+    if (X->getAsSpliceSpecialization() != Y->getAsSpliceSpecialization())
       return false;
     break;
   case NestedNameSpecifier::Global:
@@ -7664,7 +7656,7 @@ ASTContext::getCanonicalTemplateArgument(const TemplateArgument &Arg) const {
     case TemplateArgument::Integral:
       return TemplateArgument(Arg, getCanonicalType(Arg.getIntegralType()));
 
-    case TemplateArgument::SpliceSpecifier:
+    case TemplateArgument::Splice:
       return Arg;
 
     case TemplateArgument::StructuralValue:
@@ -7744,6 +7736,8 @@ ASTContext::getCanonicalNestedNameSpecifier(NestedNameSpecifier *NNS) const {
   case NestedNameSpecifier::Global:
   case NestedNameSpecifier::Super:
   case NestedNameSpecifier::Splice:
+  case NestedNameSpecifier::SpliceSpecialization:
+  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
     // The global specifier and __super specifer are canonical and unique.
     return NNS;
   }
@@ -10246,7 +10240,7 @@ ASTContext::getDependentTemplateName(NestedNameSpecifier *NNS,
 /// Retrieve the template name that represents a dependent
 /// template name such as \c [:R:] where \c R is dependent.
 TemplateName ASTContext::getDependentTemplateName(
-        const CXXSpliceSpecifierExpr *Splice) const {
+        const SpliceSpecifier *Splice) const {
   llvm::FoldingSetNodeID ID;
   DependentTemplateName::Profile(ID, Splice);
 

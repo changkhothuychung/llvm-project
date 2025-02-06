@@ -31,12 +31,13 @@ namespace clang {
 
 class ASTContext;
 class CXXRecordDecl;
-class CXXSpliceSpecifierExpr;
 class IdentifierInfo;
 class LangOptions;
 class NamespaceAliasDecl;
 class NamespaceDecl;
 struct PrintingPolicy;
+class SpliceSpecifier;
+class SpliceSpecializationSpecifier;
 class Type;
 class TypeLoc;
 
@@ -58,7 +59,9 @@ class NestedNameSpecifier : public llvm::FoldingSetNode {
     StoredDecl = 1,
     StoredTypeSpec = 2,
     StoredTypeSpecWithTemplate = 3,
-    StoredSpliceSpecifier = 4
+    StoredSpliceSpecifier = 4,
+    StoredSpliceSpecSpecifier = 5,
+    StoredSpliceSpecSpecifierWithTemplate = 6
   };
 
   /// The nested name specifier that precedes this nested name
@@ -105,8 +108,16 @@ public:
     /// the class it appeared in.
     Super,
 
-    /// A reflection splice specifier, stored as a CXXSpliceSpecifierExpr*.
+    /// A splice specifier, stored as a SpliceSpecifier*.
     Splice,
+
+    /// A splice specialization specifier, stored as a
+    /// SpliceSpecializationSpecifier*.
+    SpliceSpecialization,
+
+    /// A splice specialization specifier that was preceded by the 'template'
+    /// keyword, stored as a SpliceSpecializationSpecifier*.
+    SpliceSpecializationWithTemplate,
   };
 
 private:
@@ -168,8 +179,15 @@ public:
                                              CXXRecordDecl *RD);
 
   /// Returns the nested name specifier representing a splice specifier.
-  static NestedNameSpecifier *SpliceSpecifier(
-          const ASTContext &Context, const CXXSpliceSpecifierExpr *Expr);
+  static NestedNameSpecifier *SpliceScopeSpecifier(
+        const ASTContext &Context,
+        const SpliceSpecifier *Splice);
+
+  /// Returns the nested name specifier representing a splice
+  /// specialization specifier.
+  static NestedNameSpecifier *SpliceScopeSpecifier(
+        const ASTContext &Context, bool Template,
+        const SpliceSpecializationSpecifier *Splice);
 
   /// Return the prefix of this nested name specifier.
   ///
@@ -214,9 +232,17 @@ public:
   }
 
   /// Retrieve the splice expression stored in this nested name specifier.
-  const CXXSpliceSpecifierExpr *getAsSpliceExpr() const {
+  const SpliceSpecifier *getAsSplice() const {
     if (Prefix.getInt() == StoredSpliceSpecifier)
-      return (const CXXSpliceSpecifierExpr *)Specifier;
+      return (const SpliceSpecifier *)Specifier;
+
+    return nullptr;
+  }
+
+  const SpliceSpecializationSpecifier *getAsSpliceSpecialization() const {
+    if (Prefix.getInt() == StoredSpliceSpecSpecifier ||
+        Prefix.getInt() == StoredSpliceSpecSpecifierWithTemplate)
+      return (const SpliceSpecializationSpecifier *)Specifier;
 
     return nullptr;
   }
@@ -357,8 +383,12 @@ public:
   TypeLoc getTypeLoc() const;
 
   /// For a nested-name-specifier that refers to a splice expression, retrive
-  /// the expression.
-  const CXXSpliceSpecifierExpr *getSpliceExpr() const;
+  /// the splice specifier.
+  const SpliceSpecifier *getSplice() const;
+
+  /// For a nested-name-specifier that refers to a splice specialization,
+  /// retrieve the splice specialization specifier.
+  const SpliceSpecializationSpecifier *getSpliceSpecialization() const;
 
   /// Determines the data length for the entire
   /// nested-name-specifier.
@@ -500,9 +530,25 @@ public:
   /// \param Expr The splice specifier.
   ///
   /// \param ColonColonLoc The location of the trailing '::'.
-  void MakeSpliceSpecifier(ASTContext &Context,
-                           const CXXSpliceSpecifierExpr *Expr,
-                           SourceLocation ColonColonLoc);
+  void MakeSpliceScopeSpecifier(ASTContext &Context,
+                                const SpliceSpecifier *Splice,
+                                SourceLocation ColonColonLoc);
+
+  /// Turns this (empty) nested-name-specifier into a specifier having a single
+  /// component of splice specialization specifier kind.
+  ///
+  /// \param Context The AST context in which this nested-name-specifier
+  /// resides.
+  ///
+  /// \param TemplateKWLoc The location of the 'template' keyword, if present.
+  ///
+  /// \param Expr The splice specifier.
+  ///
+  /// \param ColonColonLoc The location of the trailing '::'.
+  void MakeSpliceScopeSpecifier(ASTContext &Context,
+                                SourceLocation TemplateKWLoc,
+                                const SpliceSpecializationSpecifier *Splice,
+                                SourceLocation ColonColonLoc);
 
   /// Make a new nested-name-specifier from incomplete source-location
   /// information.

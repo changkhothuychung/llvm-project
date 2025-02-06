@@ -2068,6 +2068,10 @@ namespace {
     Type *VisitPackExpansionType(const PackExpansionType *T) {
       return Visit(T->getPattern());
     }
+
+    Type *VisitReflectionSpliceType(const ReflectionSpliceType *T) {
+      return Visit(T->getUnderlyingType());
+    }
   };
 
 } // namespace
@@ -3314,7 +3318,7 @@ DependentTemplateSpecializationType::DependentTemplateSpecializationType(
 }
 
 DependentTemplateSpecializationType::DependentTemplateSpecializationType(
-    ElaboratedTypeKeyword Keyword, const CXXSpliceSpecifierExpr *Splice,
+    ElaboratedTypeKeyword Keyword, const SpliceSpecifier *Splice,
     ArrayRef<TemplateArgument> Args, QualType Canon)
     : TypeWithKeyword(Keyword, DependentTemplateSpecialization, Canon,
                       TypeDependence::DependentInstantiation),
@@ -3343,10 +3347,10 @@ bool DependentTemplateSpecializationType::hasSplice() const {
   return Storage.getInt() == 1;
 }
 
-const CXXSpliceSpecifierExpr *
+const SpliceSpecifier *
 DependentTemplateSpecializationType::getSplice() const {
   assert(hasSplice() && "no identifier");
-  return Storage.getPointer().dyn_cast<const CXXSpliceSpecifierExpr *>();
+  return Storage.getPointer().dyn_cast<const SpliceSpecifier *>();
 }
 
 void
@@ -3369,7 +3373,7 @@ DependentTemplateSpecializationType::Profile(
                                        llvm::FoldingSetNodeID &ID,
                                        const ASTContext &Context,
                                        ElaboratedTypeKeyword Keyword,
-                                       const CXXSpliceSpecifierExpr *Splice,
+                                       const SpliceSpecifier *Splice,
                                        ArrayRef<TemplateArgument> Args) {
   ID.AddInteger(llvm::to_underlying(Keyword));
   ID.AddPointer(/*Qualifier=*/nullptr);
@@ -4138,11 +4142,28 @@ void DependentDecltypeType::Profile(llvm::FoldingSetNodeID &ID,
   E->Profile(ID, Context, true);
 }
 
-ReflectionSpliceType::ReflectionSpliceType(Expr *Operand, QualType T,
+TypeDependence
+ReflectionSpliceType::computeDependence(QualType Canon,
+                                        MaybeSpecializedSplicePtr Splice) {
+  TypeDependence Result = Canon->getDependence();
+  if (auto *SS = dyn_cast<SpliceSpecifier *>(Splice);
+      SS && SS->getOperand()->containsUnexpandedParameterPack())
+    Result |= TypeDependence::UnexpandedPack;
+  else if (auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(Splice);
+           SSS && SSS->getSpliceSpecifier()->getOperand()
+                    ->containsUnexpandedParameterPack())
+    Result |= TypeDependence::UnexpandedPack;
+
+  return Result;
+}
+
+ReflectionSpliceType::ReflectionSpliceType(SourceLocation TypenameKWLoc,
+                                           MaybeSpecializedSplicePtr Splice,
                                            QualType Canon)
-  : Type(ReflectionSplice, Canon, toTypeDependence(Operand->getDependence()),
-         T->isConstevalOnly()),
-    Operand(Operand), UnderlyingTy(T) {
+  : Type(ReflectionSplice, Canon,
+         ReflectionSpliceType::computeDependence(Canon, Splice),
+         Canon->isConstevalOnly()),
+    TypenameKWLoc(TypenameKWLoc), Splice(Splice), UnderlyingTy(Canon) {
 }
 
 QualType ReflectionSpliceType::desugar() const {
@@ -4154,12 +4175,14 @@ QualType ReflectionSpliceType::desugar() const {
 
 bool ReflectionSpliceType::isSugared() const {
   // A reflected type is sugared if it's non-dependent.
-  return !Operand->isInstantiationDependent();
+  return !isDependentType();
 }
 
 DependentReflectionSpliceType::DependentReflectionSpliceType(
-        const ASTContext &Context, Expr *Operand)
-  : ReflectionSpliceType(Operand, Context.DependentTy), Context(Context) {
+        const ASTContext &Context, SourceLocation TypenameKWLoc,
+        MaybeSpecializedSplicePtr Splice)
+  : ReflectionSpliceType(TypenameKWLoc, Splice, Context.DependentTy),
+    Context(Context) {
 }
 
 void DependentReflectionSpliceType::Profile(llvm::FoldingSetNodeID &ID,

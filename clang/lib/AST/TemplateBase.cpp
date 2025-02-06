@@ -197,11 +197,11 @@ void TemplateArgument::initFromIntegral(const ASTContext &Ctx,
   Integer.Type = Type.getAsOpaquePtr();
 }
 
-TemplateArgument::TemplateArgument(CXXSpliceSpecifierExpr *Splice,
+TemplateArgument::TemplateArgument(SpliceTemplateArgument *STA,
                                    bool IsDefaulted) {
-  TypeOrValue.Kind = SpliceSpecifier;
-  TypeOrValue.IsDefaulted = IsDefaulted;
-  TypeOrValue.V = reinterpret_cast<uintptr_t>(Splice);
+  SpliceTemplateArg.Kind = Splice;
+  SpliceTemplateArg.IsDefaulted = IsDefaulted;
+  SpliceTemplateArg.STA = STA;
 }
 
 void TemplateArgument::initFromStructural(const ASTContext &Ctx, QualType Type,
@@ -311,8 +311,14 @@ TemplateArgumentDependence TemplateArgument::getDependence() const {
   case StructuralValue:
     return TemplateArgumentDependence::None;
 
-  case SpliceSpecifier:
-    return computeFromExpr(getAsSpliceSpecifier());
+  case Splice: {
+    auto *SS = getAsSpliceTemplateArgument()->getSpliceSpecifier();
+    auto Deps = toTemplateArgumentDependence(SS->getOperand()->getDependence());
+    if (getAsSpliceTemplateArgument()->getEllipsisLoc().isValid()) {
+      Deps &= ~TemplateArgumentDependence::UnexpandedPack;
+    }
+    return Deps;
+  }
 
   case Expression:
     return computeFromExpr(getAsExpr());
@@ -353,8 +359,8 @@ bool TemplateArgument::isPackExpansion() const {
   case Expression:
     return isa<PackExpansionExpr>(getAsExpr());
 
-  case SpliceSpecifier:
-    return isa<PackExpansionExpr>(getAsSpliceSpecifier());
+  case Splice:
+    return getAsSpliceTemplateArgument()->getEllipsisLoc().isValid();
   }
 
   llvm_unreachable("Invalid TemplateArgument Kind!");
@@ -378,7 +384,7 @@ QualType TemplateArgument::getNonTypeTemplateArgumentType() const {
   case TemplateArgument::Type:
   case TemplateArgument::Template:
   case TemplateArgument::TemplateExpansion:
-  case TemplateArgument::SpliceSpecifier:
+  case TemplateArgument::Splice:
   case TemplateArgument::Pack:
     return QualType();
 
@@ -438,9 +444,10 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
     getAsStructuralValue().Profile(ID);
     break;
 
-  case SpliceSpecifier:
+  case Splice:
     // TODO(P2996): Revisit this.
-    getAsSpliceSpecifier()->Profile(ID, Context, true);
+    getAsSpliceTemplateArgument()->getSpliceSpecifier()
+        ->getOperand()->Profile(ID, Context, true);
     break;
 
   case Expression:
@@ -477,7 +484,7 @@ bool TemplateArgument::structurallyEquals(const TemplateArgument &Other) const {
     return getIntegralType() == Other.getIntegralType() &&
            getAsIntegral() == Other.getAsIntegral();
 
-  case SpliceSpecifier:
+  case Splice:
     return false;  // TODO(P2996): Revisit this.
 
   case StructuralValue: {
@@ -517,7 +524,7 @@ TemplateArgument TemplateArgument::getPackExpansionPattern() const {
 
   case Declaration:
   case Integral:
-  case SpliceSpecifier:
+  case Splice:
   case StructuralValue:
   case Pack:
   case Null:
@@ -582,8 +589,11 @@ void TemplateArgument::print(const PrintingPolicy &Policy, raw_ostream &Out,
     printIntegral(*this, Out, Policy, IncludeType);
     break;
 
-  case SpliceSpecifier:
-    getAsSpliceSpecifier()->printPretty(Out, nullptr, Policy);
+  case Splice:
+    Out << "[:";
+    getAsSpliceTemplateArgument()->getSpliceSpecifier()
+        ->getOperand()->printPretty(Out, nullptr, Policy);
+    Out << ":]";
     break;
 
   case Expression:
@@ -642,8 +652,9 @@ SourceRange TemplateArgumentLoc::getSourceRange() const {
   case TemplateArgument::Integral:
     return getSourceIntegralExpression()->getSourceRange();
 
-  case TemplateArgument::SpliceSpecifier:
-    return getSourceSpliceSpecifierExpression()->getSourceRange();
+  case TemplateArgument::Splice:
+    return getSourceSpliceTemplateArgument()->getSpliceSpecifier()
+        ->getSourceRange();
 
   case TemplateArgument::StructuralValue:
     return getSourceStructuralValueExpression()->getSourceRange();
@@ -676,7 +687,7 @@ static const T &DiagTemplateArg(const T &DB, const TemplateArgument &Arg) {
   case TemplateArgument::Integral:
     return DB << toString(Arg.getAsIntegral(), 10);
 
-  case TemplateArgument::SpliceSpecifier:
+  case TemplateArgument::Splice:
     // TODO(P2996): Implement this.
     return DB << "[:splice-specifier:]";
 

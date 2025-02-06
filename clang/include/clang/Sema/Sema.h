@@ -8660,12 +8660,10 @@ public:
                          Scope *BodyScope);
   void ActOnFinishRequiresExpr();
   concepts::Requirement *ActOnSimpleRequirement(Expr *E);
-  concepts::Requirement *ActOnTypeRequirement(SourceLocation TypenameKWLoc,
-                                              CXXScopeSpec &SS,
-                                              SourceLocation NameLoc,
-                                              const IdentifierInfo *TypeName,
-                                              TemplateIdAnnotation *TemplateId,
-                                              CXXSpliceSpecifierExpr *SpliceExpr);
+  concepts::Requirement *ActOnTypeRequirement(
+      SourceLocation TypenameKWLoc, CXXScopeSpec &SS, SourceLocation NameLoc,
+      const IdentifierInfo *TypeName, TemplateIdAnnotation *TemplateId,
+      SpliceSpecifier *Splice, SpliceSpecializationSpecifier *SpliceSpec);
   concepts::Requirement *ActOnCompoundRequirement(Expr *E,
                                                   SourceLocation NoexceptLoc);
   concepts::Requirement *ActOnCompoundRequirement(
@@ -13555,6 +13553,10 @@ public:
   ExprResult SubstCXXIdExpr(Expr *E,
                             const MultiLevelTemplateArgumentList &TemplateArgs);
 
+  SpliceResult
+  SubstSpliceSpecifier(SpliceSpecifier *SS,
+                       const MultiLevelTemplateArgumentList &TemplateArgs);
+
   // A RAII type used by the TemplateDeclInstantiator and TemplateInstantiator
   // to disable constraint evaluation, then restore the state.
   template <typename InstTy> struct ConstraintEvalRAII {
@@ -14407,6 +14409,27 @@ public:
   /// \param EllipsisLoc The location of the ellipsis.
   ExprResult CheckPackExpansion(Expr *Pattern, SourceLocation EllipsisLoc,
                                 std::optional<unsigned> NumExpansions);
+
+  /// Invoked when parsing a splice-template-argument followed by an ellipsis,
+  /// which creates a pack expansion.
+  ///
+  /// \param Pattern The splice-template-argument preceding the ellipsis, which
+  /// will become the pattern of the pack expansion.
+  ///
+  /// \param EllipsisLoc The location of the ellipsis.
+  SpliceTemplateArgument *ActOnPackExpansion(SpliceSpecifier *Pattern,
+                                             SourceLocation EllipsisLoc);
+
+  /// Invoked when parsing a splice-template-argument followed by an ellipsis,
+  /// which creates a pack expansion.
+  ///
+  /// \param Pattern The splice-template-argument preceding the ellipsis, which
+  /// will become the pattern of the pack expansion.
+  ///
+  /// \param EllipsisLoc The location of the ellipsis.
+  SpliceTemplateArgument *
+  CheckPackExpansion(SpliceSpecifier *Pattern, SourceLocation EllipsisLoc,
+                     std::optional<unsigned> NumExpansions);
 
   /// Determine whether we could expand a pack expansion with the
   /// given set of parameter packs into separate arguments by repeatedly
@@ -15457,35 +15480,26 @@ public:
                                   SourceLocation LParenLoc,
                                   SmallVectorImpl<Expr *> &Args,
                                   SourceLocation RParenLoc);
-  ExprResult ActOnCXXSpliceSpecifierExpr(SourceLocation TemplateKWLoc,
-                                         SourceLocation LSpliceLoc,
-                                         Expr *Operand,
-                                         SourceLocation RSpliceLoc);
-  TypeResult ActOnCXXSpliceExpectingType(SourceLocation LSplice,
-                                         Expr *Operand,
-                                         SourceLocation RSplice,
-                                         bool Complain);
-  ExprResult ActOnCXXSpliceExpectingExpr(SourceLocation TemplateKWLoc,
-                                         SourceLocation LSplice,
-                                         Expr *Operand,
-                                         SourceLocation RSplice,
-                                         SourceLocation LAngleLoc,
-                                         ASTTemplateArgsPtr TemplateArgs,
-                                         SourceLocation RAngleLoc,
-                                         bool AllowMemberReference);
-  DeclResult ActOnCXXSpliceExpectingNamespace(SourceLocation LSplice,
-                                              Expr *Operand,
-                                              SourceLocation RSplice);
-  TemplateTy ActOnCXXSpliceExpectingTemplate(SourceLocation LSplice,
-                                             Expr *Operand,
-                                             SourceLocation RSplice,
-                                             bool Complain);
-  ParsedTemplateArgument
-  ActOnTemplateSpliceSpecifierArgument(CXXSpliceSpecifierExpr *Splice);
 
-  bool ActOnCXXNestedNameSpecifierReflectionSplice(
-      CXXScopeSpec &SS, CXXSpliceSpecifierExpr *Splice,
-      SourceLocation ColonColonLoc);
+  SpliceResult ActOnSpliceSpecifier(SourceLocation LSpliceLoc,
+                                    Expr *Operand,
+                                    SourceLocation RSpliceLoc);
+  SpliceSpecResult ActOnSpliceSpecializationSpecifier(
+      SpliceSpecifier *Splice, SourceLocation LAngleLoc,
+      ASTTemplateArgsPtr TemplateArgs, SourceLocation RAngleLoc);
+
+  ExprResult ActOnCXXSpliceExpression(SourceLocation TemplateKWLoc,
+                                      MaybeSpecializedSplicePtr Splice,
+                                      bool AllowMemberReference);
+  TypeResult ActOnCXXSpliceTypeSpecifier(SourceLocation TypenameKWLoc,
+                                         MaybeSpecializedSplicePtr Splice,
+                                         bool Complain);
+  DeclResult ActOnCXXSpliceExpectingNamespace(SpliceSpecifier *Splice);
+  ParsedTemplateArgument ActOnSpliceTemplateArgument(SpliceSpecifier *Splice);
+
+  bool ActOnCXXSpliceScopeSpecifier(
+      CXXScopeSpec &SS, SourceLocation TemplateKWLoc,
+      MaybeSpecializedSplicePtr Splice, SourceLocation ColonColonLoc);
 
   ExprResult ActOnMemberAccessExpr(Scope *S, Expr *Base,
                                    SourceLocation OpLoc,
@@ -15521,29 +15535,23 @@ public:
                                       const CXXMetafunctionExpr::ImplFn &Impl,
                                       SmallVectorImpl<Expr *> &Args);
 
-  ExprResult BuildCXXSpliceSpecifierExpr(SourceLocation TemplateKWLoc,
-                                         SourceLocation LSpliceLoc,
-                                         Expr *Operand,
-                                         SourceLocation RSpliceLoc);
-  QualType BuildReflectionSpliceType(SourceLocation LSplice,
-                                     Expr *Operand,
-                                     SourceLocation RSplice,
+  SpliceResult BuildSpliceSpecifier(SourceLocation LSpliceLoc, Expr *Operand,
+                                    SourceLocation RSpliceLoc);
+  SpliceSpecResult BuildSpliceSpecializationSpecifier(
+      SpliceSpecifier *Splice, ASTTemplateArgumentListInfo *TemplateArgs);
+
+  QualType BuildReflectionSpliceType(SourceLocation TypenameKWLoc,
+                                     MaybeSpecializedSplicePtr Splice,
                                      bool Complain);
   QualType BuildReflectionSpliceTypeLoc(TypeLocBuilder &TLB,
-                                        SourceLocation LSpliceLoc,
-                                        Expr *E, SourceLocation RSpliceLoc,
+                                        SourceLocation TypenameKWLoc,
+                                        MaybeSpecializedSplicePtr Splice,
                                         bool Complain);
   ExprResult BuildReflectionSpliceExpr(SourceLocation TemplateKWLoc,
-                                       SourceLocation LSplice, Expr *Operand,
-                                       SourceLocation RSplice,
-                                       const TemplateArgumentListInfo *TArgs,
+                                       MaybeSpecializedSplicePtr Splice,
                                        bool AllowMemberReference);
-  DeclResult BuildReflectionSpliceNamespace(SourceLocation LSplice,
-                                            Expr *Operand,
-                                            SourceLocation RSplice);
-  TemplateTy BuildReflectionSpliceTemplate(SourceLocation LSplice,
-                                           Expr *Operand,
-                                           SourceLocation RSplice,
+  DeclResult BuildReflectionSpliceNamespace(SpliceSpecifier *Splice);
+  TemplateTy BuildReflectionSpliceTemplate(SpliceSpecifier *Splice,
                                            bool Complain);
 
   ExprResult BuildMemberReferenceExpr(Scope *S, Expr *Base,
@@ -15561,7 +15569,7 @@ public:
   Decl *BuildExpansionStmtDeclaration(SourceLocation TemplateKWLoc,
                                       NonTypeTemplateParmDecl *NTTP);
 
-  DeclContext *TryFindDeclContextOf(const Expr *E);
+  DeclContext *TryFindDeclContextOf(MaybeSpecializedSplicePtr Splice);
 
   const CXXMetafunctionExpr::ImplFn &getMetafunctionCb(unsigned FnID);
 

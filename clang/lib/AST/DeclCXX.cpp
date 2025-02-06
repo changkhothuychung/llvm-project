@@ -3210,14 +3210,14 @@ NamespaceAliasDecl *NamespaceAliasDecl::CreateDeserialized(ASTContext &C,
 void DependentNamespaceDecl::anchor() {}
 
 DependentNamespaceDecl::DependentNamespaceDecl(
-      ASTContext &C, DeclContext *DC, CXXSpliceSpecifierExpr *SpliceExpr)
-    : NamespaceDecl(DependentNamespace, C, DC, false, SpliceExpr->getBeginLoc(),
-                    SpliceExpr->getBeginLoc(), nullptr, nullptr, false),
-      SpliceExpr(SpliceExpr) {}
+      ASTContext &C, DeclContext *DC, SpliceSpecifier *Splice)
+    : NamespaceDecl(DependentNamespace, C, DC, false, Splice->getBeginLoc(),
+                    Splice->getBeginLoc(), nullptr, nullptr, false),
+      Splice(Splice) {}
 
 DependentNamespaceDecl *DependentNamespaceDecl::Create(
-      ASTContext &C, DeclContext *DC, CXXSpliceSpecifierExpr *SpliceExpr) {
-  return new (C, DC) DependentNamespaceDecl(C, DC, SpliceExpr);
+      ASTContext &C, DeclContext *DC, SpliceSpecifier *Splice) {
+  return new (C, DC) DependentNamespaceDecl(C, DC, Splice);
 }
 
 DependentNamespaceDecl *
@@ -3227,7 +3227,7 @@ DependentNamespaceDecl::CreateDeserialized(ASTContext &C,
 }
 
 SourceRange DependentNamespaceDecl::getSourceRange() const {
-  return SourceRange(SpliceExpr->getBeginLoc(), SpliceExpr->getEndLoc());
+  return SourceRange(Splice->getBeginLoc(), Splice->getEndLoc());
 }
 
 void LifetimeExtendedTemporaryDecl::anchor() {}

@@ -479,6 +479,10 @@ public:
   bool TraverseConceptExprRequirement(concepts::ExprRequirement *R);
   bool TraverseConceptNestedRequirement(concepts::NestedRequirement *R);
 
+  bool TraverseSpliceSpecifier(SpliceSpecifier *SS);
+  bool TraverseSpliceSpecializationSpecifier(
+          SpliceSpecializationSpecifier *SSS);
+
   bool dataTraverseNode(Stmt *S, DataRecursionQueue *Queue);
 
 private:
@@ -607,6 +611,23 @@ bool RecursiveASTVisitor<Derived>::TraverseConceptNestedRequirement(
     concepts::NestedRequirement *R) {
   if (!R->hasInvalidConstraint())
     return getDerived().TraverseStmt(R->getConstraintExpr());
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::TraverseSpliceSpecifier(
+    SpliceSpecifier *SS) {
+  TRY_TO(TraverseStmt(SS->getOperand()));
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::TraverseSpliceSpecializationSpecifier(
+    SpliceSpecializationSpecifier *SSS) {
+  TRY_TO(TraverseSpliceSpecifier(SSS->getSpliceSpecifier()));
+  for (const TemplateArgumentLoc &Arg : SSS->getTemplateArgs()->arguments())
+    TRY_TO(TraverseTemplateArgumentLoc(Arg));
+
   return true;
 }
 
@@ -799,8 +820,17 @@ bool RecursiveASTVisitor<Derived>::TraverseNestedNameSpecifier(
     return true;
 
   case NestedNameSpecifier::Splice:
-    TRY_TO(TraverseStmt(
-            const_cast<CXXSpliceSpecifierExpr *>(NNS->getAsSpliceExpr())));
+    TRY_TO(
+        TraverseSpliceSpecifier(
+            const_cast<SpliceSpecifier *>(NNS->getAsSplice())));
+    break;
+
+  case NestedNameSpecifier::SpliceSpecialization:
+  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
+    TRY_TO(
+        TraverseSpliceSpecializationSpecifier(
+            const_cast<SpliceSpecializationSpecifier *>(
+                NNS->getAsSpliceSpecialization())));
     break;
 
   case NestedNameSpecifier::TypeSpec:
@@ -829,8 +859,17 @@ bool RecursiveASTVisitor<Derived>::TraverseNestedNameSpecifierLoc(
     return true;
 
   case NestedNameSpecifier::Splice:
-    TRY_TO(TraverseStmt(
-            const_cast<CXXSpliceSpecifierExpr *>(NNS.getSpliceExpr())));
+    TRY_TO(
+        TraverseSpliceSpecifier(
+            const_cast<SpliceSpecifier *>(NNS.getSplice())));
+    break;
+
+  case NestedNameSpecifier::SpliceSpecialization:
+  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
+    TRY_TO(
+        TraverseSpliceSpecializationSpecifier(
+            const_cast<SpliceSpecializationSpecifier *>(
+                NNS.getSpliceSpecialization())));
     break;
 
   case NestedNameSpecifier::TypeSpec:
@@ -896,8 +935,9 @@ bool RecursiveASTVisitor<Derived>::TraverseTemplateArgument(
   case TemplateArgument::StructuralValue:
     return true;
 
-  case TemplateArgument::SpliceSpecifier:
-    return getDerived().TraverseStmt(Arg.getAsSpliceSpecifier());
+  case TemplateArgument::Splice:
+    return getDerived().TraverseSpliceSpecifier(
+        Arg.getAsSpliceTemplateArgument()->getSpliceSpecifier());
 
   case TemplateArgument::Type:
     return getDerived().TraverseType(Arg.getAsType());
@@ -932,9 +972,9 @@ bool RecursiveASTVisitor<Derived>::TraverseTemplateArgumentLoc(
   case TemplateArgument::StructuralValue:
     return true;
 
-  case TemplateArgument::SpliceSpecifier:
-    return getDerived().TraverseStmt(
-          ArgLoc.getSourceSpliceSpecifierExpression());
+  case TemplateArgument::Splice:
+    return getDerived().TraverseSpliceSpecifier(
+          ArgLoc.getSourceSpliceTemplateArgument()->getSpliceSpecifier());
 
   case TemplateArgument::Type: {
     // FIXME: how can TSI ever be NULL?
@@ -1124,8 +1164,16 @@ DEF_TRAVERSE_TYPE(TypeOfType, { TRY_TO(TraverseType(T->getUnmodifiedType())); })
 DEF_TRAVERSE_TYPE(DecltypeType,
                   { TRY_TO(TraverseStmt(T->getUnderlyingExpr())); })
 
-DEF_TRAVERSE_TYPE(ReflectionSpliceType,
-                  { TRY_TO(TraverseStmt(T->getOperand())); })
+DEF_TRAVERSE_TYPE(ReflectionSpliceType, {
+  MaybeSpecializedSplicePtr Splice = T->getSplice();
+  if (auto *S = Splice.dyn_cast<SpliceSpecifier *>())
+    TRY_TO(TraverseSpliceSpecifier(S));
+  else
+    TRY_TO(
+        TraverseSpliceSpecializationSpecifier(
+            cast<SpliceSpecializationSpecifier *>(Splice)));
+
+})
 
 DEF_TRAVERSE_TYPE(PackIndexingType, {
   TRY_TO(TraverseType(T->getPattern()));
@@ -1424,8 +1472,15 @@ DEF_TRAVERSE_TYPELOC(DecltypeType, {
   TRY_TO(TraverseStmt(TL.getTypePtr()->getUnderlyingExpr()));
 })
 
-DEF_TRAVERSE_TYPELOC(ReflectionSpliceType,
-                     { TRY_TO(TraverseStmt(TL.getOperand())); })
+DEF_TRAVERSE_TYPELOC(ReflectionSpliceType, {
+  MaybeSpecializedSplicePtr Splice = TL.getSplice();
+  if (auto *S = Splice.dyn_cast<SpliceSpecifier *>())
+    TRY_TO(TraverseSpliceSpecifier(S));
+  else
+    TRY_TO(
+        TraverseSpliceSpecializationSpecifier(
+            cast<SpliceSpecializationSpecifier *>(Splice)));
+})
 
 DEF_TRAVERSE_TYPELOC(PackIndexingType, {
   TRY_TO(TraverseType(TL.getPattern()));
@@ -1721,7 +1776,7 @@ DEF_TRAVERSE_DECL(NamespaceAliasDecl, {
 })
 
 DEF_TRAVERSE_DECL(DependentNamespaceDecl, {
-  TRY_TO(TraverseStmt(D->getSpliceExpr()));
+  TRY_TO(TraverseSpliceSpecifier(D->getSplice()));
 })
 
 DEF_TRAVERSE_DECL(LabelDecl, {// There is no code in a LabelDecl.
@@ -3036,11 +3091,14 @@ DEF_TRAVERSE_STMT(CXXReflectExpr, {
   }
 })
 DEF_TRAVERSE_STMT(CXXMetafunctionExpr, {})
-DEF_TRAVERSE_STMT(CXXSpliceSpecifierExpr, {
-  TRY_TO(TraverseStmt(S->getOperand()));
-})
 DEF_TRAVERSE_STMT(CXXSpliceExpr, {
-  TRY_TO(TraverseStmt(const_cast<Expr *>(S->getOperand())));
+  MaybeSpecializedSplicePtr Splice = S->getSplice();
+  if (auto *S = Splice.dyn_cast<SpliceSpecifier *>())
+    TRY_TO(TraverseSpliceSpecifier(S));
+  else
+    TRY_TO(
+        TraverseSpliceSpecializationSpecifier(
+            cast<SpliceSpecializationSpecifier *>(Splice)));
 })
 DEF_TRAVERSE_STMT(CXXDependentMemberSpliceExpr, {
   TRY_TO(TraverseStmt(S->getBase()));

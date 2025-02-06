@@ -55,9 +55,9 @@ namespace clang {
 
 class APValue;
 class ASTContext;
-class CXXSpliceSpecifierExpr;
 class Expr;
 struct PrintingPolicy;
+class SpliceTemplateArgument;
 class TypeSourceInfo;
 class ValueDecl;
 
@@ -85,9 +85,9 @@ public:
     /// that was provided for an integral non-type template parameter.
     Integral,
 
-    /// The template argument is a splice specifier, which might splice to
-    /// a type, a declaration, a structural value, or a template.
-    SpliceSpecifier,
+    /// The template argument is a splice-template-argument, which might splice
+    /// to a type, a declaration, a structural value, or a template.
+    Splice,
 
     /// The template argument is a non-type template argument that can't be
     /// represented by the special-case Declaration, NullPtr, or Integral
@@ -177,6 +177,13 @@ private:
     unsigned IsDefaulted : 1;
     uintptr_t V;
   };
+  struct S {
+    LLVM_PREFERRED_TYPE(ArgKind)
+    unsigned Kind : 31;
+    LLVM_PREFERRED_TYPE(bool)
+    unsigned IsDefaulted : 1;
+    SpliceTemplateArgument *STA;
+  };
   union {
     struct DA DeclArg;
     struct I Integer;
@@ -184,6 +191,7 @@ private:
     struct A Args;
     struct TA TemplateArg;
     struct TV TypeOrValue;
+    struct S SpliceTemplateArg;
   };
 
   void initFromType(QualType T, bool IsNullPtr, bool IsDefaulted);
@@ -218,8 +226,9 @@ public:
   TemplateArgument(const ASTContext &Ctx, QualType Type, const APValue &Value,
                    bool IsDefaulted = false);
 
-  /// Construct a splice specifier template argument.
-  TemplateArgument(CXXSpliceSpecifierExpr *Splice, bool IsDefaulted = false);
+  /// Construct a splice template argument.
+  explicit TemplateArgument(SpliceTemplateArgument *STA,
+                            bool IsDefaulted = false);
 
   /// Construct an integral constant template argument with the same
   /// value as Other but a different type.
@@ -384,9 +393,9 @@ public:
                   Integer.IsUnsigned);
   }
 
-  CXXSpliceSpecifierExpr *getAsSpliceSpecifier() const {
-    assert(getKind() == SpliceSpecifier && "Unexpected kind");
-    return reinterpret_cast<CXXSpliceSpecifierExpr *>(TypeOrValue.V);
+  SpliceTemplateArgument *getAsSpliceTemplateArgument() const {
+    assert(getKind() == Splice && "Unexpected kind");
+    return reinterpret_cast<SpliceTemplateArgument *>(SpliceTemplateArg.STA);
   }
 
   /// Retrieve the type of the integral value.
@@ -496,7 +505,8 @@ private:
     SourceLocation EllipsisLoc;
   };
 
-  llvm::PointerUnion<TemplateTemplateArgLocInfo *, Expr *, TypeSourceInfo *>
+  llvm::PointerUnion<TemplateTemplateArgLocInfo *, Expr *, TypeSourceInfo *,
+                     SpliceTemplateArgument *>
       Pointer;
 
   TemplateTemplateArgLocInfo *getTemplate() const {
@@ -506,6 +516,7 @@ private:
 public:
   TemplateArgumentLocInfo() {}
   TemplateArgumentLocInfo(TypeSourceInfo *Declarator) { Pointer = Declarator; }
+  TemplateArgumentLocInfo(SpliceTemplateArgument *STA) { Pointer = STA; }
 
   TemplateArgumentLocInfo(Expr *E) { Pointer = E; }
   // Ctx is used for allocation -- this case is unusually large and also rare,
@@ -519,6 +530,10 @@ public:
   }
 
   Expr *getAsExpr() const { return cast<Expr *>(Pointer); }
+
+  SpliceTemplateArgument *getAsSpliceTemplateArgument() const {
+    return cast<SpliceTemplateArgument *>(Pointer);
+  }
 
   NestedNameSpecifierLoc getTemplateQualifierLoc() const {
     const auto *Template = getTemplate();
@@ -560,7 +575,7 @@ public:
     // expression.
     assert(Argument.getKind() == TemplateArgument::NullPtr ||
            Argument.getKind() == TemplateArgument::Integral ||
-           Argument.getKind() == TemplateArgument::SpliceSpecifier ||
+           Argument.getKind() == TemplateArgument::Splice ||
            Argument.getKind() == TemplateArgument::Declaration ||
            Argument.getKind() == TemplateArgument::StructuralValue ||
            Argument.getKind() == TemplateArgument::Expression);
@@ -618,9 +633,9 @@ public:
     return LocInfo.getAsExpr();
   }
 
-  Expr *getSourceSpliceSpecifierExpression() const {
-    assert(Argument.getKind() == TemplateArgument::SpliceSpecifier);
-    return LocInfo.getAsExpr();
+  SpliceTemplateArgument *getSourceSpliceTemplateArgument() const {
+    assert(Argument.getKind() == TemplateArgument::Splice);
+    return LocInfo.getAsSpliceTemplateArgument();
   }
 
   Expr *getSourceStructuralValueExpression() const {

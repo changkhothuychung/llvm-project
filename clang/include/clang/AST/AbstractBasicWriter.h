@@ -273,7 +273,7 @@ public:
         continue;
 
       case NestedNameSpecifier::Splice:
-        asImpl().writeExprRef(NNS->getAsSpliceExpr());
+        asImpl().writeSpliceSpecifierRef(NNS->getAsSplice());
         continue;
       }
       llvm_unreachable("bad nested name specifier kind");

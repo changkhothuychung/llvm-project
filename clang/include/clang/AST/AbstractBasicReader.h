@@ -295,10 +295,8 @@ public:
         continue;
 
       case NestedNameSpecifier::Splice:
-        cur = NestedNameSpecifier::SpliceSpecifier(
-                ctx,
-                reinterpret_cast<CXXSpliceSpecifierExpr *>(
-                      asImpl().readExprRef()));
+        cur = NestedNameSpecifier::SpliceScopeSpecifier(ctx,
+                                            asImpl().readSpliceSpecifierRef());
         continue;
       }
       llvm_unreachable("bad nested name specifier kind");

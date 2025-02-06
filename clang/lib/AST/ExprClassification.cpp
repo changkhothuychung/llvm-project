@@ -222,7 +222,6 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::ConceptSpecializationExprClass:
   case Expr::RequiresExprClass:
   case Expr::CXXReflectExprClass:
-  case Expr::CXXSpliceSpecifierExprClass:
   case Expr::StackLocationExprClass:
   case Expr::CXXExpansionInitListExprClass:
   case Expr::CXXExpansionInitListSelectExprClass:
@@ -280,7 +279,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
 
   case Expr::CXXSpliceExprClass: {
     const auto *SE = dyn_cast<CXXSpliceExpr>(E);
-    if (const auto *DRE = dyn_cast<DeclRefExpr>(SE->getOperand())) {
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(SE->getModel())) {
       if (auto *MD = dyn_cast<CXXMethodDecl>(DRE->getDecl());
           MD && !MD->isStatic())
         return Cl::CL_MemberFunction;
@@ -288,8 +287,8 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
         return Cl::CL_PRValue;
       return Cl::CL_LValue;
     }
-    return SE->getOperand()->getValueKind() == VK_LValue ? Cl::CL_LValue :
-                                                            Cl::CL_PRValue;
+    return SE->getModel()->getValueKind() == VK_LValue ? Cl::CL_LValue :
+                                                         Cl::CL_PRValue;
   }
 
   // Subscripting matrix types behaves like member accesses.

@@ -913,9 +913,6 @@ static TemplateArgumentLoc translateTemplateArgument(Sema &SemaRef,
 
   case ParsedTemplateArgument::NonType: {
     Expr *E = static_cast<Expr *>(Arg.getAsExpr());
-    if (auto *S = dyn_cast<CXXSpliceSpecifierExpr>(E))
-      return TemplateArgumentLoc(TemplateArgument(S), S);
-
     return TemplateArgumentLoc(TemplateArgument(E), E);
   }
 
@@ -932,9 +929,9 @@ static TemplateArgumentLoc translateTemplateArgument(Sema &SemaRef,
         Arg.getLocation(), Arg.getEllipsisLoc());
   }
 
-  case ParsedTemplateArgument::SpliceSpecifier: {
-    CXXSpliceSpecifierExpr *Splice = Arg.getAsSpliceSpecifier();
-    return TemplateArgumentLoc(TemplateArgument(Splice), Splice);
+  case ParsedTemplateArgument::Splice: {
+    auto *STA = Arg.getAsSpliceTemplateArgument();
+    return TemplateArgumentLoc(TemplateArgument(STA), STA);
   }
   }
 
@@ -4007,7 +4004,7 @@ static bool isTemplateArgumentTemplateParameter(
   case TemplateArgument::Null:
   case TemplateArgument::NullPtr:
   case TemplateArgument::Integral:
-  case TemplateArgument::SpliceSpecifier:
+  case TemplateArgument::Splice:
   case TemplateArgument::Declaration:
   case TemplateArgument::StructuralValue:
   case TemplateArgument::Pack:
@@ -4897,21 +4894,13 @@ bool Sema::CheckTemplateTypeArgument(
     diagnoseMissingTemplateArguments(Name, SR.getEnd());
     return true;
   }
-  case TemplateArgument::SpliceSpecifier: {
+  case TemplateArgument::Splice: {
     // These are dependent and will be converted during substitution.
     SugaredConverted.push_back(Arg);
     CanonicalConverted.push_back(Arg);
     return false;
   }
   case TemplateArgument::Expression: {
-    // Check if this is an expansion of a pack of SpliceSpecifiers.
-    if (auto *P = dyn_cast<PackExpansionExpr>(Arg.getAsExpr());
-        P && isa<CXXSpliceSpecifierExpr>(P->getPattern())) {
-      SugaredConverted.push_back(Arg);
-      CanonicalConverted.push_back(Arg);
-      return false;
-    }
-
     // We have a template type parameter but the template argument is an
     // expression; see if maybe it is missing the "typename" keyword.
     CXXScopeSpec SS;
@@ -5355,8 +5344,7 @@ bool Sema::CheckTemplateArgument(NamedDecl *Param, TemplateArgumentLoc &ArgLoc,
     // needed so rarely, it's probably a better tradeoff to just convert them
     // back to expressions.
     case TemplateArgument::Integral:
-    case TemplateArgument::SpliceSpecifier:
-    case TemplateArgument::Declaration:
+    case TemplateArgument::Splice:
     case TemplateArgument::NullPtr:
     case TemplateArgument::StructuralValue: {
       // FIXME: StructuralValue is untested here.
@@ -5507,7 +5495,7 @@ bool Sema::CheckTemplateArgument(NamedDecl *Param, TemplateArgumentLoc &ArgLoc,
         Context.getCanonicalTemplateArgument(Arg));
     break;
 
-  case TemplateArgument::SpliceSpecifier:
+  case TemplateArgument::Splice:
     // These are dependent and cannot yet be validated. Assume valid for now.
     CTAI.SugaredConverted.push_back(Arg);
     CTAI.CanonicalConverted.push_back(
@@ -5515,17 +5503,6 @@ bool Sema::CheckTemplateArgument(NamedDecl *Param, TemplateArgumentLoc &ArgLoc,
     break;
 
   case TemplateArgument::Expression:
-    if (auto *E = Arg.getAsExpr();
-        isa<PackExpansionExpr>(E) &&
-        isa<CXXSpliceSpecifierExpr>(
-            dyn_cast<PackExpansionExpr>(E)->getPattern())) {
-      CTAI.SugaredConverted.push_back(Arg);
-      CTAI.CanonicalConverted.push_back(
-          Context.getCanonicalTemplateArgument(Arg));
-      break;
-    }
-    [[fallthrough]];
-
   case TemplateArgument::Type:
     // We have a template template parameter but the template
     // argument does not refer to a template.
@@ -5535,8 +5512,8 @@ bool Sema::CheckTemplateArgument(NamedDecl *Param, TemplateArgumentLoc &ArgLoc,
 
   case TemplateArgument::Declaration:
   case TemplateArgument::Integral:
-  case TemplateArgument::StructuralValue:
   case TemplateArgument::NullPtr:
+  case TemplateArgument::StructuralValue:
     llvm_unreachable("non-type argument with template template parameter");
 
   case TemplateArgument::Pack:
@@ -6962,11 +6939,7 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
     auto *PE = dyn_cast<PackExpansionExpr>(Arg);
     if (PE)
       Arg = PE->getPattern();
-    ExprResult E;
-    if (isa<CXXSpliceSpecifierExpr>(Arg))
-      E = Arg;
-    else
-      E = ImpCastExprToType(
+    ExprResult E = ImpCastExprToType(
         Arg, ParamType.getNonLValueExprType(Context), CK_Dependent,
         ParamType->isLValueReferenceType()   ? VK_LValue
         : ParamType->isRValueReferenceType() ? VK_XValue
@@ -6983,16 +6956,6 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
     CanonicalConverted = TemplateArgument(
         Context.getCanonicalTemplateArgument(SugaredConverted));
     return E;
-  }
-
-  if (auto *SNTTPE = dyn_cast<SubstNonTypeTemplateParmExpr>(Arg);
-      SNTTPE && isa<CXXSpliceSpecifierExpr>(SNTTPE->getReplacement()))
-    Arg = SNTTPE->getReplacement();
-
-  if (isa<CXXSpliceSpecifierExpr>(Arg)) {
-    SugaredConverted = TemplateArgument(Arg, Arg);
-    CanonicalConverted = SugaredConverted;
-    return Arg;
   }
 
   QualType CanonParamType = Context.getCanonicalType(ParamType);
@@ -7839,6 +7802,12 @@ Sema::BuildExpressionFromNonTypeTemplateArgument(const TemplateArgument &Arg,
   case TemplateArgument::Pack:
     llvm_unreachable("not a non-type template argument");
 
+  case TemplateArgument::Splice:
+    return BuildReflectionSpliceExpr(
+        SourceLocation(),
+        Arg.getAsSpliceTemplateArgument()->getSpliceSpecifier(),
+        false);
+
   case TemplateArgument::Expression:
     return Arg.getAsExpr();
 
@@ -7850,9 +7819,6 @@ Sema::BuildExpressionFromNonTypeTemplateArgument(const TemplateArgument &Arg,
   case TemplateArgument::Integral:
     return BuildExpressionFromIntegralTemplateArgumentValue(
         *this, Arg.getIntegralType(), Arg.getAsIntegral(), Loc);
-
-  case TemplateArgument::SpliceSpecifier:
-    return Arg.getAsSpliceSpecifier();
 
   case TemplateArgument::StructuralValue:
     return BuildExpressionFromNonTypeTemplateArgumentValue(

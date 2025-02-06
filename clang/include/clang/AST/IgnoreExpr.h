@@ -151,7 +151,7 @@ inline Expr *IgnoreParensOnlySingleStep(Expr *E) {
 
 inline Expr *IgnoreSpliceSingleStep(Expr *E) {
   if (auto *SE = dyn_cast<CXXSpliceExpr>(E))
-    return SE->getOperand();
+    return SE->getModel();
   return E;
 }
 

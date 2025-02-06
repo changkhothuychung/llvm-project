@@ -633,12 +633,6 @@ void TemplateSpecializationTypeLoc::initializeArgLocs(
   }
 }
 
-void ReflectionSpliceTypeLoc::initializeLocal(ASTContext &Context,
-                                              SourceLocation Loc) {
-  setLSpliceLoc(Loc);
-  setRSpliceLoc(Loc);
-}
-
 // Builds a ConceptReference where all locations point at the same token,
 // for use in trivial TypeSourceInfo for constrained AutoType
 static ConceptReference *createTrivialConceptReference(ASTContext &Context,

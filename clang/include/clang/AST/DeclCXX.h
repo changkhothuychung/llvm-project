@@ -61,7 +61,6 @@ class CXXBasePaths;
 class CXXConstructorDecl;
 class CXXDestructorDecl;
 class CXXFinalOverriderMap;
-class CXXSpliceSpecifierExpr;
 class CXXIndirectPrimaryBaseSet;
 class CXXMethodDecl;
 class CXXRecordDecl;
@@ -71,6 +70,7 @@ class FunctionTemplateDecl;
 class IdentifierInfo;
 class MemberSpecializationInfo;
 class BaseUsingDecl;
+class SpliceSpecifier;
 class TemplateDecl;
 class TemplateParameterList;
 class UsingDecl;
@@ -3171,21 +3171,21 @@ public:
 class DependentNamespaceDecl : public NamespaceDecl {
   friend class ASTDeclReader;
 
-  CXXSpliceSpecifierExpr *SpliceExpr;
+  SpliceSpecifier *Splice;
 
   DependentNamespaceDecl(ASTContext &C, DeclContext *DC,
-                         CXXSpliceSpecifierExpr *SpliceExpr);
+                         SpliceSpecifier *Splice);
 
   void anchor() override;
 
 public:
   static DependentNamespaceDecl *Create(ASTContext &C, DeclContext *DC,
-                                        CXXSpliceSpecifierExpr *SpliceExpr);
+                                        SpliceSpecifier *Splice);
 
   static DependentNamespaceDecl *CreateDeserialized(ASTContext &C,
                                                     GlobalDeclID ID);
 
-  CXXSpliceSpecifierExpr *getSpliceExpr() const { return SpliceExpr; }
+  SpliceSpecifier *getSplice() const { return Splice; }
 
   SourceRange getSourceRange() const override LLVM_READONLY;
 

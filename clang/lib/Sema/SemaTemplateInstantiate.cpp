@@ -2117,9 +2117,10 @@ TemplateName TemplateInstantiator::TransformTemplateName(
         Arg = getPackSubstitutedTemplateArgument(getSema(), Arg);
       }
 
-      if (Arg.getKind() == TemplateArgument::SpliceSpecifier) {
-        CXXSpliceSpecifierExpr *Splice = Arg.getAsSpliceSpecifier();
-        return SemaRef.Context.getDependentTemplateName(Splice);
+      if (Arg.getKind() == TemplateArgument::Splice) {
+        SpliceTemplateArgument *Splice = Arg.getAsSpliceTemplateArgument();
+        return SemaRef.Context.getDependentTemplateName(
+            Splice->getSpliceSpecifier());
       }
 
       TemplateName Template = Arg.getAsTemplate();
@@ -2350,8 +2351,6 @@ ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(
         refParam = true;
       }
     }
-  } else if (arg.getKind() == TemplateArgument::SpliceSpecifier) {
-    return arg.getAsSpliceSpecifier();
   } else if (arg.getKind() == TemplateArgument::Declaration ||
              arg.getKind() == TemplateArgument::NullPtr) {
     if (arg.getKind() == TemplateArgument::Declaration) {
@@ -2696,11 +2695,13 @@ TemplateInstantiator::TransformTemplateTypeParmType(TypeLocBuilder &TLB,
       return NewT;
     }
 
-    if (Arg.getKind() == TemplateArgument::SpliceSpecifier) {
-      CXXSpliceSpecifierExpr *Splice = Arg.getAsSpliceSpecifier();
+    if (Arg.getKind() == TemplateArgument::Splice) {
+      SpliceSpecifier *Splice =
+          Arg.getAsSpliceTemplateArgument()->getSpliceSpecifier();
       QualType UnderlyingTy = SemaRef.Context.DependentTy;
 
-      QualType Ty = SemaRef.Context.getReflectionSpliceType(Splice,
+      QualType Ty = SemaRef.Context.getReflectionSpliceType(SourceLocation(),
+                                                            Splice,
                                                             UnderlyingTy);
       TLB.push<ReflectionSpliceTypeLoc>(Ty);
       return Ty;
@@ -4666,6 +4667,17 @@ bool Sema::SubstExprs(ArrayRef<Expr *> Exprs, bool IsCall,
                                     DeclarationName());
   return Instantiator.TransformExprs(Exprs.data(), Exprs.size(),
                                      IsCall, Outputs);
+}
+
+SpliceResult
+Sema::SubstSpliceSpecifier(SpliceSpecifier *SS,
+                           const MultiLevelTemplateArgumentList &TemplateArgs) {
+  if (!SS)
+    return SS;
+
+  TemplateInstantiator Instantiator(*this, TemplateArgs, SourceLocation(),
+                                    DeclarationName());
+  return Instantiator.TransformSpliceSpecifier(SS);
 }
 
 NestedNameSpecifierLoc

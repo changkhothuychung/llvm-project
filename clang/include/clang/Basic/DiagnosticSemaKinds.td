@@ -3116,14 +3116,16 @@ def err_splice_operand_not_reflection : Error<
 def err_splice_operand_not_constexpr : Error<
   "splice operand must be a constant expression">;
 def err_unexpected_reflection_kind_in_splice : Error<
-  "reflection not usable in a splice of %select{a|an|a|a}0 "
-  "%select{type|expression|namespace|template}0">;
+  "reflection not usable in a "
+  "%select{splice type|splice expression|namespace splice|template splice}0">;
 def err_unexpected_reflection_kind : Error<
   "expected a reflection of %select{a|an|a|a}0 "
   "%select{type|expression|namespace|template}0">;
 def err_unexpected_reflection_template_kind : Error<
   "expected a reflection of a template of %select{a|an}0 "
   "%select{type|expression}0">;
+def err_unexpected_splice_specialization : Error<
+  "cannot specialize a splice of a namespace">;
 def err_splice_global_scope_as_namespace : Error<
   "splice of global scope can only appear in a nested-name-specifier">;
 def err_member_access_splice_not_class_member : Error<

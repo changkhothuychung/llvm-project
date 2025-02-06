@@ -3778,27 +3778,47 @@ void Parser::ParseDeclarationSpecifiers(
       DS.Finish(Actions, Policy);
       return;
 
-    case tok::l_splice:
-      if (TryAnnotateTypeOrScopeToken(AllowImplicitTypename)) {
+    case tok::l_splice: {
+      CXXScopeSpec SS;
+      if (ParseOptionalCXXScopeSpecifier(
+          SS, /*ObjectType=*/nullptr, /*ObjectHasErrors=*/false,
+          EnteringContext, nullptr,
+          AllowImplicitTypename == ImplicitTypenameContext::Yes)) {
+        DS.SetTypeSpecError();
+        goto DoneWithDeclSpec;
+      } else if (SS.isSet()) {
+        AnnotateScopeToken(SS, true);
+      }
+
+      if (!Tok.is(tok::l_splice))
+        continue;
+      break;
+    }
+
+    case tok::annot_splice: {
+      SpliceResult SR = getSpliceAnnotation(Tok);
+      if (SR.isInvalid()) {
         DS.SetTypeSpecError();
         break;
       }
-      continue;
+      MaybeSpecializedSplicePtr Splice = SR.get();
 
-    case tok::annot_splice: {
-      if (NextToken().is(tok::less)) {
-        // TODO(P2996): Handle 'template' keyword.
-        if (ParseTemplateAnnotationFromSplice(SourceLocation(), true, false)) {
+      if (AllowImplicitTypename == ImplicitTypenameContext::Yes &&
+          NextToken().is(tok::less)) {
+        if (ParseSpliceSpecializationSpecifier()) {
           DS.SetTypeSpecError();
           break;
         }
-        continue;
+        SpliceSpecResult SSR = getSpliceSpecializationAnnotation(Tok);
+        if (SSR.isInvalid()) {
+          DS.SetTypeSpecError();
+          break;
+        }
+        Splice = SSR.get();
       }
-      ExprResult Result = getExprAnnotation(Tok);
-      assert(!Result.isInvalid());
 
       if (DS.SetTypeSpecType(DeclSpec::TST_type_splice, Tok.getLocation(),
-                             PrevSpec, DiagID, Result.get(), Policy)) {
+                             PrevSpec, DiagID, Splice, Policy)) {
         Diag(Tok.getLocation(), DiagID) << PrevSpec;
         DS.SetTypeSpecError();
         break;

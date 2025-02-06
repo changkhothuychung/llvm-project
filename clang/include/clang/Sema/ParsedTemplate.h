@@ -37,7 +37,7 @@ namespace clang {
       /// A template template argument, stored as a template name.
       Template,
       /// A splice specifier argument, stored as an expression.
-      SpliceSpecifier,
+      Splice,
     };
 
     /// Build an empty template argument.
@@ -91,9 +91,9 @@ namespace clang {
       return ParsedTemplateTy::getFromOpaquePtr(Arg);
     }
 
-    CXXSpliceSpecifierExpr *getAsSpliceSpecifier() const {
-      assert(Kind == SpliceSpecifier && "Not a splice specifier argument");
-      return static_cast<CXXSpliceSpecifierExpr*>(Arg);
+    SpliceTemplateArgument *getAsSpliceTemplateArgument() const {
+      assert(Kind == Splice && "Not a splice specifier argument");
+      return static_cast<SpliceTemplateArgument *>(Arg);
     }
 
     /// Retrieve the location of the template argument.

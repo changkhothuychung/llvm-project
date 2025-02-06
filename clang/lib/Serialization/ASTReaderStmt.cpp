@@ -527,20 +527,15 @@ void ASTStmtReader::VisitCXXMetafunctionExpr(CXXMetafunctionExpr *E) {
   E->setArgs(Args, NumArgs);
 }
 
-void ASTStmtReader::VisitCXXSpliceSpecifierExpr(CXXSpliceSpecifierExpr *E) {
-  VisitExpr(E);
-  E->setTemplateKWLoc(Record.readSourceLocation());
-  E->setLSpliceLoc(Record.readSourceLocation());
-  E->setRSpliceLoc(Record.readSourceLocation());
-  E->setOperand(Record.readExpr());
-}
-
 void ASTStmtReader::VisitCXXSpliceExpr(CXXSpliceExpr *E) {
   VisitExpr(E);
-  E->setLSpliceLoc(Record.readSourceLocation());
-  E->setRSpliceLoc(Record.readSourceLocation());
+  E->setTemplateKWLoc(Record.readSourceLocation());
+  if (Record.readBool())
+    E->setSplice(Record.readSpliceSpecializationSpecifierRef());
+  else
+    E->setSplice(Record.readSpliceSpecifierRef());
+  E->setModel(Record.readExpr());
   E->setAllowMemberReference(Record.readBool());
-  E->setOperand(Record.readExpr());
 }
 
 void ASTStmtReader::VisitCXXDependentMemberSpliceExpr(
@@ -4614,10 +4609,6 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
     }
     case EXPR_METAFUNCTION: {
       S = CXXMetafunctionExpr::CreateEmpty(Context);
-      break;
-    }
-    case EXPR_SPLICE_SPECIFIER: {
-      S = CXXSpliceSpecifierExpr::CreateEmpty(Context);
       break;
     }
     case EXPR_SPLICE: {

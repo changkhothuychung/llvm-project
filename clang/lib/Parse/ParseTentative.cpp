@@ -633,7 +633,6 @@ Parser::isCXXConditionDeclarationOrInitStatement(bool CanBeInitStatement,
   ///   type-specifier-seq abstract-declarator[opt]
   ///
 bool Parser::isCXXTypeId(TentativeCXXTypeIdContext Context, bool &isAmbiguous) {
-
   isAmbiguous = false;
 
   // C++ 8.2p2:
@@ -1379,7 +1378,16 @@ Parser::isCXXDeclarationSpecifier(ImplicitTypenameContext AllowImplicitTypename,
              GetLookAheadToken(Lookahead + 1).isOneOf(tok::amp, tok::ampamp)));
   };
   switch (Tok.getKind()) {
-  case tok::identifier: {
+  case tok::annot_splice:
+    if (NextToken().is(tok::less) &&
+        AllowImplicitTypename == ImplicitTypenameContext::Yes) {
+      if (ParseSpliceSpecializationSpecifier())
+        return TPResult::Error;
+    }
+    [[fallthrough]];
+
+  case tok::identifier:
+  case tok::annot_splice_specialization: {
     if (GetLookAheadToken(1).is(tok::ellipsis) &&
         GetLookAheadToken(2).is(tok::l_square)) {
 
@@ -1404,13 +1412,14 @@ Parser::isCXXDeclarationSpecifier(ImplicitTypenameContext AllowImplicitTypename,
     // If this identifier was reverted from a token ID, and the next token
     // is a '(', we assume it to be a use of a type trait, so this
     // can never be a type name.
-    if (Next.is(tok::l_paren) &&
+    if (Next.is(tok::l_paren) && Tok.is(tok::identifier) &&
         Tok.getIdentifierInfo()->hasRevertedTokenIDToIdentifier() &&
         isRevertibleTypeTrait(Tok.getIdentifierInfo())) {
       return TPResult::False;
     }
 
-    if (Next.isNot(tok::coloncolon) && Next.isNot(tok::less)) {
+    if (Tok.is(tok::identifier) && Next.isNot(tok::coloncolon) &&
+        Next.isNot(tok::less)) {
       // Determine whether this is a valid expression. If not, we will hit
       // a parse error one way or another. In that case, tell the caller that
       // this is ambiguous. Typo-correct to type and expression keywords and
@@ -1453,7 +1462,8 @@ Parser::isCXXDeclarationSpecifier(ImplicitTypenameContext AllowImplicitTypename,
       // If annotation failed, assume it's a non-type.
       // FIXME: If this happens due to an undeclared identifier, treat it as
       // ambiguous.
-      if (Tok.is(tok::identifier))
+      if (Tok.is(tok::identifier) || Tok.is(tok::annot_splice) ||
+          Tok.is(tok::annot_splice_specialization))
         return TPResult::False;
     }
 
@@ -1496,14 +1506,6 @@ Parser::isCXXDeclarationSpecifier(ImplicitTypenameContext AllowImplicitTypename,
       return TPResult::Error;
     return isCXXDeclarationSpecifier(AllowImplicitTypename, BracedCastResult,
                                      InvalidAsDeclSpec);
-
-  case tok::annot_splice: {
-    RevertingTentativeParsingAction PA(*this);
-
-    bool IsTypename = AllowImplicitTypename == ImplicitTypenameContext::Yes;
-    return ParseCXXSpliceAsType(IsTypename, false).isInvalid() ?
-           TPResult::False : TPResult::True;
-  }
 
     // decl-specifier:
     //   storage-class-specifier

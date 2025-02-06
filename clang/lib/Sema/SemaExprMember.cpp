@@ -1322,7 +1322,7 @@ Sema::BuildMemberReferenceExpr(Scope *S, Expr *Base, SourceLocation OpLoc,
   CXXScopeSpec SS;
   NamedDecl *ND = nullptr;
   TemplateArgumentListInfo TemplateArgs(RHS->getBeginLoc(), RHS->getEndLoc());
-  if (auto *DRE = dyn_cast<DeclRefExpr>(RHS->getOperand())) {
+  if (auto *DRE = dyn_cast<DeclRefExpr>(RHS->getModel())) {
     ValueDecl *D = DRE->getDecl();
     if (isa<FieldDecl>(D) || isa<CXXMethodDecl>(D) ||
         (isa<VarDecl>(D) && DRE->getQualifierLoc())) {
@@ -1330,7 +1330,7 @@ Sema::BuildMemberReferenceExpr(Scope *S, Expr *Base, SourceLocation OpLoc,
       // NOTE(P2996): Uncomment the following line for static dispatch.
       // SS.Adopt(DRE->getQualifierLoc());
     }
-  } else if (auto *ULE = dyn_cast<UnresolvedLookupExpr>(RHS->getOperand())) {
+  } else if (auto *ULE = dyn_cast<UnresolvedLookupExpr>(RHS->getModel())) {
     assert(ULE->getNumDecls() == 1);
 
     ND = (*ULE->decls_begin());
@@ -2084,7 +2084,7 @@ Sema::BuildImplicitMemberExpr(const CXXScopeSpec &SS,
     if (auto *Prefix = NNS->getPrefix())
       NNS = Prefix;
 
-    if (NNS->getAsSpliceExpr()) {
+    if (NNS->getAsSplice() || NNS->getAsSpliceSpecialization()) {
       Diag(SS.getBeginLoc(),
            diag::err_dependent_splice_implicit_member_reference)
           << SourceRange(SS.getBeginLoc(), R.getNameLoc());

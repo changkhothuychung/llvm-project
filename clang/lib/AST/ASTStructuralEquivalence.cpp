@@ -164,6 +164,38 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
   return true;
 }
 
+static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
+                                     MaybeSpecializedSplicePtr Splice1,
+                                     MaybeSpecializedSplicePtr Splice2) {
+  if (auto *SS1 = dyn_cast<SpliceSpecifier *>(Splice1)) {
+    auto *SS2 = dyn_cast<SpliceSpecifier *>(Splice2);
+    if (!SS2)
+      return false;
+
+    return IsStructurallyEquivalent(Context, SS1->getOperand(),
+                                    SS2->getOperand());
+  } else {
+    auto *SSS1 = cast<SpliceSpecializationSpecifier *>(Splice1);
+    auto *SSS2 = dyn_cast<SpliceSpecializationSpecifier *>(Splice2);
+    if (!SSS2)
+      return false;
+
+    if (!IsStructurallyEquivalent(Context, SSS1->getSpliceSpecifier(),
+                                 SSS2->getSpliceSpecifier()))
+      return false;
+
+    auto TArgs1 = SSS1->getTemplateArgs()->arguments();
+    auto TArgs2 = SSS2->getTemplateArgs()->arguments();
+    if (TArgs1.size() != TArgs2.size())
+      return false;
+    for (unsigned k = 0; k < TArgs1.size(); ++k)
+      if (!IsStructurallyEquivalent(Context, TArgs1[k], TArgs2[k]))
+        return false;
+
+    return true;
+  }
+}
+
 namespace {
 /// Encapsulates Stmt comparison logic.
 class StmtComparer {
@@ -578,7 +610,17 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                     NNS1->getAsRecordDecl(),
                                     NNS2->getAsRecordDecl());
   case NestedNameSpecifier::Splice:
-    llvm::report_fatal_error("unimplemented: IsStructurallyEquivalent");
+    return IsStructurallyEquivalent(
+        Context, const_cast<SpliceSpecifier *>(NNS1->getAsSplice()),
+        const_cast<SpliceSpecifier *>(NNS2->getAsSplice()));
+  case NestedNameSpecifier::SpliceSpecialization:
+  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
+    return IsStructurallyEquivalent(
+        Context,
+        const_cast<SpliceSpecializationSpecifier *>(
+            NNS1->getAsSpliceSpecialization()),
+        const_cast<SpliceSpecializationSpecifier *>(
+            NNS2->getAsSpliceSpecialization()));
   }
   return false;
 }
@@ -685,8 +727,17 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     return llvm::APSInt::isSameValue(Arg1.getAsIntegral(),
                                      Arg2.getAsIntegral());
 
-  case TemplateArgument::SpliceSpecifier:
-    return Arg1.getAsSpliceSpecifier() == Arg2.getAsSpliceSpecifier();
+  case TemplateArgument::Splice: {
+    auto *STA1 = Arg1.getAsSpliceTemplateArgument();
+    auto *STA2 = Arg2.getAsSpliceTemplateArgument();
+
+    return IsStructurallyEquivalent(Context,
+                                    STA1->getSpliceSpecifier()->getOperand(),
+                                    STA2->getSpliceSpecifier()->getOperand()) &&
+           STA1->getEllipsisLoc().isValid() ==
+                                             STA2->getEllipsisLoc().isValid() &&
+           STA1->getNumExpansions() == STA2->getNumExpansions();
+  }
 
   case TemplateArgument::Declaration:
     return IsStructurallyEquivalent(Context, Arg1.getAsDecl(), Arg2.getAsDecl());
@@ -1184,8 +1235,8 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 
   case Type::ReflectionSplice:
     if (!IsStructurallyEquivalent(Context,
-                                  cast<ReflectionSpliceType>(T1)->getOperand(),
-                                  cast<ReflectionSpliceType>(T2)->getOperand()))
+                                  cast<ReflectionSpliceType>(T1)->getSplice(),
+                                  cast<ReflectionSpliceType>(T2)->getSplice()))
       return false;
     break;
 

@@ -122,13 +122,25 @@ void CXXScopeSpec::MakeSuper(ASTContext &Context, CXXRecordDecl *RD,
   "NestedNameSpecifierLoc range computation incorrect");
 }
 
-void CXXScopeSpec::MakeSpliceSpecifier(ASTContext &Context,
-                                       CXXSpliceSpecifierExpr * Expr,
-                                       SourceLocation ColonColonLoc) {
-  Builder.MakeSpliceSpecifier(Context, Expr, ColonColonLoc);
+void CXXScopeSpec::MakeSpliceScopeSpecifier(ASTContext &Context,
+                                            SourceLocation TemplateKWLoc,
+                                            MaybeSpecializedSplicePtr Splice,
+                                            SourceLocation ColonColonLoc) {
+  if (auto *SS = dyn_cast<SpliceSpecifier *>(Splice)) {
+    assert(!TemplateKWLoc.isValid());
 
-  Range.setBegin(Expr->getLSpliceLoc());
-  Range.setEnd(ColonColonLoc);
+    Builder.MakeSpliceScopeSpecifier(Context, SS, ColonColonLoc);
+    Range.setBegin(SS->getBeginLoc());
+    Range.setEnd(ColonColonLoc);
+  } else {
+    auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(Splice);
+
+    Builder.MakeSpliceScopeSpecifier(Context, TemplateKWLoc, SSS,
+                                     ColonColonLoc);
+    Range.setBegin(TemplateKWLoc.isValid() ? TemplateKWLoc :
+                                             SSS->getBeginLoc());
+    Range.setEnd(ColonColonLoc);
+  }
 
   assert(Range == Builder.getSourceRange() &&
   "NestedNameSpecifierLoc range computation incorrect");
@@ -828,6 +840,27 @@ bool DeclSpec::SetTypeSpecType(TST T, SourceLocation Loc,
   ExprRep = Rep;
   TSTLoc = Loc;
   TSTNameLoc = Loc;
+  TypeSpecOwned = false;
+  return false;
+}
+
+bool DeclSpec::SetTypeSpecType(TST T, SourceLocation Loc,
+                               const char *&PrevSpec,
+                               unsigned &DiagID,
+                               MaybeSpecializedSplicePtr Rep,
+                               const PrintingPolicy &Policy) {
+  assert(isSpliceRep(T) && "T does not store a splice");
+  assert(Rep && "no splice provided!");
+  if (TypeSpecType == TST_error)
+    return false;
+  if (TypeSpecType != TST_unspecified) {
+    PrevSpec = DeclSpec::getSpecifierName((TST) TypeSpecType, Policy);
+    DiagID = diag::err_invalid_decl_spec_combination;
+    return true;
+  }
+  TypeSpecType = T;
+  SpliceRep = Rep;
+  TSTLoc = Loc;
   TypeSpecOwned = false;
   return false;
 }

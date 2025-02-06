@@ -118,6 +118,7 @@ add_clang_library(clangAST
   Reflection.cpp
   ScanfFormatString.cpp
   SelectorLocationsKind.cpp
+  SpliceSpecifier.cpp
   Stmt.cpp
   StmtCXX.cpp
   StmtIterator.cpp

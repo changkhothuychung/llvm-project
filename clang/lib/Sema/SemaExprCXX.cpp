@@ -84,6 +84,8 @@ ParsedType Sema::getInheritingConstructorName(CXXScopeSpec &SS,
   case NestedNameSpecifier::Namespace:
   case NestedNameSpecifier::NamespaceAlias:
   case NestedNameSpecifier::Splice:
+  case NestedNameSpecifier::SpliceSpecialization:
+  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
     llvm_unreachable("Nested name specifier is not a type for inheriting ctor");
   }
 
@@ -545,6 +547,8 @@ bool Sema::checkLiteralOperatorId(const CXXScopeSpec &SS,
   case NestedNameSpecifier::Namespace:
   case NestedNameSpecifier::NamespaceAlias:
   case NestedNameSpecifier::Splice:
+  case NestedNameSpecifier::SpliceSpecialization:
+  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
     return false;
   }
 
@@ -9428,9 +9432,10 @@ concepts::Requirement *Sema::ActOnSimpleRequirement(Expr *E) {
 concepts::Requirement *Sema::ActOnTypeRequirement(
     SourceLocation TypenameKWLoc, CXXScopeSpec &SS, SourceLocation NameLoc,
     const IdentifierInfo *TypeName, TemplateIdAnnotation *TemplateId,
-    CXXSpliceSpecifierExpr *SpliceExpr) {
-  assert(((bool(TypeName) + bool(TemplateId) + bool(SpliceExpr)) == 1) &&
-         "Exactly one of TypeName, TemplateId and SpliceExpr "
+    SpliceSpecifier *Splice, SpliceSpecializationSpecifier *SpliceSpec) {
+  assert(((bool(TypeName) + bool(TemplateId) +
+           bool(Splice) + bool(SpliceSpec)) == 1) &&
+         "Exactly one of TypeName, TemplateId, Splice, and SpliceSpec "
          "must be specified.");
   TypeSourceInfo *TSI = nullptr;
   if (TypeName) {
@@ -9453,14 +9458,15 @@ concepts::Requirement *Sema::ActOnTypeRequirement(
       return nullptr;
     if (GetTypeFromParser(T.get(), &TSI).isNull())
       return nullptr;
-  } else {
-    TypeResult T = ActOnCXXSpliceExpectingType(
-          SpliceExpr->getLSpliceLoc(), SpliceExpr->getOperand(), SpliceExpr->getRSpliceLoc(),
-          true);
-    if (T.isInvalid()) {
+  } else if (Splice || SpliceSpec) {
+    TypeResult TR = Splice ? ActOnCXXSpliceTypeSpecifier(TypenameKWLoc, Splice,
+                                                         true)
+                           : ActOnCXXSpliceTypeSpecifier(TypenameKWLoc,
+                                                         SpliceSpec, true);
+    if (TR.isInvalid()) {
       return nullptr;
     }
-    if (GetTypeFromParser(T.get(), &TSI).isNull()) {
+    if (GetTypeFromParser(TR.get(), &TSI).isNull()) {
       return nullptr;
     }
   }

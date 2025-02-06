@@ -2039,7 +2039,8 @@ bool Parser::TryAnnotateTypeOrScopeToken(
           Tok.is(tok::kw_typename) || Tok.is(tok::annot_cxxscope) ||
           Tok.is(tok::kw_decltype) || Tok.is(tok::annot_template_id) ||
           Tok.is(tok::kw___super) || Tok.is(tok::kw_auto) ||
-          Tok.is(tok::l_splice) || Tok.is(tok::annot_pack_indexing_type)) &&
+          Tok.is(tok::l_splice) || Tok.is(tok::annot_splice) ||
+          Tok.is(tok::annot_pack_indexing_type)) &&
          "Cannot be a type or scope token!");
 
   if (Tok.is(tok::kw_typename)) {
@@ -2074,6 +2075,8 @@ bool Parser::TryAnnotateTypeOrScopeToken(
                                        /*EnteringContext=*/false, nullptr,
                                        /*IsTypename*/ true))
       return true;
+    if (Tok.is(tok::annot_typename))
+      return false;
 
     if (SS.isEmpty() && !Tok.is(tok::annot_splice)) {
       if (Tok.is(tok::identifier) || Tok.is(tok::annot_template_id) ||
@@ -2132,10 +2135,13 @@ bool Parser::TryAnnotateTypeOrScopeToken(
                      TemplateId->Template, TemplateId->Name,
                      TemplateId->TemplateNameLoc, TemplateId->LAngleLoc,
                      TemplateArgsPtr, TemplateId->RAngleLoc);
-    } else if (Tok.is(tok::annot_splice)) {
+    } else if (Tok.isOneOf(tok::annot_splice,
+                           tok::annot_splice_specialization)) {
+
       // We parsed a 'typename' keyword, so this must be a type.
       Token SpliceToken = Tok;
-      Ty = ParseCXXSpliceAsType(/*AllowDependent=*/true, /*Complain=*/true);
+      Ty = ParseCXXSpliceAsType(TypenameLoc, /*AllowDependent=*/true,
+                                /*Complain=*/true);
       if (Ty.isInvalid())
         return true;
 

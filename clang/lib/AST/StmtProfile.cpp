@@ -2369,11 +2369,6 @@ void StmtProfiler::VisitCXXMetafunctionExpr(const CXXMetafunctionExpr *E) {
   VisitExpr(E);
 }
 
-void StmtProfiler::VisitCXXSpliceSpecifierExpr(
-                                              const CXXSpliceSpecifierExpr *E) {
-  VisitExpr(E);
-}
-
 void StmtProfiler::VisitCXXSpliceExpr(const CXXSpliceExpr *E) {
   VisitExpr(E);
 }

@@ -14181,7 +14181,7 @@ static ValueDecl *getPrimaryDecl(Expr *E) {
   case Stmt::CXXUuidofExprClass:
     return cast<CXXUuidofExpr>(E)->getGuidDecl();
   case Stmt::CXXSpliceExprClass:
-    return getPrimaryDecl(cast<CXXSpliceExpr>(E)->getOperand());
+    return getPrimaryDecl(cast<CXXSpliceExpr>(E)->getModel());
   default:
     return nullptr;
   }

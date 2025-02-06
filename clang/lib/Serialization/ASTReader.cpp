@@ -7224,8 +7224,7 @@ void TypeLocReader::VisitDecltypeTypeLoc(DecltypeTypeLoc TL) {
 }
 
 void TypeLocReader::VisitReflectionSpliceTypeLoc(ReflectionSpliceTypeLoc TL) {
-  TL.setLSpliceLoc(readSourceLocation());
-  TL.setRSpliceLoc(readSourceLocation());
+  // nothing to do
 }
 
 void TypeLocReader::VisitPackIndexingTypeLoc(PackIndexingTypeLoc TL) {
@@ -7249,6 +7248,35 @@ ConceptReference *ASTRecordReader::readConceptReference() {
       getContext(), NNS, TemplateKWLoc, ConceptNameLoc, FoundDecl, NamedConcept,
       (readBool() ? readASTTemplateArgumentListInfo() : nullptr));
   return CR;
+}
+
+SpliceSpecifier *ASTRecordReader::readSpliceSpecifierRef() {
+  auto LSpliceLoc = readSourceLocation();
+  auto RSpliceLoc = readSourceLocation();
+  auto *Operand = readExpr();
+  auto *SS = SpliceSpecifier::Create(getContext(), LSpliceLoc, Operand,
+                                     RSpliceLoc);
+  return SS;
+}
+
+SpliceSpecializationSpecifier *
+ASTRecordReader::readSpliceSpecializationSpecifierRef() {
+  auto *SS = readSpliceSpecifierRef();
+  auto *TemplateArgs = readASTTemplateArgumentListInfo();
+  auto *SSS = SpliceSpecializationSpecifier::Create(getContext(), SS,
+                                                    *TemplateArgs);
+  return SSS;
+}
+
+SpliceTemplateArgument *ASTRecordReader::readSpliceTemplateArgumentRef() {
+  auto *SS = readSpliceSpecifierRef();
+  SourceLocation Ellipsis = readSourceLocation();
+  if (readBool())
+    return SpliceTemplateArgument::Create(getContext(), SS, readInt(),
+                                          Ellipsis);
+  else
+    return SpliceTemplateArgument::Create(getContext(), SS, std::nullopt,
+                                          Ellipsis);
 }
 
 void TypeLocReader::VisitAutoTypeLoc(AutoTypeLoc TL) {
@@ -9950,10 +9978,9 @@ ASTRecordReader::readNestedNameSpecifierLoc() {
     }
 
     case NestedNameSpecifier::Splice: {
-      CXXSpliceSpecifierExpr *Expr =
-            reinterpret_cast<CXXSpliceSpecifierExpr *>(readExpr());
+      SpliceSpecifier *Splice = readSpliceSpecifierRef();
       SourceLocation ColonColonLoc = readSourceLocation();
-      Builder.MakeSpliceSpecifier(Context, Expr, ColonColonLoc);
+      Builder.MakeSpliceScopeSpecifier(Context, Splice, ColonColonLoc);
       break;
     }
     }

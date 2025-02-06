@@ -28,6 +28,7 @@
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/Reflection.h"
+#include "clang/AST/SpliceSpecifier.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/TemplateBase.h"
@@ -5526,72 +5527,6 @@ public:
   }
 };
 
-/// Represents a C++2c "splice specifier". At some point, this should probably
-/// be refactored into a non-Expr class, and removed from 'ExprCXX.h'.
-class CXXSpliceSpecifierExpr : public Expr {
-  SourceLocation TemplateKWLoc;
-  SourceLocation LSpliceLoc;
-  Expr *Operand;
-  SourceLocation RSpliceLoc;
-
-  CXXSpliceSpecifierExpr(QualType ResultTy, SourceLocation TemplateKWLoc,
-                         SourceLocation LSpliceLoc, Expr *Operand,
-                         SourceLocation RSpliceLoc);
-
-  CXXSpliceSpecifierExpr(EmptyShell Empty);
-
-public:
-  static CXXSpliceSpecifierExpr *Create(ASTContext &C,
-                                        SourceLocation TemplateKWLoc,
-                                        SourceLocation LSpliceLoc,
-                                        Expr *Operand,
-                                        SourceLocation RSpliceLoc);
-
-  static CXXSpliceSpecifierExpr *CreateEmpty(ASTContext &C);
-
-  Expr *getOperand() const { return Operand; }
-  void setOperand(Expr *E) { Operand = E; }
-
-  SourceLocation getTemplateKWLoc() const { return TemplateKWLoc; }
-  void setTemplateKWLoc(SourceLocation Loc) { TemplateKWLoc = Loc; }
-
-  SourceLocation getLSpliceLoc() const { return LSpliceLoc; }
-  void setLSpliceLoc(SourceLocation Loc) { LSpliceLoc = Loc; }
-
-  SourceLocation getRSpliceLoc() const { return RSpliceLoc; }
-  void setRSpliceLoc(SourceLocation Loc) { RSpliceLoc = Loc; }
-
-  SourceLocation getBeginLoc() const {
-    if (TemplateKWLoc.isValid())
-      return TemplateKWLoc;
-
-    return LSpliceLoc;
-  }
-
-  SourceLocation getEndLoc() const {
-    return RSpliceLoc;
-  }
-
-  SourceRange getSourceRange() const {
-    return SourceRange(getBeginLoc(), getEndLoc());
-  }
-
-  child_range children() {
-    return child_range(reinterpret_cast<Stmt **>(&Operand),
-                       reinterpret_cast<Stmt **>(&Operand) + 1);
-  }
-
-  const_child_range children() const {
-    return const_child_range(
-                  reinterpret_cast<Stmt **>(const_cast<Expr **>(&Operand)),
-                  reinterpret_cast<Stmt **>(const_cast<Expr **>(&Operand) + 1));
-  }
-
-  static bool classof(const Stmt *T) {
-    return T->getStmtClass() == CXXSpliceSpecifierExprClass;
-  }
-};
-
 // Implementation detail of the 'is_accessible' metafunction.
 // Used to "reach up the stack" to find the context from which the metafunction
 // was called, such that the accessibility of a class member can thereafter be
@@ -5669,150 +5604,113 @@ public:
   }
 };
 
-class CXXSpliceExpr final
-    : public Expr,
-      private llvm::TrailingObjects<CXXSpliceExpr, ASTTemplateKWAndArgsInfo,
-                                    TemplateArgumentLoc> {
-  friend TrailingObjects;
-
-  SourceLocation LSpliceLoc;
-  Expr *Operand;
-  SourceLocation RSpliceLoc;
+class CXXSpliceExpr final : public Expr {
+  SourceLocation TemplateKWLoc;
+  MaybeSpecializedSplicePtr Splice;
+  Expr *Model;
   bool AllowMemberReference;
 
   CXXSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
-                SourceLocation TemplateKWLoc, SourceLocation LSpliceLoc,
-                Expr *Operand, SourceLocation RSpliceLoc,
-                const TemplateArgumentListInfo *TemplateArgs,
-                bool AllowMemberReference);
+                SourceLocation TemplateKWLoc, MaybeSpecializedSplicePtr Splice,
+                Expr *Model, bool AllowMemberReference);
 
   CXXSpliceExpr(EmptyShell Empty);
 
-  inline ASTTemplateKWAndArgsInfo *getTrailingASTTemplateKWAndArgsInfo() {
-    return getTrailingObjects<ASTTemplateKWAndArgsInfo>();
-  }
-  const ASTTemplateKWAndArgsInfo *getTrailingASTTemplateKWAndArgsInfo() const {
-    return const_cast<CXXSpliceExpr *>(this)
-        ->getTrailingASTTemplateKWAndArgsInfo();
-  }
-
-  inline TemplateArgumentLoc *getTrailingTemplateArgumentLoc() {
-    return getTrailingObjects<TemplateArgumentLoc>();
-  }
-  const TemplateArgumentLoc *getTrailingTemplateArgumentLoc() const {
-    return const_cast<CXXSpliceExpr *>(this)
-        ->getTrailingTemplateArgumentLoc();
-  }
-
-  bool hasTemplateKWAndArgsInfo() const {
-    return CXXSpliceExprBits.HasTemplateKWAndArgsInfo;
-  }
-
-  unsigned numTrailingObjects(OverloadToken<ASTTemplateKWAndArgsInfo>) const {
-    return hasTemplateKWAndArgsInfo();
-  }
-
-  unsigned numTrailingObjects(OverloadToken<TemplateArgumentLoc>) const {
-    return getNumTemplateArgs();
-  }
-
-
 public:
   static CXXSpliceExpr *Create(ASTContext &C, ExprValueKind ValueKind,
-                                   SourceLocation TemplateKWLoc,
-                                   SourceLocation LSpliceLoc, Expr *Operand,
-                                   SourceLocation RSpliceLoc,
-                                   const TemplateArgumentListInfo *TemplateArgs,
-                                   bool AllowMemberReference);
+                               SourceLocation TemplateKWLoc,
+                               MaybeSpecializedSplicePtr Splice, Expr *Model,
+                               bool AllowMemberReference);
 
   static CXXSpliceExpr *CreateEmpty(ASTContext &C);
 
-  Expr *getOperand() const { return Operand; }
-  void setOperand(Expr *E) { Operand = E; }
+  MaybeSpecializedSplicePtr getSplice() const { return Splice; }
+  void setSplice(MaybeSpecializedSplicePtr S) { Splice = S; }
+
+  SpliceSpecifier *getSpliceSpecifier() const {
+    if (auto *SSS = Splice.dyn_cast<SpliceSpecializationSpecifier *>())
+      return SSS->getSpliceSpecifier();
+    return cast<SpliceSpecifier *>(Splice);
+  }
+
+  Expr *getModel() const { return Model; }
+  void setModel(Expr *M) { Model = M; }
 
   bool allowMemberReference() const { return AllowMemberReference; }
   void setAllowMemberReference(bool Allow) { AllowMemberReference = Allow; }
 
-  /// Determines whether the splice was preceded by the template keyword.
-  bool hasTemplateKeyword() const { return getTemplateKeywordLoc().isValid(); }
+  SourceLocation getTemplateKWLoc() const { return TemplateKWLoc; }
+  void setTemplateKWLoc(SourceLocation Loc) { TemplateKWLoc = Loc; }
 
   /// Determines whether this splice had explicit template arguments.
-  bool hasExplicitTemplateArgs() const { return getLAngleLoc().isValid(); }
+  bool hasExplicitTemplateArgs() const {
+    return isa<SpliceSpecializationSpecifier *>(Splice);
+  }
 
   TemplateArgumentLoc const *getTemplateArgs() const {
-    return const_cast<CXXSpliceExpr *>(this)
-        ->getTrailingObjects<TemplateArgumentLoc>();
+    auto *SSS = cast<SpliceSpecializationSpecifier *>(Splice);
+    return SSS->getTemplateArgs()->getTemplateArgs();
   }
 
   unsigned getNumTemplateArgs() const {
     if (!hasExplicitTemplateArgs())
       return 0;
 
-    return getTrailingASTTemplateKWAndArgsInfo()->NumTemplateArgs;
+    auto *SSS = cast<SpliceSpecializationSpecifier *>(Splice);
+    return SSS->getTemplateArgs()->getNumTemplateArgs();
   }
 
   ArrayRef<TemplateArgumentLoc> template_arguments() const {
-    return {getTemplateArgs(), getNumTemplateArgs()};
+    return cast<SpliceSpecializationSpecifier *>(Splice)
+        ->getTemplateArgs()->arguments();
   }
 
   /// Copies the template arguments into the given structure.
   void copyTemplateArgumentsInto(TemplateArgumentListInfo &List) const {
-    if (hasExplicitTemplateArgs())
-      getTrailingASTTemplateKWAndArgsInfo()->copyInto(getTemplateArgs(), List);
+    if (auto *SSS = Splice.dyn_cast<SpliceSpecializationSpecifier *>())
+      for (const TemplateArgumentLoc &Arg : SSS->getTemplateArgs()->arguments())
+        List.addArgument(Arg);
   }
 
   /// Retrieve location of the template keyword preceding this splice, if any.
-  SourceLocation getTemplateKeywordLoc() const {
-    if (!hasTemplateKWAndArgsInfo())
-      return SourceLocation();
-    return getTrailingASTTemplateKWAndArgsInfo()->TemplateKWLoc;
-  }
+  SourceLocation getTemplateKeywordLoc() const { return TemplateKWLoc; }
 
   /// Retrieve location of the left angle bracket starting the explicit template
   /// argument list following the splice, if any.
   SourceLocation getLAngleLoc() const {
-    if (!hasTemplateKWAndArgsInfo())
-      return SourceLocation();
-    return getTrailingASTTemplateKWAndArgsInfo()->LAngleLoc;
+    if (auto *SSS = Splice.dyn_cast<SpliceSpecializationSpecifier *>())
+      return SSS->getLAngleLoc();
+    return SourceLocation();
   }
 
   /// Retrieve the location of the right angle bracket ending the explicit
   /// template argument list following the splice, if any.
   SourceLocation getRAngleLoc() const {
-    if (!hasTemplateKWAndArgsInfo())
-      return SourceLocation();
-    return getTrailingASTTemplateKWAndArgsInfo()->RAngleLoc;
+    if (auto *SSS = Splice.dyn_cast<SpliceSpecializationSpecifier *>())
+      return SSS->getRAngleLoc();
+    return SourceLocation();
   }
-
-  SourceLocation getLSpliceLoc() const { return LSpliceLoc; }
-  void setLSpliceLoc(SourceLocation Loc) { LSpliceLoc = Loc; }
-
-  SourceLocation getRSpliceLoc() const { return RSpliceLoc; }
-  void setRSpliceLoc(SourceLocation Loc) { RSpliceLoc = Loc; }
 
   SourceLocation getBeginLoc() const {
     if (SourceLocation KWLoc = getTemplateKeywordLoc(); KWLoc.isValid())
       return KWLoc;
 
-    return LSpliceLoc;
+    return getSpliceSpecifier()->getBeginLoc();
   }
 
   SourceLocation getEndLoc() const {
     if (SourceLocation RAngleLoc = getRAngleLoc(); RAngleLoc.isValid())
       return RAngleLoc;
 
-    return RSpliceLoc;
+    return getSpliceSpecifier()->getEndLoc();
   }
 
   child_range children() {
-    return child_range(reinterpret_cast<Stmt **>(&Operand),
-                       reinterpret_cast<Stmt **>(&Operand) + 1);
+    return child_range(child_iterator(), child_iterator());
   }
 
   const_child_range children() const {
-    return const_child_range(
-                  reinterpret_cast<Stmt **>(const_cast<Expr **>(&Operand)),
-                  reinterpret_cast<Stmt **>(const_cast<Expr **>(&Operand) + 1));
+    return const_child_range(const_child_iterator(), const_child_iterator());
   }
 
   static bool classof(const Stmt *T) {

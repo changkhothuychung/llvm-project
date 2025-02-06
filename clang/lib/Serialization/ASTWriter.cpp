@@ -541,8 +541,7 @@ void TypeLocWriter::VisitDecltypeTypeLoc(DecltypeTypeLoc TL) {
 }
 
 void TypeLocWriter::VisitReflectionSpliceTypeLoc(ReflectionSpliceTypeLoc TL) {
-  addSourceLocation(TL.getLSpliceLoc());
-  addSourceLocation(TL.getRSpliceLoc());
+  // nothing to do
 }
 
 void TypeLocWriter::VisitUnaryTransformTypeLoc(UnaryTransformTypeLoc TL) {
@@ -562,6 +561,33 @@ void ASTRecordWriter::AddConceptReference(const ConceptReference *CR) {
   push_back(CR->getTemplateArgsAsWritten() != nullptr);
   if (CR->getTemplateArgsAsWritten())
     AddASTTemplateArgumentListInfo(CR->getTemplateArgsAsWritten());
+}
+
+void ASTRecordWriter::AddSpliceSpecifier(const SpliceSpecifier *SS) {
+  assert(SS);
+  AddSourceLocation(SS->getLSpliceLoc());
+  AddSourceLocation(SS->getRSpliceLoc());
+  AddStmt(SS->getOperand());
+}
+
+void ASTRecordWriter::AddSpliceSpecializationSpecifier(
+      const SpliceSpecializationSpecifier *SSS) {
+  assert(SSS);
+  AddSpliceSpecifier(SSS->getSpliceSpecifier());
+  AddASTTemplateArgumentListInfo(SSS->getTemplateArgs());
+}
+
+void
+ASTRecordWriter::AddSpliceTemplateArgument(const SpliceTemplateArgument *STA) {
+  assert(STA);
+  AddSpliceSpecifier(STA->getSpliceSpecifier());
+  AddSourceLocation(STA->getEllipsisLoc());
+  if (auto OptNum = STA->getNumExpansions(); OptNum.has_value()) {
+    writeBool(true);
+    writeUInt32(OptNum.value());
+  } else {
+    writeBool(false);
+  }
 }
 
 void TypeLocWriter::VisitPackIndexingTypeLoc(PackIndexingTypeLoc TL) {

@@ -881,6 +881,8 @@ static APValue makeReflection(Decl *D) {
   if (isa<NamespaceDecl>(D) || isa<NamespaceAliasDecl>(D) ||
       isa<TranslationUnitDecl>(D))
     return APValue(ReflectionKind::Namespace, D);
+  else if (isa<TemplateDecl>(D))
+    return APValue(ReflectionKind::Template, D);
 
   return APValue(ReflectionKind::Declaration, D);
 }
@@ -1232,9 +1234,9 @@ static APValue getNthTemplateArgument(ASTContext &C,
       APValue IV(templArgument.getAsIntegral());
       return IV.Lift(templArgument.getIntegralType());
     }
-    case TemplateArgument::SpliceSpecifier:
-      llvm_unreachable("TemplateArgument::SpliceSpecifier should have been "
-                       "transformed by now");
+    case TemplateArgument::Splice:
+      llvm_unreachable("TemplateArgument::Splice should have been transformed "
+                       "by now");
     case TemplateArgument::Pack:
       llvm_unreachable("Packs should be expanded before calling this");
 
@@ -2302,7 +2304,7 @@ bool type_of(APValue &Result, ASTContext &C, MetaActions &Meta,
           << 0 << DescriptionOf(RV) << Range;
 
     bool DropCV = isa<ParmVarDecl>(VD);
-    QualType QT = desugarType(VD->getType(), 
+    QualType QT = desugarType(VD->getType(),
                               /*UnwrapAliases=*/ true, DropCV,
                               /*DropRefs=*/false);
     return SetAndSucceed(Result, makeReflection(QT));
@@ -6048,11 +6050,9 @@ bool reflect_invoke(APValue &Result, ASTContext &C, MetaActions &Meta,
           return true;
         }
 
-        // this call is needed to make
-        // CXXSpliceExpr work with pointers to non-static methods
-        // (we unwrap pointer in getCXXMethodDeclFromDeclRefExpr(DRE) function)
-        // for non-pointer setDecl(MD) call is no-op
-        DRE->setDecl(MD);
+        APValue ReflMD = makeReflection(MD);
+        CXXReflectExpr *ReflMDExpr =
+            CXXReflectExpr::Create(C, Range.getBegin(), Range, ReflMD);
 
         auto ObjClass = ObjType->getAsCXXRecordDecl();
         // check that method belongs to class
@@ -6070,11 +6070,8 @@ bool reflect_invoke(APValue &Result, ASTContext &C, MetaActions &Meta,
                  << Range;
         }
 
-        SmallVector<TemplateArgument, 4> ExpandedTArgs;
-        expandTemplateArgPacks(ExplicitTArgs, ExpandedTArgs);
-
-        FnExpr = Meta.SynthesizeDirectMemberAccess(ObjExpr, DRE, ExpandedTArgs,
-                                             Range.getBegin());
+        FnExpr = Meta.SynthesizeDirectMemberAccess(ObjExpr, ReflMDExpr,
+                                                   Range.getBegin());
         if (!FnExpr)
           return true;
       }

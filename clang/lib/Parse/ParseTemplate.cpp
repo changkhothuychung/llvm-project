@@ -1485,12 +1485,16 @@ ParsedTemplateArgument Parser::ParseTemplateTemplateArgument() {
   return Result;
 }
 
-ParsedTemplateArgument Parser::ParseSpliceSpecifierTemplateArgument() {
+ParsedTemplateArgument Parser::ParseSpliceTemplateArgument() {
   CXXScopeSpec SS;
-  if (Tok.is(tok::kw_template) && NextToken().is(tok::l_splice)) {
-    if (ParseCXXSpliceSpecifier(ConsumeToken()))
+
+  // Uncomment the following to support 'template [:R:]'-arguments.
+  //
+  /*if (Tok.is(tok::kw_template) && NextToken().is(tok::l_splice)) {
+    if (ParseSpliceSpecifier(ConsumeToken()))
       return ParsedTemplateArgument();
-  } else if (ParseOptionalCXXScopeSpecifier(
+  } else*/
+  if (ParseOptionalCXXScopeSpecifier(
       SS, /*ObjectType=*/nullptr,
       /*ObjectHasErrors=*/false, /*EnteringContext=*/false,
       /*MayBePseudoDestructor=*/nullptr,
@@ -1499,12 +1503,19 @@ ParsedTemplateArgument Parser::ParseSpliceSpecifierTemplateArgument() {
     return ParsedTemplateArgument();
   }
 
-  ExprResult ER = getExprAnnotation(Tok);
-  assert(!ER.isInvalid());
-  CXXSpliceSpecifierExpr *Splice = cast<CXXSpliceSpecifierExpr>(ER.get());
+  SpliceResult SR = getSpliceAnnotation(Tok);
+  assert(!SR.isInvalid());
+  SpliceSpecifier *Splice = cast<SpliceSpecifier>(SR.get());
   ConsumeAnnotationToken();
 
-  return Actions.ActOnTemplateSpliceSpecifierArgument(Splice);
+  ParsedTemplateArgument Result = Actions.ActOnSpliceTemplateArgument(Splice);
+
+  SourceLocation EllipsisLoc;
+  if (TryConsumeToken(tok::ellipsis, EllipsisLoc) && EllipsisLoc.isValid() &&
+      !Result.isInvalid()) {
+    Result = Actions.ActOnPackExpansion(Result, EllipsisLoc);
+  }
+  return Result;
 }
 
 /// ParseTemplateArgument - Parse a C++ template argument (C++ [temp.names]).
@@ -1556,11 +1567,10 @@ ParsedTemplateArgument Parser::ParseTemplateArgument() {
   {
     TentativeParsingAction TPA(*this);
 
-    ParsedTemplateArgument SpliceTemplateArgument
-          = ParseSpliceSpecifierTemplateArgument();
-    if (!SpliceTemplateArgument.isInvalid()) {
+    ParsedTemplateArgument TArg = ParseSpliceTemplateArgument();
+    if (!TArg.isInvalid()) {
       TPA.Commit();
-      return SpliceTemplateArgument;
+      return TArg;
     }
 
     // Revert this tentative parse; assume a non-type template argument.

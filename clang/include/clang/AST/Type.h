@@ -21,6 +21,7 @@
 
 #include "clang/AST/DependenceFlags.h"
 #include "clang/AST/NestedNameSpecifier.h"
+#include "clang/AST/SpliceSpecifier.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/Basic/AddressSpaces.h"
 #include "clang/Basic/AttrKinds.h"
@@ -7122,7 +7123,7 @@ class DependentTemplateSpecializationType : public TypeWithKeyword,
   /// Either the identifier of the template, or a splice expression that
   /// will resolve to the template.
   llvm::PointerIntPair<llvm::PointerUnion<const IdentifierInfo *,
-                                          const CXXSpliceSpecifierExpr *>,
+                                          const SpliceSpecifier *>,
                        1, bool> Storage;
 
   DependentTemplateSpecializationType(ElaboratedTypeKeyword Keyword,
@@ -7132,7 +7133,7 @@ class DependentTemplateSpecializationType : public TypeWithKeyword,
                                       QualType Canon);
 
   DependentTemplateSpecializationType(ElaboratedTypeKeyword Keyword,
-                                      const CXXSpliceSpecifierExpr *Splice,
+                                      const SpliceSpecifier *Splice,
                                       ArrayRef<TemplateArgument> Args,
                                       QualType Canon);
 
@@ -7143,7 +7144,7 @@ public:
   const IdentifierInfo *getIdentifier() const;
 
   bool hasSplice() const;
-  const CXXSpliceSpecifierExpr *getSplice() const;
+  const SpliceSpecifier *getSplice() const;
 
   ArrayRef<TemplateArgument> template_arguments() const {
     return {reinterpret_cast<const TemplateArgument *>(this + 1),
@@ -7174,7 +7175,7 @@ public:
   static void Profile(llvm::FoldingSetNodeID &ID,
                       const ASTContext &Context,
                       ElaboratedTypeKeyword Keyword,
-                      const CXXSpliceSpecifierExpr *Splice,
+                      const SpliceSpecifier *Splice,
                       ArrayRef<TemplateArgument> Args);
 
   static bool classof(const Type *T) {
@@ -7261,17 +7262,32 @@ public:
 /// resulting APValue is a reflection; this is expected to hold a type in the
 /// context of a 'ReflectionSpliceType'.
 class ReflectionSpliceType : public Type {
-  Expr *Operand;
+  SourceLocation TypenameKWLoc;
+  MaybeSpecializedSplicePtr Splice;
   QualType UnderlyingTy;
+
+  static TypeDependence computeDependence(QualType Canon,
+                                          MaybeSpecializedSplicePtr Splice);
 
 protected:
   friend class ASTContext;
 
-  ReflectionSpliceType(Expr *Operand, QualType T, QualType Canon = QualType());
+  ReflectionSpliceType(SourceLocation TypenameKWLoc,
+                       MaybeSpecializedSplicePtr Splice,
+                       QualType Canon = QualType());
 
 public:
-  /// Returns the operand of the splice.
-  Expr *getOperand() const { return Operand; }
+  /// Returns the location of the 'typename' keyword (if any).
+  SourceLocation getTypenameKWLoc() const { return TypenameKWLoc; }
+
+  /// Returns the splice specifier.
+  MaybeSpecializedSplicePtr getSplice() const { return Splice; }
+
+  SpliceSpecifier *getSpliceSpecifier() const {
+    if (auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(Splice))
+      return SSS->getSpliceSpecifier();
+    return cast<SpliceSpecifier *>(Splice);
+  }
 
   /// Returns the underlying type (i.e., the one spliced).
   QualType getUnderlyingType() const { return UnderlyingTy; }
@@ -7298,10 +7314,16 @@ class DependentReflectionSpliceType : public ReflectionSpliceType,
   const ASTContext &Context;
 
 public:
-  DependentReflectionSpliceType(const ASTContext &Context, Expr *E);
+  DependentReflectionSpliceType(const ASTContext &Context,
+                                SourceLocation TypenameKWLoc,
+                                MaybeSpecializedSplicePtr Splice);
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, Context, getOperand());
+    if (auto *SS = dyn_cast<SpliceSpecifier *>(getSplice())) {
+      ID.AddPointer(SS);
+    } else {
+      ID.AddPointer(cast<SpliceSpecializationSpecifier *>(getSplice()));
+    }
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,

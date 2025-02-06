@@ -57,3 +57,14 @@ void runner() {
 }
 
 }  // namespace with_implicit_member_access
+
+                       // ===============================
+                       // parameter_declaration_ambiguity
+                       // ===============================
+
+namespace parameter_declaration_ambiguity {
+void fn([:^^int:]);
+  // expected-error@-1 {{variable has incomplete type}} \
+  // expected-error@-1 {{not usable in a splice expression}}
+
+}  // namespace parameter_declaration_ambiguity
