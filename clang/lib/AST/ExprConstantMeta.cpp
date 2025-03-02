@@ -26,12 +26,9 @@
 #include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/DiagnosticMetafn.h"
 #include "clang/Basic/IdentifierTable.h"
-#include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
-#include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace clang {
@@ -1450,9 +1447,11 @@ bool DiagnoseReflectionKind(DiagFn Diagnoser, SourceRange Range,
 }
 
 struct AttributeScratchpad {
-      AttributeFactory factory;
-      ParsedAttributes attributes;
-      AttributeScratchpad() : factory(), attributes(factory) {}
+  AttributeFactory factory;
+  ParsedAttributes attributes;
+  ArgsVector ArgExprs;
+  bool argFound;
+  AttributeScratchpad() : factory(), attributes(factory), ArgExprs(), argFound(false) {}
 };
 
 // -----------------------------------------------------------------------------
@@ -1506,35 +1505,40 @@ bool get_ith_attribute_of(APValue &Result, ASTContext &C,
         return SetAndSucceed(Result, Sentinel);
       }
 
-      // FIXME this assumes we arent decorating them with anything besides CXX11 attributes
-      if (Attr *const *attr = attrs.begin(); attr != attrs.end()) {
-          while (idx != 0) {
-          ++attr;
-          --idx;
-          if (attr == attrs.end()) {
-            return SetAndSucceed(Result, Sentinel);
-          }
-        }
-        // Attr -> ParsedAttr
-        Attr * const val = *attr;
-        static AttributeScratchpad scratchpad;
-
-        if (val->getForm().getSyntax() != AttributeCommonInfo::Syntax::AS_CXX11) {
-          // FIXME Filter them instead of erroring
-          return DiagnoseReflectionKind(Diagnoser, Range, "a standard CXX11 attribute",
-                                      DescriptionOf(RV));
-        }
-        auto * fetchedAttribute = scratchpad.attributes.addNew(
-          const_cast<IdentifierInfo*>(val->getAttrName()), // FIXME...
-          val->getRange(),
-          nullptr,
-          val->getLocation(),
-          nullptr, nullptr, nullptr,
-          val->getForm());
-
-        return SetAndSucceed(Result, makeReflection(fetchedAttribute));
+      std::vector<Attr * const *> cxx11Attrs;
+      // poor man ::filter, copy_if, etc....
+      for (Attr *const *attr = attrs.begin(); attr != attrs.end(); ++attr) {
+       if ((*attr)->isCXX11Attribute()){
+        cxx11Attrs.push_back(attr);
+       }
       }
-      return SetAndSucceed(Result, Sentinel);
+
+      if (idx >= cxx11Attrs.size()) {
+        return SetAndSucceed(Result, Sentinel);
+      }
+
+      // Attr -> ParsedAttr
+      Attr * const val = *cxx11Attrs[idx];
+      assert(val);
+      static AttributeScratchpad scratchpad;
+
+      const ParsedAttr * parsedAttr = val->fromParsedAttr();
+      assert(parsedAttr && "no backlink from semantic attribute");
+
+      if (scratchpad.argFound = parsedAttr->getNumArgs() != 0; scratchpad.argFound) {
+        scratchpad.ArgExprs.push_back(parsedAttr->getArg(0));
+      } else {
+        scratchpad.ArgExprs.clear();
+      }
+      auto * fetchedAttribute = scratchpad.attributes.addNew(
+        const_cast<IdentifierInfo*>(parsedAttr->getAttrName()),
+        val->getRange(),
+        nullptr,
+        val->getLoc(),
+        scratchpad.ArgExprs.data(), scratchpad.argFound,
+        parsedAttr->getForm()
+      );
+      return SetAndSucceed(Result, makeReflection(fetchedAttribute));
     }
     case ReflectionKind::Declaration:
     case ReflectionKind::Null:

@@ -5080,7 +5080,7 @@ static NamedDecl *findTypeDecl(QualType QT) {
   return D;
 }
 
-// FIXME this is get_attributes, repeated here
+// FIXME this is +/- get_ith_attributes, repeated here
 //
 bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
                                          SourceLocation *EndLoc)
@@ -5092,8 +5092,7 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
   if(!getLangOpts().AttributeReflection) {
     Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_error)
         << "attribute splicing is gated behind -fattribute-reflection";
-    SkipUntil(tok::r_splice);
-    ExpectAndConsume(tok::r_splice);
+    return true;
   }
 
   if (ParseCXXSpliceSpecifier()) {
@@ -5114,16 +5113,22 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
   ExprResult Result = getExprAnnotation(Tok);
   ConsumeAnnotationToken();
 
-  // TODO offload to ActOnBlablabla() is the `iDiOmAtIc WaY`
-  //
   auto *SpliceExpr = cast<CXXSpliceSpecifierExpr>(Result.get());
+
+  // In `template <class T> [[ [: ^^T :] ]] ... ` ^^T is found to be
+  // a value dependent expression and EvaluateAsRValue die... so for
+  // now we refuse it
+  if (SpliceExpr->isValueDependent()) {
+    Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_error)
+        << "Found value dependent expression in attribute splicing";
+        return true;
+  }
   Expr::EvalResult ER;
   if (!SpliceExpr->EvaluateAsRValue(ER, Actions.getASTContext(), true)) {
     return false;
   }
 
   assert(ER.Val.getKind() == APValue::Reflection);
-  // FIXME this is attributes_of(), more or less...
   switch (ER.Val.getReflectionKind()) {
     case ReflectionKind::Attribute: {
       auto * attr = ER.Val.getReflectedAttribute();
@@ -5134,7 +5139,7 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
         ArgExprs.push_back(attr->getArg(0));
       }
       Attrs.addNew(
-          const_cast<IdentifierInfo*>(attr->getAttrName()), // (C) Trust me bro
+          const_cast<IdentifierInfo*>(attr->getAttrName()),
           range,
           nullptr, loc, ArgExprs.data(), ArgExprs.size(),
           ParsedAttr::Form::CXX11());
@@ -5144,59 +5149,42 @@ bool Parser::tryParseSpliceAttrSpecifier(ParsedAttributes &Attrs,
       QualType qType = ER.Val.getReflectedType();
       NamedDecl *D = findTypeDecl(qType);
       if (!D) {
-        // FIXME how would we end up here ?
         Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_error)
-          << "Error while splicing type attributes inside a [[ ]]";
+          << "Error no declaration found related to the type";
         return true;
       }
-      // FIXME we have an issue here , an 'attr' no longer has arguments, only 'parsedAttr' do
       for (auto *const attr : D->attrs()) {
+        // Only splice [[ ]] attributes
+        if (!attr->isCXX11Attribute()) {
+          continue;
+        }
         const ParsedAttr * parsedAttr = attr->fromParsedAttr();
+        ArgsVector ArgExprs;
+
         if (!parsedAttr) {
           Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_error)
-            << "Found no backlink to parsed attribute";
-            Attrs.addNew(
+            << "Found no backlink, ignoring attribute arguments";
+          } else if (size_t nbArgs= parsedAttr->getNumArgs(); nbArgs >0) {
+            Diag(Tok.getLocation(), diag::p3385_trace_execution_checkpoint)
+              << "Found argument(s) while splicing a reflected attribute";
+            for (size_t i = 0; i != nbArgs; ++i) {
+              ArgExprs.push_back(parsedAttr->getArg(i));
+            }
+          }
+          Attrs.addNew(
               const_cast<IdentifierInfo*>(attr->getAttrName()),
               range,
-              nullptr, loc, nullptr, 0,
-              ParsedAttr::Form::CXX11());
-          } else {
-            Diag(Tok.getLocation(), diag::p3385_trace_execution_checkpoint)
-              << "Found backlink to parsed attribute";
-            // TODO P3385 factor this garbage
-            ArgsVector ArgExprs;
-            if (parsedAttr->getNumArgs() != 0) {
-              Diag(Tok.getLocation(), diag::p3385_trace_execution_checkpoint)
-                << "Found argument while splicing a reflected attribute";
-              ArgExprs.push_back(parsedAttr->getArg(0));
-            }
-            Attrs.addNew(
-                const_cast<IdentifierInfo*>(attr->getAttrName()),
-                range,
-                nullptr, loc, ArgExprs.data(), ArgExprs.size(),
-                ParsedAttr::Form::CXX11()
-            );
-          }
+              nullptr, loc, ArgExprs.data(), ArgExprs.size(),
+              ParsedAttr::Form::CXX11()
+          );
       }
       break;
     }
     default: 
         Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_error)
-          << "unsupported kind in attribute splicing";
+          << "Only reflection of 'attribute' or 'type' is supported in "
+             "attribute splicing";
   }
-
-  // This doesnt really belong here... but we early quit ParseCXX11AttributeSpecifierInternal
-  // Finish with consuming close ']' ']
-  SourceLocation CloseLoc = Tok.getLocation();
-  if (ExpectAndConsume(tok::r_square))
-    SkipUntil(tok::r_square);
-  else if (Tok.is(tok::r_square))
-    checkCompoundToken(CloseLoc, tok::r_square, CompoundToken::AttrEnd);
-  if (EndLoc)
-    *EndLoc = Tok.getLocation();
-  if (ExpectAndConsume(tok::r_square))
-    SkipUntil(tok::r_square);
-
   return false;
 }
 
@@ -5293,16 +5281,13 @@ void Parser::ParseCXX11AttributeSpecifierInternal(ParsedAttributes &Attrs,
       Diag(Tok.getLocation(), diag::err_expected) << tok::colon;
   }
 
-  // Try parsing a `[: :]` expression
+  // Try parsing a `[: :]` expression, will update `Attrs` as needed
   if (!tryParseSpliceAttrSpecifier(Attrs, EndLoc)) {
     if (hasAttributeUsing) {
       Diag(Tok.getLocation(), diag::p3385_err_attribute_splicing_with_using_namespace_error)
         << "Using prefix is not supported alongside a splice expression in attributes";
       return;
     }
-    // I'll forget in 10 minutes but... in clang convention, we end up here
-    // when we actually did succeed... so we quit parsing attributes here.
-    return;
   }
 
   bool AttrParsed = false;

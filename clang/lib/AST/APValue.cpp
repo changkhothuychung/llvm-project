@@ -22,7 +22,6 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/LocInfoType.h"
 #include "clang/AST/Type.h"
-#include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
