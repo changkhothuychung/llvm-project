@@ -3153,7 +3153,7 @@ def err_reflect_overload_set : Error<
 def err_reflect_nttp : Error<
   "cannot take the reflection of a non-type template parameter">;
 def err_reflect_init_capture : Error<
-  "cannot take the reflection of a captured local entity">;
+  "cannot take the reflection of a local entity declared by init-capture">;
 def err_template_arg_bad_reflection_kind : Error<
   "reflection of this kind cannot appear as a template argument">;
 def err_reflect_dependent_splice : Error<

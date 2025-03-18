@@ -166,6 +166,19 @@ consteval int fn(decltype(^^::) x = ^^x) { return 0; }
 constexpr int x = fn();
 }  // namspace self_reference
 
+                               // ==============
+                               // lambda_capture
+                               // ==============
+
+namespace lambda_capture {
+void fn() {
+  int x;
+  [=]<auto r> {
+    static_assert(^^x == r);
+  }.operator()<^^x>();
+}
+}  // namespace lambda_capture
+
                    // =======================================
                    // bb_clang_p2996_issue_35_regression_test
                    // =======================================

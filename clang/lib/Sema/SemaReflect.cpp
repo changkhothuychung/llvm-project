@@ -816,8 +816,7 @@ ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OpLoc,
     return BuildCXXReflectExpr(OpLoc, NameInfo.getBeginLoc(), ND);
 
   if (auto *VD = dyn_cast<VarDecl>(ND);
-      VD && (VD->isInitCapture() ||
-             NeedToCaptureVariable(VD, Id.StartLocation))) {
+      VD && (VD->isInitCapture())) {
     Diag(Id.StartLocation, diag::err_reflect_init_capture)
         << Id.getSourceRange();
     return ExprError();
