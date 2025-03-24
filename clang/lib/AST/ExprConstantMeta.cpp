@@ -811,9 +811,9 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_metaInfo, 2, 2, reflect_result },
   { Metafunction::MFRK_metaInfo, 10, 10, data_member_spec },
   { Metafunction::MFRK_metaInfo, 3, 3, define_aggregate },
-  { Metafunction::MFRK_sizeT, 1, 1, offset_of },
+  { Metafunction::MFRK_spliceFromArg, 2, 2, offset_of },
   { Metafunction::MFRK_sizeT, 1, 1, size_of },
-  { Metafunction::MFRK_sizeT, 1, 1, bit_offset_of },
+  { Metafunction::MFRK_spliceFromArg, 2, 2, bit_offset_of },
   { Metafunction::MFRK_sizeT, 1, 1, bit_size_of },
   { Metafunction::MFRK_sizeT, 1, 1, alignment_of },
 
@@ -4891,10 +4891,9 @@ bool offset_of(APValue &Result, ASTContext &C, MetaActions &Meta,
                QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args,
                Decl *ContainingDecl) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == C.getSizeType());
 
   APValue RV;
-  if (!Evaluator(RV, Args[0], true))
+  if (!Evaluator(RV, Args[1], true))
     return true;
 
   switch (RV.getReflectionKind()) {
@@ -4912,8 +4911,7 @@ bool offset_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::Declaration: {
     if (const FieldDecl *FD = dyn_cast<FieldDecl>(RV.getReflectedDecl())) {
       size_t Offset = getBitOffsetOfField(C, FD) / C.getTypeSize(C.CharTy);
-      return SetAndSucceed(Result,
-                           APValue(C.MakeIntValue(Offset, C.getSizeType())));
+      return SetAndSucceed(Result, APValue(C.MakeIntValue(Offset, ResultTy)));
     }
     return DiagnoseReflectionKind(Diagnoser, Range, "a non-static data member",
                                   DescriptionOf(RV));
@@ -4980,10 +4978,9 @@ bool bit_offset_of(APValue &Result, ASTContext &C, MetaActions &Meta,
                    QualType ResultTy, SourceRange Range,
                    ArrayRef<Expr *> Args, Decl *ContainingDecl) {
   assert(Args[0]->getType()->isReflectionType());
-  assert(ResultTy == C.getSizeType());
 
   APValue RV;
-  if (!Evaluator(RV, Args[0], true))
+  if (!Evaluator(RV, Args[1], true))
     return true;
 
   switch (RV.getReflectionKind()) {
@@ -5001,8 +4998,7 @@ bool bit_offset_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::Declaration: {
     if (FieldDecl *FD = dyn_cast<FieldDecl>(RV.getReflectedDecl())) {
       size_t Offset = getBitOffsetOfField(C, FD) % C.getTypeSize(C.CharTy);
-      return SetAndSucceed(Result, APValue(C.MakeIntValue(Offset,
-                                                          C.getSizeType())));
+      return SetAndSucceed(Result, APValue(C.MakeIntValue(Offset, ResultTy)));
     }
     return DiagnoseReflectionKind(Diagnoser, Range, "a non-static data member",
                                   DescriptionOf(RV));

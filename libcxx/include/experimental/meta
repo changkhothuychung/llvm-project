@@ -165,14 +165,14 @@ template <reflection_range R = initializer_list<info>>
   consteval auto define_aggregate(info class_type, R &&members) -> info;
 
 // data layout
-struct member_offsets {
-  size_t bytes;
-  size_t bits;
+struct member_offset {
+  ptrdiff_t bytes;
+  ptrdiff_t bits;
 
   constexpr size_t total_bits() const;
-  auto operator<=>(member_offsets const&) const = default;
+  auto operator<=>(member_offset const&) const = default;
 };
-consteval auto offset_of(info) -> member_offsets;
+consteval auto offset_of(info) -> member_offset;
 consteval auto size_of(info) -> size_t;
 consteval auto alignment_of(info) -> size_t;
 consteval auto bit_size_of(info) -> size_t;
@@ -1543,22 +1543,22 @@ consteval auto define_aggregate(info class_type, R &&members) -> info {
   }
 }
 
-struct member_offsets {
-  size_t bytes;
-  size_t bits;
+struct member_offset {
+  ptrdiff_t bytes;
+  ptrdiff_t bits;
 
-  constexpr auto total_bits() -> size_t {
+  constexpr auto total_bits() -> ptrdiff_t {
     return bytes * CHAR_BIT + bits;
   }
 
-  auto operator<=>(member_offsets const&) const = default;
+  auto operator<=>(member_offset const&) const = default;
 };
 
 // Returns the offset of the reflected entity.
-consteval auto offset_of(info r) -> member_offsets {
-  return member_offsets {
-      __metafunction(detail::__metafn_offset_of, r),
-      __metafunction(detail::__metafn_bit_offset_of, r)
+consteval auto offset_of(info r) -> member_offset {
+  return member_offset {
+      __metafunction(detail::__metafn_offset_of, ^^ptrdiff_t, r),
+      __metafunction(detail::__metafn_bit_offset_of, ^^ptrdiff_t, r)
   };
 }
 
