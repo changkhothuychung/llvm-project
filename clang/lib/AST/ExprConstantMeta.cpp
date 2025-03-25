@@ -1265,6 +1265,24 @@ static size_t getBitOffsetOfField(ASTContext &C, const FieldDecl *FD) {
   return Layout.getFieldOffset(FD->getFieldIndex());
 }
 
+static size_t getOffsetOfBase(ASTContext &C, const CXXBaseSpecifier *Base) {
+  const CXXRecordDecl *Derived = Base->getDerived();
+  assert(Derived && "no parent for field!");
+
+  const ASTRecordLayout &Layout = C.getASTRecordLayout(Derived);
+
+  QualType BaseQT = Base->getType();
+  BaseQT = desugarType(BaseQT, /*UnwrapAliases=*/true, /*DropCV=*/false,
+                       /*DropRefs=*/false);
+  CXXRecordDecl *RD = BaseQT->getAsCXXRecordDecl();
+  assert(RD && "base isn't a record type?");
+
+  if (Base->isVirtual())
+    return Layout.getVBaseClassOffset(RD).getQuantity();
+  else
+    return Layout.getBaseClassOffset(RD).getQuantity();
+}
+
 static bool ensureDeclared(ASTContext &C, QualType QT, SourceLocation SpecLoc) {
   // If it's an ElaboratedType, get the underlying NamedType.
   if (const ElaboratedType *ET = dyn_cast<ElaboratedType>(QT))
@@ -4903,7 +4921,6 @@ bool offset_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::Value:
   case ReflectionKind::Template:
   case ReflectionKind::Namespace:
-  case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
     return DiagnoseReflectionKind(Diagnoser, Range, "a non-static data member",
@@ -4915,6 +4932,16 @@ bool offset_of(APValue &Result, ASTContext &C, MetaActions &Meta,
     }
     return DiagnoseReflectionKind(Diagnoser, Range, "a non-static data member",
                                   DescriptionOf(RV));
+  }
+  case ReflectionKind::BaseSpecifier: {
+    CXXBaseSpecifier *Base = RV.getReflectedBaseSpecifier();
+    if (Base->isVirtual() && Base->getDerived()->isAbstract())
+      return Diagnoser(Range.getBegin(),
+                       diag::metafn_offset_virtual_base_of_abstract)
+          << Range;
+
+    size_t Offset = getOffsetOfBase(C, Base);
+    return SetAndSucceed(Result, APValue(C.MakeIntValue(Offset, ResultTy)));
   }
   }
   llvm_unreachable("unknown reflection kind");
@@ -4990,7 +5017,6 @@ bool bit_offset_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::Value:
   case ReflectionKind::Template:
   case ReflectionKind::Namespace:
-  case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
     return DiagnoseReflectionKind(Diagnoser, Range, "a non-static data member",
@@ -5003,6 +5029,8 @@ bool bit_offset_of(APValue &Result, ASTContext &C, MetaActions &Meta,
     return DiagnoseReflectionKind(Diagnoser, Range, "a non-static data member",
                                   DescriptionOf(RV));
   }
+  case ReflectionKind::BaseSpecifier:
+    return SetAndSucceed(Result, APValue(C.MakeIntValue(0, ResultTy)));
   }
   llvm_unreachable("unknown reflection kind");
 }
