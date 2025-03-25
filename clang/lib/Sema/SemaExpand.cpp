@@ -242,12 +242,13 @@ ExprResult makeCXXDestructurableExpansionSelectExpr(
     Ctx = Sema::ExpressionEvaluationContext::ImmediateFunctionContext;
   EnterExpressionEvaluationContext ExprEvalCtx(S, Ctx);
 
-  unsigned Arity;
-  if (!S.ComputeDecompositionExpansionArity(Range, Arity))
+  std::optional<unsigned> Arity =
+      S.GetDecompositionElementCount(Range->getType(), Range->getBeginLoc());
+  if (!Arity)
     return ExprError();
 
   SmallVector<BindingDecl *, 4> Bindings;
-  for (size_t k = 0; k < Arity; ++k) {
+  for (size_t k = 0; k < Arity.value(); ++k) {
     QualType QT = S.Context.getAutoDeductType();  // TODO: Add ref support.
     Bindings.push_back(BindingDecl::Create(S.Context, S.CurContext,
                                            Range->getBeginLoc(),

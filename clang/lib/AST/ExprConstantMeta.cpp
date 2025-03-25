@@ -3049,9 +3049,9 @@ bool extract(APValue &Result, ASTContext &C, MetaActions &Meta,
         return Diagnoser(Range.getBegin(), diag::metafn_cannot_extract) << 2
             << DescriptionOf(RV) << Range;
 
-      auto *ParentTy = cast<RecordDecl>(
-              Decl->getDeclContext())->getTypeForDecl();
-      QualType MemPtrTy = C.getMemberPointerType(Decl->getType(), ParentTy);
+      QualType MemPtrTy = C.getMemberPointerType(
+              Decl->getType(), nullptr,
+              cast<CXXRecordDecl>(Decl->getDeclContext()));
       if (MemPtrTy.getCanonicalType().getTypePtr() !=
           ResultTy.getCanonicalType().getTypePtr())
         return Diagnoser(Range.getBegin(),

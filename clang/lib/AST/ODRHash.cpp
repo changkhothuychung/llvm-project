@@ -1077,7 +1077,7 @@ public:
 
   void VisitMemberPointerType(const MemberPointerType *T) {
     AddQualType(T->getPointeeType());
-    AddType(T->getClass());
+    AddNestedNameSpecifier(T->getQualifier());
     VisitType(T);
   }
 

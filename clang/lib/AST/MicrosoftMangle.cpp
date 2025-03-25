@@ -699,7 +699,7 @@ void MicrosoftCXXNameMangler::mangleVariableEncoding(const VarDecl *VD) {
       mangleQualifiers(MPT->getPointeeType().getQualifiers(), true);
       // Member pointers are suffixed with a back reference to the member
       // pointer's class name.
-      mangleName(MPT->getClass()->getAsCXXRecordDecl());
+      mangleName(MPT->getMostRecentCXXRecordDecl());
     } else
       mangleQualifiers(Ty->getPointeeType().getQualifiers(), false);
   } else if (const ArrayType *AT = getASTContext().getAsArrayType(Ty)) {
@@ -3380,11 +3380,11 @@ void MicrosoftCXXNameMangler::mangleType(const MemberPointerType *T,
   manglePointerExtQualifiers(Quals, PointeeType);
   if (const FunctionProtoType *FPT = PointeeType->getAs<FunctionProtoType>()) {
     Out << '8';
-    mangleName(T->getClass()->castAs<RecordType>()->getDecl());
+    mangleName(T->getMostRecentCXXRecordDecl());
     mangleFunctionType(FPT, nullptr, true);
   } else {
     mangleQualifiers(PointeeType.getQualifiers(), true);
-    mangleName(T->getClass()->castAs<RecordType>()->getDecl());
+    mangleName(T->getMostRecentCXXRecordDecl());
     mangleType(PointeeType, Range, QMM_Drop);
   }
 }
@@ -4367,11 +4367,11 @@ void MicrosoftCXXNameMangler::mangleAutoReturnType(const MemberPointerType *T,
   manglePointerExtQualifiers(Quals, PointeeType);
   if (const FunctionProtoType *FPT = PointeeType->getAs<FunctionProtoType>()) {
     Out << '8';
-    mangleName(T->getClass()->castAs<RecordType>()->getDecl());
+    mangleName(T->getMostRecentCXXRecordDecl());
     mangleFunctionType(FPT, nullptr, true);
   } else {
     mangleQualifiers(PointeeType.getQualifiers(), true);
-    mangleName(T->getClass()->castAs<RecordType>()->getDecl());
+    mangleName(T->getMostRecentCXXRecordDecl());
     mangleAutoReturnType(PointeeType, QMM_Drop);
   }
 }
