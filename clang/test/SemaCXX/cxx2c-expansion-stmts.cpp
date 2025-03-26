@@ -322,3 +322,21 @@ void run_tests() {
 }
 
 }  // namespace break_and_continue
+
+                         // ===========================
+                         // destructurable_by_reference
+                         // ===========================
+
+namespace destructurable_by_reference {
+
+consteval int fn() {
+  struct S { int a; int b; int c; };
+  
+  S s = {1, 2, 3};
+  template for (auto m : s) m *= 2;
+  template for (auto &m : s) m *= 2;
+
+  return s.a + s.b + s.c;
+}
+static_assert(fn() == 12);
+}  // namespace destructurable_by_reference

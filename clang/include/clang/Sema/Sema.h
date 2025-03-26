@@ -15655,18 +15655,18 @@ public:
       SourceLocation ColonLoc, SourceLocation RParenLoc, Expr *TParamRef);
 
   ExprResult BuildCXXExpansionSelectExpr(
-      Expr *Range, Expr *Idx, bool Constexpr,
+      Expr *Range, Expr *Idx, VarDecl *ExpansionVar,
       ArrayRef<MaterializeTemporaryExpr *> LifetimeExtendTemps);
 
   ExprResult BuildCXXIndeterminateExpansionSelectExpr(
-      Expr *Range, Expr *Idx, bool Constexpr,
+      Expr *Range, Expr *Idx, VarDecl *ExpansionVar,
       ArrayRef<MaterializeTemporaryExpr *> LifetimeExtendTemps);
 
   ExprResult BuildCXXIterableExpansionSelectExpr(VarDecl *DD, Expr *Impl);
 
   ExprResult BuildCXXDestructurableExpansionSelectExpr(DecompositionDecl *DD,
                                                        Expr *Idx,
-                                                       bool Constexpr);
+                                                       VarDecl *ExpansionVar);
 
   ExprResult
   BuildCXXExpansionInitListSelectExpr(CXXExpansionInitListExpr *Range,

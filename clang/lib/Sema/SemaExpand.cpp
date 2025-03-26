@@ -129,11 +129,11 @@ ExprResult makeIterableExpansionSizeExpr(Sema &S, VarDecl *RangeVar) {
 // otherwise. If 'true', then 'Result' contains the resulting
 // 'CXXIterableExpansionSelectExpr' (or error).
 bool tryMakeCXXIterableExpansionSelectExpr(
-    Sema &S, Expr *Range, Expr *TParamRef, bool Constexpr,
+    Sema &S, Expr *Range, Expr *TParamRef, VarDecl *ExpansionVar,
     ArrayRef<MaterializeTemporaryExpr *> LifetimeExtendTemps,
     ExprResult &SelectResult) {
   auto Ctx = Sema::ExpressionEvaluationContext::PotentiallyEvaluated;
-  if (Constexpr)
+  if (ExpansionVar->isConstexpr())
     Ctx = Sema::ExpressionEvaluationContext::ImmediateFunctionContext;
   EnterExpressionEvaluationContext ExprEvalCtx(S, Ctx);
 
@@ -163,7 +163,7 @@ bool tryMakeCXXIterableExpansionSelectExpr(
 
     RangeVar = VarDecl::Create(S.Context, DC, Range->getBeginLoc(),
                                Range->getBeginLoc(), II, QT, TSI, SC_Auto);
-    if (Constexpr)
+    if (ExpansionVar->isConstexpr())
       RangeVar->setConstexpr(true);
     else if (!LifetimeExtendTemps.empty()) {
       InitializedEntity Entity =
@@ -235,10 +235,10 @@ bool tryMakeCXXIterableExpansionSelectExpr(
 }
 
 ExprResult makeCXXDestructurableExpansionSelectExpr(
-    Sema &S, Expr *Range, Expr *TParamRef, bool Constexpr,
+    Sema &S, Expr *Range, Expr *TParamRef, VarDecl *ExpansionVar,
     ArrayRef<MaterializeTemporaryExpr *> LifetimeExtendTemps) {
   auto Ctx = Sema::ExpressionEvaluationContext::PotentiallyEvaluated;
-  if (Constexpr)
+  if (ExpansionVar->isConstexpr())
     Ctx = Sema::ExpressionEvaluationContext::ImmediateFunctionContext;
   EnterExpressionEvaluationContext ExprEvalCtx(S, Ctx);
 
@@ -247,21 +247,25 @@ ExprResult makeCXXDestructurableExpansionSelectExpr(
   if (!Arity)
     return ExprError();
 
+  QualType QT = S.Context.getAutoDeductType();  // TODO: Add ref support.
+  if (ExpansionVar->getType()->isReferenceType())
+    QT = S.BuildReferenceType(QT, true, Range->getBeginLoc(),
+                              DeclarationName());
+
   SmallVector<BindingDecl *, 4> Bindings;
   for (size_t k = 0; k < Arity.value(); ++k) {
-    QualType QT = S.Context.getAutoDeductType();  // TODO: Add ref support.
     Bindings.push_back(BindingDecl::Create(S.Context, S.CurContext,
                                            Range->getBeginLoc(),
                                            /*IdentifierInfo=*/nullptr, QT));
   }
 
-  TypeSourceInfo *TSI = S.Context.getTrivialTypeSourceInfo(Range->getType());
+  TypeSourceInfo *TSI = S.Context.getTrivialTypeSourceInfo(QT);
   DecompositionDecl *DD = DecompositionDecl::Create(S.Context, S.CurContext,
                                                     Range->getBeginLoc(),
                                                     Range->getBeginLoc(),
-                                                    Range->getType(), TSI,
+                                                    QT, TSI,
                                                     SC_Auto, Bindings);
-  if (Constexpr)
+  if (ExpansionVar->isConstexpr())
     DD->setConstexpr(true);
 
   if (!LifetimeExtendTemps.empty()) {
@@ -273,7 +277,7 @@ ExprResult makeCXXDestructurableExpansionSelectExpr(
   S.AddInitializerToDecl(DD, Range, false);
 
   return CXXDestructurableExpansionSelectExpr::Create(S.Context, DD,
-                                                      TParamRef, Constexpr);
+                                                      TParamRef, ExpansionVar);
 }
 }  // close anonymous namespace
 
@@ -296,9 +300,8 @@ StmtResult Sema::ActOnCXXExpansionStmt(
   VarDecl *ExpansionVar = ExtractVarDecl(ExpansionVarStmt);
   if (!ExpansionVar)
     return StmtError();
-  bool Constexpr = ExpansionVar->isConstexpr();
 
-  ER = BuildCXXExpansionSelectExpr(Range, TParamRef, Constexpr,
+  ER = BuildCXXExpansionSelectExpr(Range, TParamRef, ExpansionVar,
                                    LifetimeExtendTemps);
   if (ER.isInvalid())
     return StmtError();
@@ -428,7 +431,7 @@ StmtResult Sema::BuildCXXInitListExpansionStmt(SourceLocation TemplateKWLoc,
 }
 
 ExprResult Sema::BuildCXXExpansionSelectExpr(
-    Expr *Range, Expr *TParamRef, bool Constexpr,
+    Expr *Range, Expr *TParamRef, VarDecl *ExpansionVar,
     ArrayRef <MaterializeTemporaryExpr *> LifetimeExtendTemps) {
   if (Range->containsErrors())
     return ExprError();
@@ -438,26 +441,26 @@ ExprResult Sema::BuildCXXExpansionSelectExpr(
 
   if (Range->isTypeDependent())
     return BuildCXXIndeterminateExpansionSelectExpr(Range, TParamRef,
-                                                    Constexpr,
+                                                    ExpansionVar,
                                                     LifetimeExtendTemps);
 
   ExprResult IterableExprResult;
   if (tryMakeCXXIterableExpansionSelectExpr(*this, Range, TParamRef,
-                                            Constexpr, LifetimeExtendTemps,
+                                            ExpansionVar, LifetimeExtendTemps,
                                             IterableExprResult))
     return IterableExprResult;
 
-  return makeCXXDestructurableExpansionSelectExpr(*this, Range,TParamRef,
-                                                  Constexpr,
+  return makeCXXDestructurableExpansionSelectExpr(*this, Range, TParamRef,
+                                                  ExpansionVar,
                                                   LifetimeExtendTemps);
 }
 
 ExprResult
 Sema::BuildCXXIndeterminateExpansionSelectExpr(
-    Expr *Range, Expr *TParamRef, bool Constexpr,
+    Expr *Range, Expr *TParamRef, VarDecl *ExpansionVar,
     ArrayRef<MaterializeTemporaryExpr *> LifetimeExtendTemps) {
   return CXXIndeterminateExpansionSelectExpr::Create(Context, Range, TParamRef,
-                                                     Constexpr,
+                                                     ExpansionVar,
                                                      LifetimeExtendTemps);
 }
 
@@ -471,10 +474,11 @@ Sema::BuildCXXIterableExpansionSelectExpr(VarDecl *RangeVar, Expr *Impl) {
 
 ExprResult
 Sema::BuildCXXDestructurableExpansionSelectExpr(DecompositionDecl *DD,
-                                                Expr *Idx, bool Constexpr) {
+                                                Expr *Idx,
+                                                VarDecl *ExpansionVar) {
   if (Idx->isValueDependent())
     return CXXDestructurableExpansionSelectExpr::Create(Context, DD, Idx,
-                                                        Constexpr);
+                                                        ExpansionVar);
 
   Expr::EvalResult ER;
   if (!Idx->EvaluateAsInt(ER, Context))
@@ -482,6 +486,7 @@ Sema::BuildCXXDestructurableExpansionSelectExpr(DecompositionDecl *DD,
   unsigned I = ER.Val.getInt().getZExtValue();
   assert(I < DD->bindings().size());
 
+  MarkAnyDeclReferenced(Idx->getBeginLoc(), DD, true);
   return DD->bindings()[I]->getBinding();
 }
 

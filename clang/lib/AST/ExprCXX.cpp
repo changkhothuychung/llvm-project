@@ -2166,12 +2166,12 @@ CXXExpansionInitListExpr *CXXExpansionInitListExpr::Create(
 }
 
 CXXIndeterminateExpansionSelectExpr::CXXIndeterminateExpansionSelectExpr(
-        QualType ResultTy, Expr *Range, Expr *Idx, bool Constexpr,
+        QualType ResultTy, Expr *Range, Expr *Idx, VarDecl *ExpansionVar,
         unsigned NumLifetimeExtendTemps,
         MaterializeTemporaryExpr **LifetimeExtendTemps)
     : Expr(CXXIndeterminateExpansionSelectExprClass, ResultTy, VK_PRValue,
            OK_Ordinary),
-      SubExprs{Range, Idx}, Constexpr(Constexpr),
+      SubExprs{Range, Idx}, ExpansionVar(ExpansionVar),
       NumLifetimeExtendTemps(NumLifetimeExtendTemps),
       LifetimeExtendTemps(LifetimeExtendTemps) {
   setDependence(computeDependence(this));
@@ -2179,13 +2179,14 @@ CXXIndeterminateExpansionSelectExpr::CXXIndeterminateExpansionSelectExpr(
 
 CXXIndeterminateExpansionSelectExpr *
 CXXIndeterminateExpansionSelectExpr::Create(
-        const ASTContext &C, Expr *Range, Expr *Idx, bool Constexpr,
+        const ASTContext &C, Expr *Range, Expr *Idx, VarDecl *ExpansionVar,
         ArrayRef<MaterializeTemporaryExpr *> LifetimeExtendTemps) {
   auto **temps = new (C) MaterializeTemporaryExpr *[LifetimeExtendTemps.size()];
   std::copy(LifetimeExtendTemps.begin(), LifetimeExtendTemps.end(), temps);
 
   return new (C) CXXIndeterminateExpansionSelectExpr(
-      C.DependentTy, Range, Idx, Constexpr, LifetimeExtendTemps.size(), temps);
+      C.DependentTy, Range, Idx, ExpansionVar, LifetimeExtendTemps.size(),
+      temps);
 }
 
 ArrayRef<MaterializeTemporaryExpr *>
@@ -2209,19 +2210,20 @@ CXXIterableExpansionSelectExpr::Create(const ASTContext &C, VarDecl *RangeVar,
 }
 
 CXXDestructurableExpansionSelectExpr::CXXDestructurableExpansionSelectExpr(
-        QualType ResultTy, DecompositionDecl *DD, Expr *Idx, bool IsConstexpr)
+        QualType ResultTy, DecompositionDecl *DD, Expr *Idx,
+        VarDecl *ExpansionVar)
     : Expr(CXXDestructurableExpansionSelectExprClass, ResultTy, VK_PRValue,
            OK_Ordinary),
-      IdxExpr(Idx), DD(DD), IsConstexpr(IsConstexpr) {
+      IdxExpr(Idx), DD(DD), ExpansionVar(ExpansionVar) {
   setDependence(computeDependence(this));
 }
 
 CXXDestructurableExpansionSelectExpr *
 CXXDestructurableExpansionSelectExpr::Create(const ASTContext &C,
                                              DecompositionDecl *DD, Expr *Idx,
-                                             bool IsConstexpr) {
+                                             VarDecl *ExpansionVar) {
   return new (C) CXXDestructurableExpansionSelectExpr(C.DependentTy, DD, Idx,
-                                                      IsConstexpr);
+                                                      ExpansionVar);
 }
 
 CXXExpansionInitListSelectExpr::CXXExpansionInitListSelectExpr(

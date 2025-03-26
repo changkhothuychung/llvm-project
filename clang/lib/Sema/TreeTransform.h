@@ -9533,6 +9533,9 @@ TreeTransform<Derived>::TransformCXXIndeterminateExpansionSelectExpr(
   }
   Range = SemaRef.MaybeCreateExprWithCleanups(Range);
 
+  VarDecl *ExpansionVar = cast<VarDecl>(getDerived().TransformDecl(
+        E->getBeginLoc(), E->getExpansionVar()));
+
   ExprResult Idx = getDerived().TransformExpr(E->getIdxExpr());
   if (Range.isInvalid() || Idx.isInvalid())
     return ExprError();
@@ -9545,7 +9548,7 @@ TreeTransform<Derived>::TransformCXXIndeterminateExpansionSelectExpr(
       LifetimeExtendTemps.push_back(New);
 
   return SemaRef.BuildCXXExpansionSelectExpr(Range.get(), Idx.get(),
-                                             E->isConstexpr(),
+                                             ExpansionVar,
                                              LifetimeExtendTemps);
 }
 
@@ -9578,8 +9581,11 @@ TreeTransform<Derived>::TransformCXXDestructurableExpansionSelectExpr(
   if (Idx.isInvalid())
     return ExprError();
 
+  VarDecl *ExpansionVar = cast<VarDecl>(getDerived().TransformDecl(
+        E->getBeginLoc(), E->getExpansionVar()));
+
   return SemaRef.BuildCXXDestructurableExpansionSelectExpr(
-      cast<DecompositionDecl>(New), Idx.get(), E->isConstexpr());
+      cast<DecompositionDecl>(New), Idx.get(), ExpansionVar);
 }
 
 template <typename Derived>

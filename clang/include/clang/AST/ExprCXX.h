@@ -5958,20 +5958,20 @@ public:
 class CXXDestructurableExpansionSelectExpr : public Expr {
   Expr *IdxExpr;
   DecompositionDecl *DD;
-  bool IsConstexpr;
+  VarDecl *ExpansionVar;
 
   CXXDestructurableExpansionSelectExpr(QualType ResultTy, DecompositionDecl *DD,
-                                       Expr *Idx, bool IsConstexpr);
+                                       Expr *Idx, VarDecl *ExpansionVar);
 
 public:
   static CXXDestructurableExpansionSelectExpr *Create(const ASTContext &C,
                                                       DecompositionDecl *DD,
                                                       Expr *Idx,
-                                                      bool IsConstexpr);
+                                                      VarDecl *ExpansionVar);
 
   Expr *getIdxExpr() const { return IdxExpr; }
   DecompositionDecl *getDecompositionDecl() const { return DD; }
-  bool isConstexpr() const { return IsConstexpr; }
+  VarDecl *getExpansionVar() const { return ExpansionVar; }
 
   SourceLocation getBeginLoc() const { return DD->getInit()->getBeginLoc(); }
   SourceLocation getEndLoc() const { return DD->getInit()->getEndLoc(); }
@@ -5994,25 +5994,25 @@ public:
 
 class CXXIndeterminateExpansionSelectExpr : public Expr {
   Expr *SubExprs[2];
-  bool Constexpr;
+  VarDecl *ExpansionVar;
 
   // Lifetime-extended expressions.
   unsigned NumLifetimeExtendTemps;
   MaterializeTemporaryExpr **LifetimeExtendTemps;
 
   CXXIndeterminateExpansionSelectExpr(
-      QualType ResultTy, Expr *Range, Expr *Idx, bool Constexpr,
+      QualType ResultTy, Expr *Range, Expr *Idx, VarDecl *ExpansionVar,
       unsigned NumLifetimeExtendTemps,
       MaterializeTemporaryExpr **LifetimeExtendTemps);
 
 public:
   static CXXIndeterminateExpansionSelectExpr *Create(
-      const ASTContext &C, Expr *Range, Expr *Idx, bool Constexpr,
+      const ASTContext &C, Expr *Range, Expr *Idx, VarDecl *ExpansionVar,
       ArrayRef<MaterializeTemporaryExpr *> LifetimeExtendTemps);
 
   Expr *getRangeExpr() const { return SubExprs[0]; }
   Expr *getIdxExpr() const { return SubExprs[1]; }
-  bool isConstexpr() const { return Constexpr; }
+  VarDecl *getExpansionVar() const { return ExpansionVar; }
   ArrayRef<MaterializeTemporaryExpr *> getLifetimeExtendTemps() const;
 
   SourceLocation getBeginLoc() const { return getRangeExpr()->getBeginLoc(); }
