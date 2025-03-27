@@ -52,14 +52,12 @@ TemplateArgumentListInfo addLocToTemplateArgs(Sema &S,
   return Result;
 }
 
-Expr *CreateRefToDecl(Sema &S, ValueDecl *D,
-                      SourceLocation ExprLoc) {
-  NestedNameSpecifierLocBuilder NNSLocBuilder;
+Expr *CreateRefToDecl(Sema &S, ValueDecl *D, SourceLocation ExprLoc) {
+  CXXScopeSpec SS;
   if (const auto *RDC = dyn_cast<RecordDecl>(D->getDeclContext())) {
     QualType QT(RDC->getTypeForDecl(), 0);
     TypeSourceInfo *TSI = S.Context.CreateTypeSourceInfo(QT, 0);
-    NNSLocBuilder.Extend(S.Context, SourceLocation(), TSI->getTypeLoc(),
-                         ExprLoc);
+    SS.Extend(S.Context, SourceLocation(), TSI->getTypeLoc(), ExprLoc);
   }
 
   ExprValueKind ValueKind = VK_LValue;
@@ -87,9 +85,7 @@ Expr *CreateRefToDecl(Sema &S, ValueDecl *D,
       ValueKind = VK_LValue;
     }
 
-    return DeclRefExpr::Create(
-        S.Context, NNSLocBuilder.getWithLocInContext(S.Context),
-        SourceLocation(), D, false, ExprLoc, QT, ValueKind, D, nullptr);
+    return S.BuildDeclRefExpr(D, QT, ValueKind, ExprLoc, &SS);
   }
 }
 
