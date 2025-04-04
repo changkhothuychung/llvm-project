@@ -1403,7 +1403,8 @@ QualType Sema::BuildReflectionSpliceType(SourceLocation TypenameKWLoc,
   }
 
   QualType ReflectedTy;
-  if (ER.Val.isReflectedTemplate()) {
+  if (ER.Val.isReflectedTemplate() &&
+      !isa<ConceptDecl>(ER.Val.getReflectedTemplate().getAsTemplateDecl())) {
     if (auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(Splice)) {
       TemplateArgumentListInfo TAListInfo;
       for (const auto &TArg : SSS->getTemplateArgs()->arguments())
