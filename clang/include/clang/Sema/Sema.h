@@ -14410,27 +14410,6 @@ public:
   ExprResult CheckPackExpansion(Expr *Pattern, SourceLocation EllipsisLoc,
                                 std::optional<unsigned> NumExpansions);
 
-  /// Invoked when parsing a splice-template-argument followed by an ellipsis,
-  /// which creates a pack expansion.
-  ///
-  /// \param Pattern The splice-template-argument preceding the ellipsis, which
-  /// will become the pattern of the pack expansion.
-  ///
-  /// \param EllipsisLoc The location of the ellipsis.
-  SpliceTemplateArgument *ActOnPackExpansion(SpliceSpecifier *Pattern,
-                                             SourceLocation EllipsisLoc);
-
-  /// Invoked when parsing a splice-template-argument followed by an ellipsis,
-  /// which creates a pack expansion.
-  ///
-  /// \param Pattern The splice-template-argument preceding the ellipsis, which
-  /// will become the pattern of the pack expansion.
-  ///
-  /// \param EllipsisLoc The location of the ellipsis.
-  SpliceTemplateArgument *
-  CheckPackExpansion(SpliceSpecifier *Pattern, SourceLocation EllipsisLoc,
-                     std::optional<unsigned> NumExpansions);
-
   /// Determine whether we could expand a pack expansion with the
   /// given set of parameter packs into separate arguments by repeatedly
   /// transforming the pattern.

@@ -689,14 +689,14 @@ Sema::ActOnPackExpansion(const ParsedTemplateArgument &Arg,
     return Arg.getTemplatePackExpansion(EllipsisLoc);
 
   case ParsedTemplateArgument::Splice: {
-    auto *SS = Arg.getAsSpliceTemplateArgument()->getSpliceSpecifier();
-    SpliceTemplateArgument *STA = ActOnPackExpansion(SS, EllipsisLoc);
-    if (!STA)
+    SpliceSpecifier *SS = Arg.getAsSpliceSpecifier();
+    if (!SS->getOperand()->containsUnexpandedParameterPack()) {
+      Diag(EllipsisLoc, diag::err_pack_expansion_without_parameter_packs)
+        << SS->getSourceRange();
       return ParsedTemplateArgument();
+    }
 
-    return ParsedTemplateArgument(ParsedTemplateArgument::Splice,
-                                  STA,
-                                  EllipsisLoc);
+    return Arg.getSplicePackExpansion(EllipsisLoc);
   }
   }
 
@@ -780,28 +780,6 @@ ExprResult Sema::CheckPackExpansion(Expr *Pattern, SourceLocation EllipsisLoc,
   // Create the pack expansion expression and source-location information.
   return new (Context)
     PackExpansionExpr(Context.DependentTy, Pattern, EllipsisLoc, NumExpansions);
-}
-
-SpliceTemplateArgument *
-Sema::ActOnPackExpansion(SpliceSpecifier *Pattern, SourceLocation EllipsisLoc) {
-  return CheckPackExpansion(Pattern, EllipsisLoc, std::nullopt);
-}
-
-SpliceTemplateArgument *
-Sema::CheckPackExpansion(SpliceSpecifier *Pattern, SourceLocation EllipsisLoc,
-                         std::optional<unsigned> NumExpansions) {
-  if (!Pattern)
-    return nullptr;
-
-  if (!Pattern->getOperand()->containsUnexpandedParameterPack()) {
-    Diag(EllipsisLoc, diag::err_pack_expansion_without_parameter_packs)
-        << Pattern->getSourceRange();
-    CorrectDelayedTyposInExpr(Pattern->getOperand());
-    return nullptr;
-  }
-
-  return SpliceTemplateArgument::Create(Context, Pattern, NumExpansions,
-                                        EllipsisLoc);
 }
 
 bool Sema::CheckParameterPacksForExpansion(
@@ -1350,16 +1328,13 @@ TemplateArgumentLoc Sema::getTemplateArgumentPackExpansionPattern(
     return TemplateArgumentLoc(Pattern, Pattern);
   }
 
-  case TemplateArgument::Splice: {
-    auto *STA = Argument.getAsSpliceTemplateArgument();
-    Ellipsis = STA->getEllipsisLoc();
-    NumExpansions = STA->getNumExpansions();
+  case TemplateArgument::SpliceExpansion: {
+    TemplateArgument Pattern = Argument.getPackExpansionPattern();
+    Ellipsis = OrigLoc.getSpliceEllipsisLoc();
+    NumExpansions = Argument.getNumSpliceExpansions();
 
-    // TODO(P2996): This is wasteful, and possibly a sign that the
-    // SpliceTemplateArgument shouldn't be its own AST node.
-    auto *New = SpliceTemplateArgument::Create(
-        Context, STA->getSpliceSpecifier(), std::nullopt, SourceLocation());
-    return TemplateArgumentLoc(TemplateArgument(New), New);
+    return TemplateArgumentLoc(Context, Pattern,
+                               Pattern.getAsSpliceSpecifier());
   }
 
   case TemplateArgument::TemplateExpansion:
@@ -1371,6 +1346,7 @@ TemplateArgumentLoc Sema::getTemplateArgumentPackExpansionPattern(
 
   case TemplateArgument::Declaration:
   case TemplateArgument::NullPtr:
+  case TemplateArgument::Splice:
   case TemplateArgument::Template:
   case TemplateArgument::Integral:
   case TemplateArgument::StructuralValue:

@@ -162,9 +162,6 @@ public:
   // Reads a splice specialization specifier from the given record.
   SpliceSpecializationSpecifier *readSpliceSpecializationSpecifierRef();
 
-  // Reads a splice template argument from the given record.
-  SpliceTemplateArgument *readSpliceTemplateArgumentRef();
-
   /// Reads a declarator info from the given record, advancing Idx.
   TypeSourceInfo *readTypeSourceInfo();
 

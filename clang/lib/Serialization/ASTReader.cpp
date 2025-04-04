@@ -7268,17 +7268,6 @@ ASTRecordReader::readSpliceSpecializationSpecifierRef() {
   return SSS;
 }
 
-SpliceTemplateArgument *ASTRecordReader::readSpliceTemplateArgumentRef() {
-  auto *SS = readSpliceSpecifierRef();
-  SourceLocation Ellipsis = readSourceLocation();
-  if (readBool())
-    return SpliceTemplateArgument::Create(getContext(), SS, readInt(),
-                                          Ellipsis);
-  else
-    return SpliceTemplateArgument::Create(getContext(), SS, std::nullopt,
-                                          Ellipsis);
-}
-
 void TypeLocReader::VisitAutoTypeLoc(AutoTypeLoc TL) {
   TL.setNameLoc(readSourceLocation());
   if (Reader.readBool())

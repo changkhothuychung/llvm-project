@@ -68,22 +68,4 @@ SourceLocation SpliceSpecializationSpecifier::getEndLoc() const {
   return TemplateArgs->getRAngleLoc();
 }
 
-void *SpliceTemplateArgument::operator new(size_t bytes, const ASTContext &C,
-                                           unsigned alignment) {
-  return ::operator new(bytes, C, alignment);
-}
-
-SpliceTemplateArgument::SpliceTemplateArgument(
-    SpliceSpecifier *Splice, std::optional<unsigned> NumExpansions,
-    SourceLocation EllipsisLoc)
-: Splice(Splice), EllipsisLoc(EllipsisLoc), NumExpansions(NumExpansions) {
-}
-
-SpliceTemplateArgument *
-SpliceTemplateArgument::Create(ASTContext &C, SpliceSpecifier *Splice,
-                               std::optional<unsigned> NumExpansions,
-                               SourceLocation EllipsisLoc) {
-  return new (C) SpliceTemplateArgument(Splice, NumExpansions, EllipsisLoc);
-}
-
 }  // end namespace clang

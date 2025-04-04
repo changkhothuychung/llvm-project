@@ -112,44 +112,6 @@ public:
   }
 };
 
-/// Represents a C++26 'splice-template-argument'.
-class SpliceTemplateArgument {
-  SpliceSpecifier *Splice;
-  SourceLocation EllipsisLoc;
-  std::optional<unsigned> NumExpansions;
-
-  SpliceTemplateArgument(SpliceSpecifier *Splice,
-                         std::optional<unsigned> NumExpansions,
-                         SourceLocation EllipsisLoc);
-
-public:
-  void *operator new(size_t bytes, const ASTContext &C,
-                     unsigned alignment = 8);
-
-  void *operator new(size_t bytes, const ASTContext *C,
-                     unsigned alignment = 8) {
-    return operator new(bytes, *C, alignment);
-  }
-
-public:
-  static SpliceTemplateArgument *Create(ASTContext &C,
-                                        SpliceSpecifier *Splice,
-                                        std::optional<unsigned> NumExpansions,
-                                        SourceLocation EllipisLoc);
-
-  SpliceSpecifier *getSpliceSpecifier() const {
-    return Splice;
-  }
-
-  std::optional<unsigned> getNumExpansions() const {
-    return NumExpansions;
-  }
-
-  SourceLocation getEllipsisLoc() const {
-    return EllipsisLoc;
-  }
-};
-
 using MaybeSpecializedSplicePtr =
     llvm::PointerUnion<SpliceSpecifier *,
                        SpliceSpecializationSpecifier *>;

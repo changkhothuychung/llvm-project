@@ -728,15 +728,12 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      Arg2.getAsIntegral());
 
   case TemplateArgument::Splice: {
-    auto *STA1 = Arg1.getAsSpliceTemplateArgument();
-    auto *STA2 = Arg2.getAsSpliceTemplateArgument();
+    auto *SS1 = Arg1.getAsSpliceSpecifier();
+    auto *SS2 = Arg2.getAsSpliceSpecifier();
 
-    return IsStructurallyEquivalent(Context,
-                                    STA1->getSpliceSpecifier()->getOperand(),
-                                    STA2->getSpliceSpecifier()->getOperand()) &&
-           STA1->getEllipsisLoc().isValid() ==
-                                             STA2->getEllipsisLoc().isValid() &&
-           STA1->getNumExpansions() == STA2->getNumExpansions();
+    return IsStructurallyEquivalent(Context, SS1->getOperand(),
+                                    SS2->getOperand()) &&
+           Arg1.getNumSpliceExpansions() == Arg2.getNumSpliceExpansions();
   }
 
   case TemplateArgument::Declaration:

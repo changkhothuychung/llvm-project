@@ -197,11 +197,23 @@ void TemplateArgument::initFromIntegral(const ASTContext &Ctx,
   Integer.Type = Type.getAsOpaquePtr();
 }
 
-TemplateArgument::TemplateArgument(SpliceTemplateArgument *STA,
+TemplateArgument::TemplateArgument(SpliceSpecifier *SS, bool IsDefaulted) {
+  SpliceArg.Kind = Splice;
+  SpliceArg.IsDefaulted = IsDefaulted;
+  SpliceArg.NumExpansions = 0;
+  SpliceArg.SS = SS;
+}
+
+TemplateArgument::TemplateArgument(SpliceSpecifier *SS,
+                                   std::optional<unsigned> NumExpansions,
                                    bool IsDefaulted) {
-  SpliceTemplateArg.Kind = Splice;
-  SpliceTemplateArg.IsDefaulted = IsDefaulted;
-  SpliceTemplateArg.STA = STA;
+  SpliceArg.Kind = SpliceExpansion;
+  SpliceArg.IsDefaulted = IsDefaulted;
+  SpliceArg.SS = SS;
+  if (NumExpansions)
+    SpliceArg.NumExpansions = *NumExpansions + 1;
+  else
+    SpliceArg.NumExpansions = 0;
 }
 
 void TemplateArgument::initFromStructural(const ASTContext &Ctx, QualType Type,
@@ -312,11 +324,15 @@ TemplateArgumentDependence TemplateArgument::getDependence() const {
     return TemplateArgumentDependence::None;
 
   case Splice: {
-    auto *SS = getAsSpliceTemplateArgument()->getSpliceSpecifier();
+    auto *SS = getAsSpliceSpecifier();
+    return toTemplateArgumentDependence(SS->getOperand()->getDependence());
+  }
+
+  case SpliceExpansion: {
+    auto *SS = getAsSpliceSpecifier();
     auto Deps = toTemplateArgumentDependence(SS->getOperand()->getDependence());
-    if (getAsSpliceTemplateArgument()->getEllipsisLoc().isValid()) {
-      Deps &= ~TemplateArgumentDependence::UnexpandedPack;
-    }
+    Deps &= ~TemplateArgumentDependence::UnexpandedPack;
+
     return Deps;
   }
 
@@ -348,9 +364,11 @@ bool TemplateArgument::isPackExpansion() const {
   case Pack:
   case Template:
   case NullPtr:
+  case Splice:
     return false;
 
   case TemplateExpansion:
+  case SpliceExpansion:
     return true;
 
   case Type:
@@ -358,9 +376,6 @@ bool TemplateArgument::isPackExpansion() const {
 
   case Expression:
     return isa<PackExpansionExpr>(getAsExpr());
-
-  case Splice:
-    return getAsSpliceTemplateArgument()->getEllipsisLoc().isValid();
   }
 
   llvm_unreachable("Invalid TemplateArgument Kind!");
@@ -378,6 +393,14 @@ std::optional<unsigned> TemplateArgument::getNumTemplateExpansions() const {
   return std::nullopt;
 }
 
+std::optional<unsigned> TemplateArgument::getNumSpliceExpansions() const {
+  assert(getKind() == SpliceExpansion);
+  if (SpliceArg.NumExpansions)
+    return SpliceArg.NumExpansions - 1;
+
+  return std::nullopt;
+}
+
 QualType TemplateArgument::getNonTypeTemplateArgumentType() const {
   switch (getKind()) {
   case TemplateArgument::Null:
@@ -385,6 +408,7 @@ QualType TemplateArgument::getNonTypeTemplateArgumentType() const {
   case TemplateArgument::Template:
   case TemplateArgument::TemplateExpansion:
   case TemplateArgument::Splice:
+  case TemplateArgument::SpliceExpansion:
   case TemplateArgument::Pack:
     return QualType();
 
@@ -444,10 +468,12 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
     getAsStructuralValue().Profile(ID);
     break;
 
+  case SpliceExpansion:
+    ID.AddInteger(SpliceArg.NumExpansions);
+    [[fallthrough]];
   case Splice:
     // TODO(P2996): Revisit this.
-    getAsSpliceTemplateArgument()->getSpliceSpecifier()
-        ->getOperand()->Profile(ID, Context, true);
+    getAsSpliceSpecifier()->getOperand()->Profile(ID, Context, true);
     break;
 
   case Expression:
@@ -485,6 +511,7 @@ bool TemplateArgument::structurallyEquals(const TemplateArgument &Other) const {
            getAsIntegral() == Other.getAsIntegral();
 
   case Splice:
+  case SpliceExpansion:
     return false;  // TODO(P2996): Revisit this.
 
   case StructuralValue: {
@@ -521,6 +548,9 @@ TemplateArgument TemplateArgument::getPackExpansionPattern() const {
 
   case TemplateExpansion:
     return TemplateArgument(getAsTemplateOrTemplatePattern());
+
+  case SpliceExpansion:
+    return TemplateArgument(getAsSpliceSpecifier(), getIsDefaulted());
 
   case Declaration:
   case Integral:
@@ -590,9 +620,9 @@ void TemplateArgument::print(const PrintingPolicy &Policy, raw_ostream &Out,
     break;
 
   case Splice:
+  case SpliceExpansion:
     Out << "[:";
-    getAsSpliceTemplateArgument()->getSpliceSpecifier()
-        ->getOperand()->printPretty(Out, nullptr, Policy);
+    getAsSpliceSpecifier()->getOperand()->printPretty(Out, nullptr, Policy);
     Out << ":]";
     break;
 
@@ -652,9 +682,13 @@ SourceRange TemplateArgumentLoc::getSourceRange() const {
   case TemplateArgument::Integral:
     return getSourceIntegralExpression()->getSourceRange();
 
-  case TemplateArgument::Splice:
-    return getSourceSpliceTemplateArgument()->getSpliceSpecifier()
-        ->getSourceRange();
+  case TemplateArgument::Splice: {
+    return getSpliceSpecifier()->getSourceRange();
+  }
+
+  case TemplateArgument::SpliceExpansion:
+    return SourceRange(getSpliceSpecifier()->getBeginLoc(),
+                       getSpliceEllipsisLoc());
 
   case TemplateArgument::StructuralValue:
     return getSourceStructuralValueExpression()->getSourceRange();
@@ -690,6 +724,10 @@ static const T &DiagTemplateArg(const T &DB, const TemplateArgument &Arg) {
   case TemplateArgument::Splice:
     // TODO(P2996): Implement this.
     return DB << "[:splice-specifier:]";
+
+  case TemplateArgument::SpliceExpansion:
+    // TODO(P2996): Implement this.
+    return DB << "[:splice-specifier:]...";
 
   case TemplateArgument::StructuralValue: {
     // FIXME: We're guessing at LangOptions!
@@ -751,6 +789,14 @@ clang::TemplateArgumentLocInfo::TemplateArgumentLocInfo(
   Template->TemplateNameLoc = TemplateNameLoc;
   Template->EllipsisLoc = EllipsisLoc;
   Pointer = Template;
+}
+
+clang::TemplateArgumentLocInfo::TemplateArgumentLocInfo(
+    ASTContext &Ctx, SpliceSpecifier *SS, SourceLocation EllipsisLoc) {
+  SpliceTemplateArgLocInfo *Splice = new (Ctx) SpliceTemplateArgLocInfo;
+  Splice->SS = SS;
+  Splice->EllipsisLoc = EllipsisLoc;
+  Pointer = Splice;
 }
 
 const ASTTemplateArgumentListInfo *

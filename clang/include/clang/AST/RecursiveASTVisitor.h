@@ -936,8 +936,8 @@ bool RecursiveASTVisitor<Derived>::TraverseTemplateArgument(
     return true;
 
   case TemplateArgument::Splice:
-    return getDerived().TraverseSpliceSpecifier(
-        Arg.getAsSpliceTemplateArgument()->getSpliceSpecifier());
+  case TemplateArgument::SpliceExpansion:
+    return getDerived().TraverseSpliceSpecifier(Arg.getAsSpliceSpecifier());
 
   case TemplateArgument::Type:
     return getDerived().TraverseType(Arg.getAsType());
@@ -973,8 +973,8 @@ bool RecursiveASTVisitor<Derived>::TraverseTemplateArgumentLoc(
     return true;
 
   case TemplateArgument::Splice:
-    return getDerived().TraverseSpliceSpecifier(
-          ArgLoc.getSourceSpliceTemplateArgument()->getSpliceSpecifier());
+  case TemplateArgument::SpliceExpansion:
+    return getDerived().TraverseSpliceSpecifier(ArgLoc.getSpliceSpecifier());
 
   case TemplateArgument::Type: {
     // FIXME: how can TSI ever be NULL?

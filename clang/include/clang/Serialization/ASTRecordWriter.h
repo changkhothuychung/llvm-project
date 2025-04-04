@@ -259,12 +259,6 @@ public:
     AddSpliceSpecializationSpecifier(SSS);
   }
 
-  // Emits a splice template argument.
-  void AddSpliceTemplateArgument(const SpliceTemplateArgument *STA);
-  void writeSpliceTemplateArgumentRef(const SpliceTemplateArgument *STA) {
-    AddSpliceTemplateArgument(STA);
-  }
-
   /// Emit a reference to a declaration.
   void AddDeclRef(const Decl *D) {
     return Writer->AddDeclRef(D, *Record);

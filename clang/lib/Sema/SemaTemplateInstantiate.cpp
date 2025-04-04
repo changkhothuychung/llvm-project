@@ -2117,11 +2117,9 @@ TemplateName TemplateInstantiator::TransformTemplateName(
         Arg = getPackSubstitutedTemplateArgument(getSema(), Arg);
       }
 
-      if (Arg.getKind() == TemplateArgument::Splice) {
-        SpliceTemplateArgument *Splice = Arg.getAsSpliceTemplateArgument();
+      if (Arg.getKind() == TemplateArgument::Splice)
         return SemaRef.Context.getDependentTemplateName(
-            Splice->getSpliceSpecifier());
-      }
+            Arg.getAsSpliceSpecifier());
 
       TemplateName Template = Arg.getAsTemplate();
       assert(!Template.isNull() && "Null template template argument");
@@ -2696,8 +2694,7 @@ TemplateInstantiator::TransformTemplateTypeParmType(TypeLocBuilder &TLB,
     }
 
     if (Arg.getKind() == TemplateArgument::Splice) {
-      SpliceSpecifier *Splice =
-          Arg.getAsSpliceTemplateArgument()->getSpliceSpecifier();
+      SpliceSpecifier *Splice = Arg.getAsSpliceSpecifier();
       QualType UnderlyingTy = SemaRef.Context.DependentTy;
 
       QualType Ty = SemaRef.Context.getReflectionSpliceType(SourceLocation(),

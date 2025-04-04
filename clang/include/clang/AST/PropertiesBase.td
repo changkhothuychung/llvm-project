@@ -144,7 +144,6 @@ def StmtRef : RefPropertyType<"Stmt"> { let ConstWhenWriting = 1; }
 def SpliceSpecifierRef : RefPropertyType<"SpliceSpecifier">;
 def SpliceSpecializationSpecifierRef :
     RefPropertyType<"SpliceSpecializationSpecifier">;
-def SpliceTemplateArgumentRef : RefPropertyType<"SpliceTemplateArgument">;
 def SubstTemplateTypeParmTypeFlag : EnumPropertyType;
 def TemplateArgument : PropertyType;
 def TemplateArgumentKind : EnumPropertyType<"TemplateArgument::ArgKind">;
@@ -997,14 +996,35 @@ let Class = PropertyTypeCase<TemplateArgument, "Integral"> in {
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "Splice"> in {
-  def : Property<"value", SpliceTemplateArgumentRef> {
-    let Read = [{ node.getAsSpliceTemplateArgument() }];
+  def : Property<"value", SpliceSpecifierRef> {
+    let Read = [{ node.getAsSpliceSpecifier() }];
   }
   def : Property<"isDefaulted", Bool> {
     let Read = [{ node.getIsDefaulted() }];
   }
   def : Creator<[{
     return TemplateArgument(value, isDefaulted);
+  }]>;
+}
+let Class = PropertyTypeCase<TemplateArgument, "SpliceExpansion"> in {
+  def : Property<"value", SpliceSpecifierRef> {
+    let Read = [{ node.getAsSpliceSpecifier() }];
+  }
+  def : Property<"isDefaulted", Bool> {
+    let Read = [{ node.getIsDefaulted() }];
+  }
+  def : Property<"numExpansions", Optional<UInt32>> {
+    let Read = [{
+      // translate unsigned -> uint32_t just in case.
+      llvm::transformOptional(node.getNumSpliceExpansions(),
+                              [](unsigned i) { return uint32_t(i); })
+    }];
+  }
+  def : Creator<[{
+    auto numExpansionsUnsigned = llvm::transformOptional(
+        numExpansions, [](uint32_t i) { return unsigned(i); });
+
+    return TemplateArgument(value, numExpansionsUnsigned, isDefaulted);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateArgument, "StructuralValue"> in {

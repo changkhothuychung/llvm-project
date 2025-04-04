@@ -1024,10 +1024,7 @@ DeclResult Sema::ActOnCXXSpliceExpectingNamespace(SpliceSpecifier *Splice) {
 ParsedTemplateArgument Sema::ActOnSpliceTemplateArgument(
       SpliceSpecifier *Splice) {
   if (Splice->isDependent()) {
-    SpliceTemplateArgument *STA =
-        SpliceTemplateArgument::Create(Context, Splice, std::nullopt,
-                                       SourceLocation());
-    return ParsedTemplateArgument(ParsedTemplateArgument::Splice, STA,
+    return ParsedTemplateArgument(ParsedTemplateArgument::Splice, Splice,
                                   Splice->getBeginLoc());
   }
 

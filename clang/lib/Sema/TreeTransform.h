@@ -4057,10 +4057,12 @@ public:
           EllipsisLoc);
 
     case TemplateArgument::Splice: {
-      auto *Old = Pattern.getArgument().getAsSpliceTemplateArgument();
-      auto *New = getSema().CheckPackExpansion(Old->getSpliceSpecifier(),
-                                               EllipsisLoc, NumExpansions);
-      return TemplateArgumentLoc(TemplateArgument(New), New);
+      return TemplateArgumentLoc(
+          SemaRef.Context,
+          TemplateArgument(Pattern.getArgument().getAsSpliceSpecifier(),
+                           NumExpansions),
+          Pattern.getArgument().getAsSpliceSpecifier(),
+          EllipsisLoc);
     }
 
     case TemplateArgument::Null:
@@ -4069,6 +4071,7 @@ public:
     case TemplateArgument::StructuralValue:
     case TemplateArgument::Pack:
     case TemplateArgument::TemplateExpansion:
+    case TemplateArgument::SpliceExpansion:
     case TemplateArgument::NullPtr:
       llvm_unreachable("Pack expansion pattern has no parameter packs");
 
@@ -5018,8 +5021,7 @@ bool TreeTransform<Derived>::TransformTemplateArgument(
         Sema::ExpressionEvaluationContextRecord::EK_TemplateArgument);
 
     SpliceResult SR = getDerived().TransformSpliceSpecifier(
-          Input.getArgument().getAsSpliceTemplateArgument()
-                ->getSpliceSpecifier());
+          Input.getArgument().getAsSpliceSpecifier());
     if (SR.isInvalid())
       return true;
 
@@ -5071,6 +5073,7 @@ bool TreeTransform<Derived>::TransformTemplateArgument(
   }
 
   case TemplateArgument::TemplateExpansion:
+  case TemplateArgument::SpliceExpansion:
     llvm_unreachable("Caller should expand pack expansions");
 
   case TemplateArgument::Expression: {

@@ -577,19 +577,6 @@ void ASTRecordWriter::AddSpliceSpecializationSpecifier(
   AddASTTemplateArgumentListInfo(SSS->getTemplateArgs());
 }
 
-void
-ASTRecordWriter::AddSpliceTemplateArgument(const SpliceTemplateArgument *STA) {
-  assert(STA);
-  AddSpliceSpecifier(STA->getSpliceSpecifier());
-  AddSourceLocation(STA->getEllipsisLoc());
-  if (auto OptNum = STA->getNumExpansions(); OptNum.has_value()) {
-    writeBool(true);
-    writeUInt32(OptNum.value());
-  } else {
-    writeBool(false);
-  }
-}
-
 void TypeLocWriter::VisitPackIndexingTypeLoc(PackIndexingTypeLoc TL) {
   addSourceLocation(TL.getEllipsisLoc());
 }
