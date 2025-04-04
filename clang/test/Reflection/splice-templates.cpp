@@ -195,3 +195,14 @@ template<class, class = int> struct V2 {};
 S<V1> s1;  // expected-note {{in instantiation of template class}}
 S<V2> s2;
 }  // namespace tomasz_example
+
+                                 // ===========
+                                 // error_cases
+                                 // ===========
+
+namespace error_cases {
+template [:^^Nonexistent:]<3>::type u;
+  // expected-error@-1 {{use of undeclared identifier 'Nonexistent'}} \
+  // expected-error@-1 {{expected unqualified-id}}
+
+}  // namespace error_cases

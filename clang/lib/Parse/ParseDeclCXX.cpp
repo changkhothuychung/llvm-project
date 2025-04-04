@@ -1540,7 +1540,6 @@ TypeResult Parser::ParseBaseTypeSpecifier(SourceLocation &BaseLoc,
       !Tok.is(tok::l_splice)) {
     Diag(Tok, diag::err_expected_class_name_not_template)
         << FixItHint::CreateRemoval(Tok.getLocation());
-    ConsumeToken();
   }
 
   // Parse optional nested-name-specifier

@@ -2055,6 +2055,10 @@ Parser::DeclGroupPtrTy Parser::ParseDeclaration(DeclaratorContext Context,
   Decl *SingleDecl = nullptr;
   switch (Tok.getKind()) {
   case tok::kw_template:
+    if (NextToken().is(tok::l_splice))
+      return ParseSimpleDeclaration(Context, DeclEnd, DeclAttrs, DeclSpecAttrs,
+                                    true, nullptr, DeclSpecStart);
+    [[fallthrough]];
   case tok::kw_export:
     ProhibitAttributes(DeclAttrs);
     ProhibitAttributes(DeclSpecAttrs);
@@ -3778,19 +3782,18 @@ void Parser::ParseDeclarationSpecifiers(
       DS.Finish(Actions, Policy);
       return;
 
+    case tok::kw_template:
+      if (!NextToken().is(tok::l_splice))
+        goto DoneWithDeclSpec;
+      [[fallthrough]];
     case tok::l_splice: {
-      CXXScopeSpec SS;
-      if (ParseOptionalCXXScopeSpecifier(
-          SS, /*ObjectType=*/nullptr, /*ObjectHasErrors=*/false,
-          EnteringContext, nullptr,
-          AllowImplicitTypename == ImplicitTypenameContext::Yes)) {
+      Token Initial = Tok;
+      if (TryAnnotateTypeOrScopeToken()) {
         DS.SetTypeSpecError();
         goto DoneWithDeclSpec;
-      } else if (SS.isSet()) {
-        AnnotateScopeToken(SS, true);
       }
 
-      if (!Tok.is(tok::l_splice))
+      if (!Tok.is(Initial.getKind()))
         continue;
       break;
     }

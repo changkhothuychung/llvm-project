@@ -23,7 +23,7 @@ template <int V> struct TCls {
   static constexpr int s = V + 1;
 };
 
-using alias = [:^^TCls:]<[:^^v:]>;
+using alias = typename [:^^TCls:]<[:^^v:]>;
 
 static_assert(alias::s == 2);
 
@@ -65,7 +65,7 @@ constexpr int v2 = template [:^^TCls:]<2>::s;
 
 constexpr typename [:^^TCls:]<3>::type v3 = 3;
 
-[:^^TCls:]<3>::type v4 = 4;
+template [:^^TCls:]<3>::type v4 = 4;
 
 void fn() {
   [:^^TCls:]<3>::type v5 = 5;

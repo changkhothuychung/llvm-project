@@ -2667,9 +2667,9 @@ public:
     } else {
       auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(
           getTypePtr()->getSplice());
-      assert(Begin.isInvalid());
 
-      Begin = SSS->getBeginLoc();
+      if (Begin.isInvalid())
+        Begin = SSS->getBeginLoc();
       End = SSS->getEndLoc();
     }
     return SourceRange(Begin, End);

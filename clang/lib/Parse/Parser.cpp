@@ -2040,7 +2040,7 @@ bool Parser::TryAnnotateTypeOrScopeToken(
           Tok.is(tok::kw_decltype) || Tok.is(tok::annot_template_id) ||
           Tok.is(tok::kw___super) || Tok.is(tok::kw_auto) ||
           Tok.is(tok::l_splice) || Tok.is(tok::annot_splice) ||
-          Tok.is(tok::annot_pack_indexing_type)) &&
+          Tok.is(tok::kw_template) || Tok.is(tok::annot_pack_indexing_type)) &&
          "Cannot be a type or scope token!");
 
   if (Tok.is(tok::kw_typename)) {

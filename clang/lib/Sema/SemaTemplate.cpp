@@ -5344,8 +5344,9 @@ bool Sema::CheckTemplateArgument(NamedDecl *Param, TemplateArgumentLoc &ArgLoc,
     // needed so rarely, it's probably a better tradeoff to just convert them
     // back to expressions.
     case TemplateArgument::Integral:
-    case TemplateArgument::Splice:
+    case TemplateArgument::Declaration:
     case TemplateArgument::NullPtr:
+    case TemplateArgument::Splice:
     case TemplateArgument::StructuralValue: {
       // FIXME: StructuralValue is untested here.
       ExprResult R =

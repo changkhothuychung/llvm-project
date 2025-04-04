@@ -237,34 +237,54 @@ bool Parser::ParseOptionalCXXScopeSpecifier(
       SS.SetInvalid(SourceRange(DeclLoc, CCLoc));
 
     HasScopeSpecifier = true;
-  } else if (!HasScopeSpecifier && Tok.is(tok::kw_template)) {
+  } else if (!HasScopeSpecifier && Tok.is(tok::kw_template) &&
+             NextToken().is(tok::l_splice)) {
     TentativeParsingAction TPA(*this);
 
+    // We have 'template [:' .
     SourceLocation TemplateKWLoc = ConsumeToken();
-    if (!Tok.is(tok::l_splice) || ParseSpliceSpecializationSpecifier()) {
+    if (ParseSpliceSpecifier()) {
+      // If we have a malformed splice-specifier, this can't be valid. Commit
+      // the tentative parse and indicate there was an error.
+      TPA.Commit();
+      return true;
+    } else if (!NextToken().is(tok::less) ||
+               ParseSpliceSpecializationSpecifier()) {
+      // We couldn't parse a splice-specifialization-specifier, but this could
+      // be a splice-expression of the form
+      //   template [: R :]
+      // (e.g., calling a function template with argument deduction). Revert
+      // the parse and return no error.
       TPA.Revert();
       return false;
     }
 
     if (!NextToken().is(tok::coloncolon)) {
       if (IsTypename) {
+        // 'typename template [: R :] < args >' can only be well-formed when
+        // followed by '::', so this is definitely an error.
         TPA.Commit();
         return true;
       }
 
       // This isn't a nested-name-specifier, but it might be a
-      // splice-expression. Leave the token where it is.
+      // splice-expression of the form
+      //   template [: R :] < args >
+      // (e.g., calling a function template specialization). Revert the parse
+      // and return no error.
       TPA.Revert();
       return false;
     }
+
+    // We have 'template [: R :] < args > ::', possibly preceded by 'typename'.
+    // Commit to parsing a splice-scope-specifier.
     TPA.Commit();
     assert(Tok.is(tok::annot_splice_specialization));
 
     SpliceSpecResult SSR = getSpliceSpecializationAnnotation(Tok);
     ConsumeAnnotationToken();
 
-    SourceLocation CCLoc;
-    TryConsumeToken(tok::coloncolon, CCLoc);
+    SourceLocation CCLoc = ConsumeToken();
     if (Actions.ActOnCXXSpliceScopeSpecifier(SS, TemplateKWLoc, SSR.get(),
                                              CCLoc)) {
       SS.SetInvalid(SourceRange(TemplateKWLoc, CCLoc));
