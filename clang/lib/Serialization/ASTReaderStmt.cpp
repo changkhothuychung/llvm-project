@@ -530,10 +530,7 @@ void ASTStmtReader::VisitCXXMetafunctionExpr(CXXMetafunctionExpr *E) {
 void ASTStmtReader::VisitCXXSpliceExpr(CXXSpliceExpr *E) {
   VisitExpr(E);
   E->setTemplateKWLoc(Record.readSourceLocation());
-  if (Record.readBool())
-    E->setSplice(Record.readSpliceSpecializationSpecifierRef());
-  else
-    E->setSplice(Record.readSpliceSpecifierRef());
+  E->setSplice(Record.readSpliceSpecifierRef());
   E->setModel(Record.readExpr());
   E->setAllowMemberReference(Record.readBool());
 }

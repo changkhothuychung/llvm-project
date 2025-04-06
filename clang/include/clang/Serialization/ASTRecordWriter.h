@@ -251,14 +251,6 @@ public:
     AddSpliceSpecifier(SS);
   }
 
-  // Emits a splice specialization specifier.
-  void AddSpliceSpecializationSpecifier(
-                                      const SpliceSpecializationSpecifier *SSS);
-  void writeSpliceSpecializationSpecifierRef(
-                                     const SpliceSpecializationSpecifier *SSS) {
-    AddSpliceSpecializationSpecifier(SSS);
-  }
-
   /// Emit a reference to a declaration.
   void AddDeclRef(const Decl *D) {
     return Writer->AddDeclRef(D, *Record);

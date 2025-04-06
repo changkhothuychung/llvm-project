@@ -1741,26 +1741,23 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw_template: {
     SourceLocation TemplateKWLoc = ConsumeToken();
 
-    if (!Tok.is(tok::l_splice) || ParseSpliceSpecifier()) {
-      NotCastExpr = true;
-      return ExprError();
-    } else if (NextToken().is(tok::less) &&
-               ParseSpliceSpecializationSpecifier()) {
+    if (!Tok.is(tok::l_splice) ||
+        ParseSpliceSpecifier(/*TryParseSpecialization=*/true)) {
       NotCastExpr = true;
       return ExprError();
     }
+    SpliceResult SR = getSpliceAnnotation(Tok);
+    if (SR.isInvalid())
+      return ExprError();
+    SpliceSpecifier *Splice = SR.get();
 
-    // Check if this is a splice-scope-specifier.
-    if (Tok.is(tok::annot_splice_specialization) &&
-        NextToken().is(tok::coloncolon)) {
-      SpliceSpecResult Splice = getSpliceSpecializationAnnotation(Tok);
-      if (Splice.isInvalid())
-        return ExprError();
+    if (Splice->isSpecialization() && NextToken().is(tok::coloncolon)) {
       ConsumeAnnotationToken();
 
       CXXScopeSpec SS;
-      SS.MakeSpliceScopeSpecifier(Actions.Context, TemplateKWLoc, Splice.get(),
-                                  Tok.getLocation());
+      if (Actions.ActOnCXXSpliceScopeSpecifier(SS, TemplateKWLoc, Splice,
+                                               Tok.getLocation()))
+        return ExprError();
       ConsumeToken();
       AnnotateScopeToken(SS, /*IsNewAnnotation=*/true);
 
@@ -1783,6 +1780,9 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   }
 
   case tok::l_splice:
+    if (ParseSpliceSpecifier())
+      return ExprError();
+    [[fallthrough]];
   case tok::annot_cxxscope: { // [C++] id-expression: qualified-id
     // If TryAnnotateTypeOrScopeToken annotates the token, tail recurse.
     // (We can end up in this situation after tentative parsing.)
@@ -2379,7 +2379,7 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
 
       if (Tok.is(tok::kw_template) && NextToken().is(tok::l_splice)) {
         TemplateKWLoc = ConsumeToken();
-        ParseSpliceSpecifier();
+        ParseSpliceSpecifier(/*TryParseSpecialization=*/true);
       }
 
       PreferredType.enterMemAccess(Actions, Tok.getLocation(), OrigLHS);
@@ -2472,22 +2472,17 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
         SourceLocation Loc = ConsumeToken();
         Name.setIdentifier(Id, Loc);
       } else if (Tok.is(tok::annot_splice)) {
-        if (TemplateKWLoc.isValid() && NextToken().is(tok::less) &&
-            ParseSpliceSpecializationSpecifier()) {
-          LHS = ExprError();
+        ExprResult Res = ParseCXXSpliceAsExpr(TemplateKWLoc,
+                                              /*AllowMemberReference=*/true);
+        if (!Res.isInvalid() && !Diags.hasErrorOccurred()) {
+          LHS = Actions.ActOnMemberAccessExpr(getCurScope(), LHS.get(), OpLoc,
+                                              OpKind,
+                                              cast<CXXSpliceExpr>(Res.get()));
+          if (!LHS.isInvalid() && Tok.is(tok::less))
+            checkPotentialAngleBracket(LHS);
+          break;
         } else {
-          ExprResult Res = ParseCXXSpliceAsExpr(TemplateKWLoc,
-                                                /*AllowMemberReference=*/true);
-          if (!Res.isInvalid() && !Diags.hasErrorOccurred()) {
-            LHS = Actions.ActOnMemberAccessExpr(
-                  getCurScope(), LHS.get(), OpLoc, OpKind,
-                  cast<CXXSpliceExpr>(Res.get()), TemplateKWLoc);
-            if (!LHS.isInvalid() && Tok.is(tok::less))
-              checkPotentialAngleBracket(LHS);
-            break;
-          } else {
-            LHS = ExprError();
-          }
+          LHS = ExprError();
         }
       } else if (ParseUnqualifiedId(
                      SS, ObjectType, LHS.get() && LHS.get()->containsErrors(),

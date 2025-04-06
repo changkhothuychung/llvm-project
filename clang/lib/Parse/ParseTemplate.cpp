@@ -1485,39 +1485,6 @@ ParsedTemplateArgument Parser::ParseTemplateTemplateArgument() {
   return Result;
 }
 
-ParsedTemplateArgument Parser::ParseSpliceTemplateArgument() {
-  CXXScopeSpec SS;
-
-  // Uncomment the following to support 'template [:R:]'-arguments.
-  //
-  /*if (Tok.is(tok::kw_template) && NextToken().is(tok::l_splice)) {
-    if (ParseSpliceSpecifier(ConsumeToken()))
-      return ParsedTemplateArgument();
-  } else*/
-  if (ParseOptionalCXXScopeSpecifier(
-      SS, /*ObjectType=*/nullptr,
-      /*ObjectHasErrors=*/false, /*EnteringContext=*/false,
-      /*MayBePseudoDestructor=*/nullptr,
-      /*IsTypename=*/false, /*LastII=*/nullptr, /*OnlyNamespace=*/true) ||
-      SS.isInvalid() || SS.isNotEmpty() || !Tok.is(tok::annot_splice)) {
-    return ParsedTemplateArgument();
-  }
-
-  SpliceResult SR = getSpliceAnnotation(Tok);
-  assert(!SR.isInvalid());
-  SpliceSpecifier *Splice = cast<SpliceSpecifier>(SR.get());
-  ConsumeAnnotationToken();
-
-  ParsedTemplateArgument Result = Actions.ActOnSpliceTemplateArgument(Splice);
-
-  SourceLocation EllipsisLoc;
-  if (TryConsumeToken(tok::ellipsis, EllipsisLoc) && EllipsisLoc.isValid() &&
-      !Result.isInvalid()) {
-    Result = Actions.ActOnPackExpansion(Result, EllipsisLoc);
-  }
-  return Result;
-}
-
 /// ParseTemplateArgument - Parse a C++ template argument (C++ [temp.names]).
 ///
 ///       template-argument: [C++ 14.2]
@@ -1542,6 +1509,21 @@ ParsedTemplateArgument Parser::ParseTemplateArgument() {
     /*LambdaContextDecl=*/nullptr,
     /*ExprContext=*/Sema::ExpressionEvaluationContextRecord::EK_TemplateArgument);
 
+  // Try to parse a splice-template-argument.
+  if (Tok.is(tok::l_splice)) {
+    if (ParseSpliceSpecifier()) {
+      // Nothing to be done about a malformed splice-specifier.
+      return ParsedTemplateArgument();
+    } else if (NextToken().is(tok::ellipsis) ||
+               isEndOfTemplateArgument(NextToken())) {
+      // Parse as a splice-template-argument if this is the end of the
+      // template argument. Otherwise, it could be a splice-expression within a
+      // constant template argument (in which case, just leave the
+      // splice-specifier where it is).
+      return ParseSpliceTemplateArgument();
+    }
+  }
+
   if (isCXXTypeId(TypeIdAsTemplateArgument)) {
     TypeResult TypeArg = ParseTypeName(
         /*Range=*/nullptr, DeclaratorContext::TemplateArg);
@@ -1560,20 +1542,6 @@ ParsedTemplateArgument Parser::ParseTemplateArgument() {
     }
 
     // Revert this tentative parse.
-    TPA.Revert();
-  }
-
-  // Try to parse a splice specifier template argument.
-  {
-    TentativeParsingAction TPA(*this);
-
-    ParsedTemplateArgument TArg = ParseSpliceTemplateArgument();
-    if (!TArg.isInvalid()) {
-      TPA.Commit();
-      return TArg;
-    }
-
-    // Revert this tentative parse; assume a non-type template argument.
     TPA.Revert();
   }
 

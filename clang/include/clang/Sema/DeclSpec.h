@@ -188,7 +188,7 @@ public:
   /// \param ColonColonLoc The location of the trailing '::'.
   void MakeSpliceScopeSpecifier(ASTContext &Context,
                                 SourceLocation TemplateKWLoc,
-                                MaybeSpecializedSplicePtr Splice,
+                                SpliceSpecifier *Splice,
                                 SourceLocation ColonColonLoc);
 
   /// Make a new nested-name-specifier from incomplete source-location
@@ -431,7 +431,7 @@ private:
     Decl *DeclRep;
     Expr *ExprRep;
     TemplateIdAnnotation *TemplateIdRep;
-    MaybeSpecializedSplicePtr SpliceRep;
+    SpliceSpecifier *SpliceRep;
   };
   Expr *PackIndexingExpr = nullptr;
 
@@ -579,7 +579,7 @@ public:
     assert(isExprRep((TST) TypeSpecType) && "DeclSpec does not store an expr");
     return ExprRep;
   }
-  MaybeSpecializedSplicePtr getRepAsSpliceSpecifier() const {
+  SpliceSpecifier *getRepAsSpliceSpecifier() const {
     assert(isSpliceRep((TST) TypeSpecType) &&
            "DeclSpec does not store a splice");
     return SpliceRep;
@@ -789,7 +789,7 @@ public:
                        unsigned &DiagID, Expr *Rep,
                        const PrintingPolicy &policy);
   bool SetTypeSpecType(TST T, SourceLocation Loc, const char *&PrevSpec,
-                       unsigned &DiagID, MaybeSpecializedSplicePtr Rep,
+                       unsigned &DiagID, SpliceSpecifier *Rep,
                        const PrintingPolicy &policy);
   bool SetTypeAltiVecVector(bool isAltiVecVector, SourceLocation Loc,
                        const char *&PrevSpec, unsigned &DiagID,

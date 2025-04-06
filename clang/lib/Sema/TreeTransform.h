@@ -713,9 +713,6 @@ public:
 
   SpliceResult TransformSpliceSpecifier(SpliceSpecifier *SS);
 
-  SpliceSpecResult
-  TransformSpliceSpecializationSpecifier(SpliceSpecializationSpecifier *SSS);
-
   /// Transforms the parameters of a function type into the
   /// given vectors.
   ///
@@ -1078,7 +1075,7 @@ public:
   /// Build a new type loc from a C++2c reflection splice (P2996).
   QualType RebuildReflectionSpliceTypeLoc(TypeLocBuilder &TLB,
                                           SourceLocation TypenameKWLoc,
-                                          MaybeSpecializedSplicePtr Splice);
+                                          SpliceSpecifier *Splice);
 
   QualType RebuildPackIndexingType(QualType Pattern, Expr *IndexExpr,
                                    SourceLocation Loc,
@@ -4739,40 +4736,22 @@ NestedNameSpecifierLoc TreeTransform<Derived>::TransformNestedNameSpecifierLoc(
       }
       return NestedNameSpecifierLoc();
     }
-    case NestedNameSpecifier::Splice: {
+
+    case NestedNameSpecifier::Splice:
+    case NestedNameSpecifier::SpliceWithTemplate: {
       EnterExpressionEvaluationContext EvalCtx(
           getSema(), Sema::ExpressionEvaluationContext::ConstantEvaluated);
-      SpliceResult SR =
-          getDerived().TransformSpliceSpecifier(
-              const_cast<SpliceSpecifier *>(QNNS->getAsSplice()));
+      SpliceResult SR = getDerived().TransformSpliceSpecifier(
+          const_cast<SpliceSpecifier *>(QNNS->getAsSplice()));
       if (SR.isInvalid())
         return NestedNameSpecifierLoc();
 
-      SS.MakeSpliceScopeSpecifier(SemaRef.Context, SourceLocation(), SR.get(),
+      SourceLocation TemplateKWLoc;
+      if (QNNS->getKind() == NestedNameSpecifier::SpliceWithTemplate)
+        TemplateKWLoc = Q.getLocalBeginLoc();
+      SS.MakeSpliceScopeSpecifier(SemaRef.Context, TemplateKWLoc, SR.get(),
                                   Q.getLocalEndLoc());
       if (!getSema().TryFindDeclContextOf(SR.get()))
-        return NestedNameSpecifierLoc();
-      break;
-    }
-
-    case NestedNameSpecifier::SpliceSpecialization:
-    case NestedNameSpecifier::SpliceSpecializationWithTemplate: {
-      EnterExpressionEvaluationContext EvalCtx(
-          getSema(), Sema::ExpressionEvaluationContext::ConstantEvaluated);
-      SpliceSpecResult SSR =
-          getDerived().TransformSpliceSpecializationSpecifier(
-              const_cast<SpliceSpecializationSpecifier *>(
-                  QNNS->getAsSpliceSpecialization()));
-      if (SSR.isInvalid())
-        return NestedNameSpecifierLoc();
-
-      SourceLocation TemplateKWLoc;
-      if (QNNS->getKind() ==
-          NestedNameSpecifier::SpliceSpecializationWithTemplate)
-        TemplateKWLoc = Q.getLocalBeginLoc();
-      SS.MakeSpliceScopeSpecifier(SemaRef.Context, TemplateKWLoc, SSR.get(),
-                                  Q.getLocalEndLoc());
-      if (!getSema().TryFindDeclContextOf(SSR.get()))
         return NestedNameSpecifierLoc();
       break;
     }
@@ -7087,27 +7066,19 @@ QualType TreeTransform<Derived>::TransformReflectionSpliceType(
                                                  ReflectionSpliceTypeLoc TL) {
   const ReflectionSpliceType *T = TL.getTypePtr();
 
-  MaybeSpecializedSplicePtr NewSplice;
+  SpliceSpecifier *NewSplice;
   {
     EnterExpressionEvaluationContext Context(
         getSema(), Sema::ExpressionEvaluationContext::ConstantEvaluated);
-    if (auto *SS = dyn_cast<SpliceSpecifier *>(T->getSplice())) {
-      SpliceResult SR = getDerived().TransformSpliceSpecifier(SS);
-      if (SR.isInvalid())
-        return QualType();
-      NewSplice = SR.get();
-    } else {
-      auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(T->getSplice());
-      SpliceSpecResult SSR =
-          getDerived().TransformSpliceSpecializationSpecifier(SSS);
-      if (SSR.isInvalid())
-        return QualType();
-      NewSplice = SSR.get();
-    }
+    SpliceResult SR = getDerived().TransformSpliceSpecifier(T->getSplice());
+    if (SR.isInvalid())
+      return QualType();
+    NewSplice = SR.get();
   }
 
-  return getDerived().RebuildReflectionSpliceTypeLoc(
-        TLB, TL.getTypenameKWLoc(), NewSplice);
+  return getDerived().RebuildReflectionSpliceTypeLoc(TLB,
+                                                     TL.getTypenameKWLoc(),
+                                                     NewSplice);
 }
 
 template<typename Derived>
@@ -9192,65 +9163,47 @@ TreeTransform<Derived>::TransformCXXMetafunctionExpr(CXXMetafunctionExpr *E) {
 
 template <typename Derived>
 SpliceResult
-TreeTransform<Derived>::TransformSpliceSpecifier(SpliceSpecifier *SS) {
-  ExprResult Result;
+TreeTransform<Derived>::TransformSpliceSpecifier(SpliceSpecifier *Splice) {
+  ExprResult OpResult;
   {
-    EnterExpressionEvaluationContext Context(
+    EnterExpressionEvaluationContext EvalCtx(
         getSema(), Sema::ExpressionEvaluationContext::ConstantEvaluated);
-    Result = getDerived().TransformExpr(SS->getOperand());
+    OpResult = getDerived().TransformExpr(Splice->getOperand());
   }
-  if (Result.isInvalid())
+  if (OpResult.isInvalid())
     return SpliceError();
 
-  return getSema().BuildSpliceSpecifier(SS->getLSpliceLoc(),
-                                        Result.get(),
-                                        SS->getRSpliceLoc());
-}
+  ASTTemplateArgumentListInfo *NewTArgs = nullptr;
+  if (Splice->isSpecialization()) {
+    ArrayRef<TemplateArgumentLoc> ArgsIn =
+        Splice->getTemplateArgs()->arguments();
 
-template <typename Derived>
-SpliceSpecResult
-TreeTransform<Derived>::TransformSpliceSpecializationSpecifier(
-        SpliceSpecializationSpecifier *SSS) {
-  SpliceResult SR = getDerived().TransformSpliceSpecifier(
-      SSS->getSpliceSpecifier());
-  if (SR.isInvalid())
-    return SpliceSpecError();
+    TemplateArgumentListInfo TransArgs;
+    TransArgs.setLAngleLoc(Splice->getLAngleLoc());
+    TransArgs.setRAngleLoc(Splice->getRAngleLoc());
+    if (getDerived().TransformTemplateArguments(ArgsIn.begin(), ArgsIn.end(),
+                                                TransArgs))
+      return SpliceError();
 
-  ArrayRef<TemplateArgumentLoc> ArgsIn = SSS->getTemplateArgs()->arguments();
-
-  TemplateArgumentListInfo TransArgs;
-  TransArgs.setLAngleLoc(SSS->getLAngleLoc());
-  TransArgs.setRAngleLoc(SSS->getRAngleLoc());
-  if (getDerived().TransformTemplateArguments(ArgsIn.begin(), ArgsIn.end(),
-                                              TransArgs))
-    return SpliceSpecError();
-
-  const ASTTemplateArgumentListInfo *NewArgs =
-      ASTTemplateArgumentListInfo::Create(getSema().Context, TransArgs);
-  return getSema().BuildSpliceSpecializationSpecifier(
-      SR.get(),
-      const_cast<ASTTemplateArgumentListInfo *>(NewArgs));
+    NewTArgs =
+        const_cast<ASTTemplateArgumentListInfo *>(
+            ASTTemplateArgumentListInfo::Create(getSema().Context,
+                                                TransArgs));
+  }
+  return getSema().BuildSpliceSpecifier(Splice->getLSpliceLoc(),
+                                        OpResult.get(),
+                                        Splice->getRSpliceLoc(), NewTArgs);
 }
 
 template <typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXSpliceExpr(CXXSpliceExpr *E) {
-  MaybeSpecializedSplicePtr NewSplice;
-  if (auto *SSS = E->getSplice().dyn_cast<SpliceSpecializationSpecifier *>()) {
-    SpliceSpecResult SSR = TransformSpliceSpecializationSpecifier(SSS);
-    if (SSR.isInvalid())
-      return ExprError();
-    NewSplice = SSR.get();
-  } else {
-    SpliceResult SR = TransformSpliceSpecifier(
-        dyn_cast<SpliceSpecifier *>(E->getSplice()));
-    if (SR.isInvalid())
-      return ExprError();
-    NewSplice = SR.get();
-  }
+  SpliceResult SR = TransformSpliceSpecifier(E->getSplice());
+  if (SR.isInvalid())
+    return ExprError();
 
   return getSema().BuildReflectionSpliceExpr(E->getTemplateKeywordLoc(),
-                                             NewSplice,
+                                             SR.get(),
                                              E->allowMemberReference());
 }
 
@@ -9266,7 +9219,7 @@ TreeTransform<Derived>::TransformCXXDependentMemberSpliceExpr(
   return getSema().BuildMemberReferenceExpr(
           nullptr, Base.get(), E->getOpLoc(),
           E->isArrow()? tok::arrow : tok::period,
-          cast<CXXSpliceExpr>(RHS.get()), SourceLocation());
+          cast<CXXSpliceExpr>(RHS.get()));
 }
 
 template <typename Derived>
@@ -15919,8 +15872,7 @@ ExprResult TreeTransform<Derived>::TransformDependentScopeDeclRefExpr(
     if (auto *Prefix = NNS->getPrefix())
       NNS = Prefix;
 
-    ScopeHadLeadingSplice = (NNS->getAsSplice() != nullptr) ||
-                            (NNS->getAsSpliceSpecialization() != nullptr);
+    ScopeHadLeadingSplice = (NNS->getAsSplice() != nullptr);
   }
 
   ExprResult Result;
@@ -18075,7 +18027,7 @@ QualType TreeTransform<Derived>::RebuildDecltypeType(Expr *E, SourceLocation) {
 template <typename Derived>
 QualType TreeTransform<Derived>::RebuildReflectionSpliceTypeLoc(
     TypeLocBuilder &TLB, SourceLocation TypenameKWLoc,
-    MaybeSpecializedSplicePtr Splice) {
+    SpliceSpecifier *Splice) {
   return SemaRef.BuildReflectionSpliceTypeLoc(TLB, TypenameKWLoc, Splice,
                                               /*Complain=*/true);
 }

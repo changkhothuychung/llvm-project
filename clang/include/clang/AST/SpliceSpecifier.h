@@ -1,6 +1,6 @@
 //===- SpliceSpecifier.h - Core classes for C++ templates -------*- C++ -*-===//
 //
-// Copyright 2024 Bloomberg Finance L.P.
+// Copyright 2025 Bloomberg Finance L.P.
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,9 +16,8 @@
 #ifndef LLVM_CLANG_AST_SPLICESPECIFIER_H
 #define LLVM_CLANG_AST_SPLICESPECIFIER_H
 
+#include "clang/AST/DependenceFlags.h"
 #include "clang/Basic/SourceLocation.h"
-#include "llvm/ADT/PointerUnion.h"
-#include <optional>
 
 namespace clang {
 
@@ -33,8 +32,11 @@ class alignas(void *) SpliceSpecifier {
   Expr *Operand;
   SourceLocation RSpliceLoc;
 
+  const ASTTemplateArgumentListInfo *TemplateArgs;
+
   SpliceSpecifier(SourceLocation LSpliceLoc, Expr *Operand,
-                  SourceLocation RSpliceLoc);
+                  SourceLocation RSpliceLoc,
+                  const ASTTemplateArgumentListInfo *TemplateArgs);
 
 public:
   void *operator new(size_t bytes, const ASTContext &C,
@@ -46,13 +48,15 @@ public:
   }
 
 public:
-  static SpliceSpecifier *Create(ASTContext &C, SourceLocation LSpliceLoc,
-                                 Expr *Operand, SourceLocation RSpliceLoc);
+  static SpliceSpecifier *Create(
+      ASTContext &C, SourceLocation LSpliceLoc, Expr *Operand,
+      SourceLocation RSpliceLoc,
+      const ASTTemplateArgumentListInfo *TemplateArgs);
 
   Expr *getOperand() const { return Operand; }
   void setOperand(Expr *E) { Operand = E; }
 
-  bool isDependent() const;
+  SpliceSpecifierDependence getDependence() const;
 
   SourceLocation getLSpliceLoc() const { return LSpliceLoc; }
   void setLSpliceLoc(SourceLocation Loc) { LSpliceLoc = Loc; }
@@ -60,61 +64,27 @@ public:
   SourceLocation getRSpliceLoc() const { return RSpliceLoc; }
   void setRSpliceLoc(SourceLocation Loc) { RSpliceLoc = Loc; }
 
+  SourceLocation getLAngleLoc() const;
+  SourceLocation getRAngleLoc() const;
+
   SourceLocation getBeginLoc() const { return LSpliceLoc; }
 
-  SourceLocation getEndLoc() const { return RSpliceLoc; }
+  SourceLocation getEndLoc() const {
+    return isSpecialization() ? getRAngleLoc() : getRSpliceLoc();
+  }
 
   SourceRange getSourceRange() const {
     return SourceRange(getBeginLoc(), getEndLoc());
   }
-};
 
-/// Represents a C++26 'splice-specialization-specifier'.
-class alignas(void *) SpliceSpecializationSpecifier {
-  SpliceSpecifier *Splice;
-  const ASTTemplateArgumentListInfo *TemplateArgs;
-
-  SpliceSpecializationSpecifier(SpliceSpecifier *Splice,
-                                const ASTTemplateArgumentListInfo *Args);
-
-public:
-  void *operator new(size_t bytes, const ASTContext &C,
-                     unsigned alignment = 8);
-
-  void *operator new(size_t bytes, const ASTContext *C,
-                     unsigned alignment = 8) {
-    return operator new(bytes, *C, alignment);
+  bool isSpecialization() const {
+    return TemplateArgs != nullptr;
   }
-
-public:
-  static SpliceSpecializationSpecifier *Create(
-      ASTContext &C, SpliceSpecifier *Splice,
-      const ASTTemplateArgumentListInfo &TemplateArgs);
-
-  SpliceSpecifier *getSpliceSpecifier() const { return Splice; }
-  void setSpliceSpecifier(SpliceSpecifier *S) { Splice = S; }
 
   const ASTTemplateArgumentListInfo *getTemplateArgs() const {
     return TemplateArgs;
   }
-
-  bool isDependent() const { return Splice->isDependent(); }
-
-  SourceLocation getLAngleLoc() const;
-  SourceLocation getRAngleLoc() const;
-
-  SourceLocation getBeginLoc() const { return Splice->getBeginLoc(); }
-
-  SourceLocation getEndLoc() const;
-
-  SourceRange getSourceRange() const {
-    return SourceRange(getBeginLoc(), getEndLoc());
-  }
 };
-
-using MaybeSpecializedSplicePtr =
-    llvm::PointerUnion<SpliceSpecifier *,
-                       SpliceSpecializationSpecifier *>;
 
 } // namespace clang
 

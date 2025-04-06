@@ -5606,12 +5606,12 @@ public:
 
 class CXXSpliceExpr final : public Expr {
   SourceLocation TemplateKWLoc;
-  MaybeSpecializedSplicePtr Splice;
+  SpliceSpecifier *Splice;
   Expr *Model;
   bool AllowMemberReference;
 
   CXXSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
-                SourceLocation TemplateKWLoc, MaybeSpecializedSplicePtr Splice,
+                SourceLocation TemplateKWLoc, SpliceSpecifier *Splice,
                 Expr *Model, bool AllowMemberReference);
 
   CXXSpliceExpr(EmptyShell Empty);
@@ -5619,19 +5619,13 @@ class CXXSpliceExpr final : public Expr {
 public:
   static CXXSpliceExpr *Create(ASTContext &C, ExprValueKind ValueKind,
                                SourceLocation TemplateKWLoc,
-                               MaybeSpecializedSplicePtr Splice, Expr *Model,
+                               SpliceSpecifier *Splice, Expr *Model,
                                bool AllowMemberReference);
 
   static CXXSpliceExpr *CreateEmpty(ASTContext &C);
 
-  MaybeSpecializedSplicePtr getSplice() const { return Splice; }
-  void setSplice(MaybeSpecializedSplicePtr S) { Splice = S; }
-
-  SpliceSpecifier *getSpliceSpecifier() const {
-    if (auto *SSS = Splice.dyn_cast<SpliceSpecializationSpecifier *>())
-      return SSS->getSpliceSpecifier();
-    return cast<SpliceSpecifier *>(Splice);
-  }
+  SpliceSpecifier *getSplice() const { return Splice; }
+  void setSplice(SpliceSpecifier *S) { Splice = S; }
 
   Expr *getModel() const { return Model; }
   void setModel(Expr *M) { Model = M; }
@@ -5644,31 +5638,29 @@ public:
 
   /// Determines whether this splice had explicit template arguments.
   bool hasExplicitTemplateArgs() const {
-    return isa<SpliceSpecializationSpecifier *>(Splice);
+    return Splice->isSpecialization();
   }
 
   TemplateArgumentLoc const *getTemplateArgs() const {
-    auto *SSS = cast<SpliceSpecializationSpecifier *>(Splice);
-    return SSS->getTemplateArgs()->getTemplateArgs();
+    return Splice->getTemplateArgs()->getTemplateArgs();
   }
 
   unsigned getNumTemplateArgs() const {
     if (!hasExplicitTemplateArgs())
       return 0;
 
-    auto *SSS = cast<SpliceSpecializationSpecifier *>(Splice);
-    return SSS->getTemplateArgs()->getNumTemplateArgs();
+    return Splice->getTemplateArgs()->getNumTemplateArgs();
   }
 
   ArrayRef<TemplateArgumentLoc> template_arguments() const {
-    return cast<SpliceSpecializationSpecifier *>(Splice)
-        ->getTemplateArgs()->arguments();
+    return Splice->getTemplateArgs()->arguments();
   }
 
   /// Copies the template arguments into the given structure.
   void copyTemplateArgumentsInto(TemplateArgumentListInfo &List) const {
-    if (auto *SSS = Splice.dyn_cast<SpliceSpecializationSpecifier *>())
-      for (const TemplateArgumentLoc &Arg : SSS->getTemplateArgs()->arguments())
+    if (hasExplicitTemplateArgs())
+      for (const TemplateArgumentLoc &Arg :
+           Splice->getTemplateArgs()->arguments())
         List.addArgument(Arg);
   }
 
@@ -5678,16 +5670,16 @@ public:
   /// Retrieve location of the left angle bracket starting the explicit template
   /// argument list following the splice, if any.
   SourceLocation getLAngleLoc() const {
-    if (auto *SSS = Splice.dyn_cast<SpliceSpecializationSpecifier *>())
-      return SSS->getLAngleLoc();
+    if (Splice->isSpecialization())
+      return Splice->getLAngleLoc();
     return SourceLocation();
   }
 
   /// Retrieve the location of the right angle bracket ending the explicit
   /// template argument list following the splice, if any.
   SourceLocation getRAngleLoc() const {
-    if (auto *SSS = Splice.dyn_cast<SpliceSpecializationSpecifier *>())
-      return SSS->getRAngleLoc();
+    if (Splice->isSpecialization())
+      return Splice->getRAngleLoc();
     return SourceLocation();
   }
 
@@ -5695,14 +5687,14 @@ public:
     if (SourceLocation KWLoc = getTemplateKeywordLoc(); KWLoc.isValid())
       return KWLoc;
 
-    return getSpliceSpecifier()->getBeginLoc();
+    return Splice->getBeginLoc();
   }
 
   SourceLocation getEndLoc() const {
     if (SourceLocation RAngleLoc = getRAngleLoc(); RAngleLoc.isValid())
       return RAngleLoc;
 
-    return getSpliceSpecifier()->getEndLoc();
+    return Splice->getEndLoc();
   }
 
   child_range children() {

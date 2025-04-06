@@ -480,8 +480,6 @@ public:
   bool TraverseConceptNestedRequirement(concepts::NestedRequirement *R);
 
   bool TraverseSpliceSpecifier(SpliceSpecifier *SS);
-  bool TraverseSpliceSpecializationSpecifier(
-          SpliceSpecializationSpecifier *SSS);
 
   bool dataTraverseNode(Stmt *S, DataRecursionQueue *Queue);
 
@@ -616,17 +614,13 @@ bool RecursiveASTVisitor<Derived>::TraverseConceptNestedRequirement(
 
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::TraverseSpliceSpecifier(
-    SpliceSpecifier *SS) {
-  TRY_TO(TraverseStmt(SS->getOperand()));
-  return true;
-}
+    SpliceSpecifier *Splice) {
+  TRY_TO(TraverseStmt(Splice->getOperand()));
 
-template <typename Derived>
-bool RecursiveASTVisitor<Derived>::TraverseSpliceSpecializationSpecifier(
-    SpliceSpecializationSpecifier *SSS) {
-  TRY_TO(TraverseSpliceSpecifier(SSS->getSpliceSpecifier()));
-  for (const TemplateArgumentLoc &Arg : SSS->getTemplateArgs()->arguments())
-    TRY_TO(TraverseTemplateArgumentLoc(Arg));
+  if (Splice->isSpecialization())
+    for (const TemplateArgumentLoc &Arg :
+         Splice->getTemplateArgs()->arguments())
+      TRY_TO(TraverseTemplateArgumentLoc(Arg));
 
   return true;
 }
@@ -820,17 +814,10 @@ bool RecursiveASTVisitor<Derived>::TraverseNestedNameSpecifier(
     return true;
 
   case NestedNameSpecifier::Splice:
+  case NestedNameSpecifier::SpliceWithTemplate:
     TRY_TO(
         TraverseSpliceSpecifier(
             const_cast<SpliceSpecifier *>(NNS->getAsSplice())));
-    break;
-
-  case NestedNameSpecifier::SpliceSpecialization:
-  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
-    TRY_TO(
-        TraverseSpliceSpecializationSpecifier(
-            const_cast<SpliceSpecializationSpecifier *>(
-                NNS->getAsSpliceSpecialization())));
     break;
 
   case NestedNameSpecifier::TypeSpec:
@@ -859,17 +846,10 @@ bool RecursiveASTVisitor<Derived>::TraverseNestedNameSpecifierLoc(
     return true;
 
   case NestedNameSpecifier::Splice:
+  case NestedNameSpecifier::SpliceWithTemplate:
     TRY_TO(
         TraverseSpliceSpecifier(
             const_cast<SpliceSpecifier *>(NNS.getSplice())));
-    break;
-
-  case NestedNameSpecifier::SpliceSpecialization:
-  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
-    TRY_TO(
-        TraverseSpliceSpecializationSpecifier(
-            const_cast<SpliceSpecializationSpecifier *>(
-                NNS.getSpliceSpecialization())));
     break;
 
   case NestedNameSpecifier::TypeSpec:
@@ -1165,14 +1145,7 @@ DEF_TRAVERSE_TYPE(DecltypeType,
                   { TRY_TO(TraverseStmt(T->getUnderlyingExpr())); })
 
 DEF_TRAVERSE_TYPE(ReflectionSpliceType, {
-  MaybeSpecializedSplicePtr Splice = T->getSplice();
-  if (auto *S = Splice.dyn_cast<SpliceSpecifier *>())
-    TRY_TO(TraverseSpliceSpecifier(S));
-  else
-    TRY_TO(
-        TraverseSpliceSpecializationSpecifier(
-            cast<SpliceSpecializationSpecifier *>(Splice)));
-
+  TRY_TO(TraverseSpliceSpecifier(T->getSplice()));
 })
 
 DEF_TRAVERSE_TYPE(PackIndexingType, {
@@ -1473,13 +1446,7 @@ DEF_TRAVERSE_TYPELOC(DecltypeType, {
 })
 
 DEF_TRAVERSE_TYPELOC(ReflectionSpliceType, {
-  MaybeSpecializedSplicePtr Splice = TL.getSplice();
-  if (auto *S = Splice.dyn_cast<SpliceSpecifier *>())
-    TRY_TO(TraverseSpliceSpecifier(S));
-  else
-    TRY_TO(
-        TraverseSpliceSpecializationSpecifier(
-            cast<SpliceSpecializationSpecifier *>(Splice)));
+  TRY_TO(TraverseSpliceSpecifier(TL.getSplice()));
 })
 
 DEF_TRAVERSE_TYPELOC(PackIndexingType, {
@@ -3092,13 +3059,7 @@ DEF_TRAVERSE_STMT(CXXReflectExpr, {
 })
 DEF_TRAVERSE_STMT(CXXMetafunctionExpr, {})
 DEF_TRAVERSE_STMT(CXXSpliceExpr, {
-  MaybeSpecializedSplicePtr Splice = S->getSplice();
-  if (auto *S = Splice.dyn_cast<SpliceSpecifier *>())
-    TRY_TO(TraverseSpliceSpecifier(S));
-  else
-    TRY_TO(
-        TraverseSpliceSpecializationSpecifier(
-            cast<SpliceSpecializationSpecifier *>(Splice)));
+  TRY_TO(TraverseSpliceSpecifier(S->getSplice()));
 })
 DEF_TRAVERSE_STMT(CXXDependentMemberSpliceExpr, {
   TRY_TO(TraverseStmt(S->getBase()));

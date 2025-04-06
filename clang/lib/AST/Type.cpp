@@ -4144,21 +4144,16 @@ void DependentDecltypeType::Profile(llvm::FoldingSetNodeID &ID,
 
 TypeDependence
 ReflectionSpliceType::computeDependence(QualType Canon,
-                                        MaybeSpecializedSplicePtr Splice) {
+                                        SpliceSpecifier *Splice) {
   TypeDependence Result = Canon->getDependence();
-  if (auto *SS = dyn_cast<SpliceSpecifier *>(Splice);
-      SS && SS->getOperand()->containsUnexpandedParameterPack())
-    Result |= TypeDependence::UnexpandedPack;
-  else if (auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(Splice);
-           SSS && SSS->getSpliceSpecifier()->getOperand()
-                    ->containsUnexpandedParameterPack())
+  if (Splice->getDependence() & SpliceSpecifierDependence::UnexpandedPack)
     Result |= TypeDependence::UnexpandedPack;
 
   return Result;
 }
 
 ReflectionSpliceType::ReflectionSpliceType(SourceLocation TypenameKWLoc,
-                                           MaybeSpecializedSplicePtr Splice,
+                                           SpliceSpecifier *Splice,
                                            QualType Canon)
   : Type(ReflectionSplice, Canon,
          ReflectionSpliceType::computeDependence(Canon, Splice),
@@ -4180,7 +4175,7 @@ bool ReflectionSpliceType::isSugared() const {
 
 DependentReflectionSpliceType::DependentReflectionSpliceType(
         const ASTContext &Context, SourceLocation TypenameKWLoc,
-        MaybeSpecializedSplicePtr Splice)
+        SpliceSpecifier *Splice)
   : ReflectionSpliceType(TypenameKWLoc, Splice, Context.DependentTy),
     Context(Context) {
 }

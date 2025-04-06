@@ -142,8 +142,6 @@ def SourceLocation : PropertyType;
 def StmtRef : RefPropertyType<"Stmt"> { let ConstWhenWriting = 1; }
   def ExprRef : SubclassPropertyType<"Expr", StmtRef>;
 def SpliceSpecifierRef : RefPropertyType<"SpliceSpecifier">;
-def SpliceSpecializationSpecifierRef :
-    RefPropertyType<"SpliceSpecializationSpecifier">;
 def SubstTemplateTypeParmTypeFlag : EnumPropertyType;
 def TemplateArgument : PropertyType;
 def TemplateArgumentKind : EnumPropertyType<"TemplateArgument::ArgKind">;

@@ -37,7 +37,6 @@ class NamespaceAliasDecl;
 class NamespaceDecl;
 struct PrintingPolicy;
 class SpliceSpecifier;
-class SpliceSpecializationSpecifier;
 class Type;
 class TypeLoc;
 
@@ -60,8 +59,7 @@ class NestedNameSpecifier : public llvm::FoldingSetNode {
     StoredTypeSpec = 2,
     StoredTypeSpecWithTemplate = 3,
     StoredSpliceSpecifier = 4,
-    StoredSpliceSpecSpecifier = 5,
-    StoredSpliceSpecSpecifierWithTemplate = 6
+    StoredSpliceSpecifierWithTemplate = 6
   };
 
   /// The nested name specifier that precedes this nested name
@@ -111,13 +109,9 @@ public:
     /// A splice specifier, stored as a SpliceSpecifier*.
     Splice,
 
-    /// A splice specialization specifier, stored as a
-    /// SpliceSpecializationSpecifier*.
-    SpliceSpecialization,
-
-    /// A splice specialization specifier that was preceded by the 'template'
-    /// keyword, stored as a SpliceSpecializationSpecifier*.
-    SpliceSpecializationWithTemplate,
+    /// A splice specifier that was preceded by the 'template'
+    /// keyword, stored as a SpliceSpecifier*.
+    SpliceWithTemplate,
   };
 
 private:
@@ -180,14 +174,8 @@ public:
 
   /// Returns the nested name specifier representing a splice specifier.
   static NestedNameSpecifier *SpliceScopeSpecifier(
-        const ASTContext &Context,
+        const ASTContext &Context, bool TemplateKW,
         const SpliceSpecifier *Splice);
-
-  /// Returns the nested name specifier representing a splice
-  /// specialization specifier.
-  static NestedNameSpecifier *SpliceScopeSpecifier(
-        const ASTContext &Context, bool Template,
-        const SpliceSpecializationSpecifier *Splice);
 
   /// Return the prefix of this nested name specifier.
   ///
@@ -231,18 +219,11 @@ public:
     return nullptr;
   }
 
-  /// Retrieve the splice expression stored in this nested name specifier.
+  /// Retrieve the splice specifier stored in this nested name specifier.
   const SpliceSpecifier *getAsSplice() const {
-    if (Prefix.getInt() == StoredSpliceSpecifier)
+    if (Prefix.getInt() == StoredSpliceSpecifier ||
+        Prefix.getInt() == StoredSpliceSpecifierWithTemplate)
       return (const SpliceSpecifier *)Specifier;
-
-    return nullptr;
-  }
-
-  const SpliceSpecializationSpecifier *getAsSpliceSpecialization() const {
-    if (Prefix.getInt() == StoredSpliceSpecSpecifier ||
-        Prefix.getInt() == StoredSpliceSpecSpecifierWithTemplate)
-      return (const SpliceSpecializationSpecifier *)Specifier;
 
     return nullptr;
   }
@@ -382,13 +363,9 @@ public:
   /// retrieve the type with source-location information.
   TypeLoc getTypeLoc() const;
 
-  /// For a nested-name-specifier that refers to a splice expression, retrive
+  /// For a nested-name-specifier that refers to a splice specifier, retrive
   /// the splice specifier.
   const SpliceSpecifier *getSplice() const;
-
-  /// For a nested-name-specifier that refers to a splice specialization,
-  /// retrieve the splice specialization specifier.
-  const SpliceSpecializationSpecifier *getSpliceSpecialization() const;
 
   /// Determines the data length for the entire
   /// nested-name-specifier.
@@ -522,19 +499,6 @@ public:
                  SourceLocation SuperLoc, SourceLocation ColonColonLoc);
 
   /// Turns this (empty) nested-name-specifier into a specifier having a single
-  /// component of splice specifier kind.
-  ///
-  /// \param Context The AST context in which this nested-name-specifier
-  /// resides.
-  ///
-  /// \param Expr The splice specifier.
-  ///
-  /// \param ColonColonLoc The location of the trailing '::'.
-  void MakeSpliceScopeSpecifier(ASTContext &Context,
-                                const SpliceSpecifier *Splice,
-                                SourceLocation ColonColonLoc);
-
-  /// Turns this (empty) nested-name-specifier into a specifier having a single
   /// component of splice specialization specifier kind.
   ///
   /// \param Context The AST context in which this nested-name-specifier
@@ -547,7 +511,7 @@ public:
   /// \param ColonColonLoc The location of the trailing '::'.
   void MakeSpliceScopeSpecifier(ASTContext &Context,
                                 SourceLocation TemplateKWLoc,
-                                const SpliceSpecializationSpecifier *Splice,
+                                const SpliceSpecifier *Splice,
                                 SourceLocation ColonColonLoc);
 
   /// Make a new nested-name-specifier from incomplete source-location

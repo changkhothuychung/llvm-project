@@ -563,18 +563,15 @@ void ASTRecordWriter::AddConceptReference(const ConceptReference *CR) {
     AddASTTemplateArgumentListInfo(CR->getTemplateArgsAsWritten());
 }
 
-void ASTRecordWriter::AddSpliceSpecifier(const SpliceSpecifier *SS) {
-  assert(SS);
-  AddSourceLocation(SS->getLSpliceLoc());
-  AddSourceLocation(SS->getRSpliceLoc());
-  AddStmt(SS->getOperand());
-}
+void ASTRecordWriter::AddSpliceSpecifier(const SpliceSpecifier *Splice) {
+  assert(Splice);
+  AddSourceLocation(Splice->getLSpliceLoc());
+  AddStmt(Splice->getOperand());
+  AddSourceLocation(Splice->getRSpliceLoc());
 
-void ASTRecordWriter::AddSpliceSpecializationSpecifier(
-      const SpliceSpecializationSpecifier *SSS) {
-  assert(SSS);
-  AddSpliceSpecifier(SSS->getSpliceSpecifier());
-  AddASTTemplateArgumentListInfo(SSS->getTemplateArgs());
+  writeBool(Splice->isSpecialization());
+  if (Splice->isSpecialization())
+    AddASTTemplateArgumentListInfo(Splice->getTemplateArgs());
 }
 
 void TypeLocWriter::VisitPackIndexingTypeLoc(PackIndexingTypeLoc TL) {
@@ -7058,6 +7055,9 @@ void ASTRecordWriter::AddNestedNameSpecifierLoc(NestedNameSpecifierLoc NNS) {
       break;
 
     case NestedNameSpecifier::Splice:
+    case NestedNameSpecifier::SpliceWithTemplate:
+      AddSpliceSpecifier(NNS.getSplice());
+      writeBool(Kind == NestedNameSpecifier::SpliceWithTemplate);
       AddSourceRange(NNS.getLocalSourceRange());
       break;
     }

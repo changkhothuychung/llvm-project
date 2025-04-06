@@ -82,8 +82,6 @@ namespace clang {
   using ExpectedExpr = llvm::Expected<Expr *>;
   using ExpectedDecl = llvm::Expected<Decl *>;
   using ExpectedSplice = llvm::Expected<SpliceSpecifier *>;
-  using ExpectedSpliceSpecialization =
-      llvm::Expected<SpliceSpecializationSpecifier *>;
   using ExpectedSLoc = llvm::Expected<SourceLocation>;
   using ExpectedName = llvm::Expected<DeclarationName>;
 
@@ -1504,28 +1502,18 @@ ExpectedType ASTNodeImporter::VisitDecltypeType(const DecltypeType *T) {
       *ToExprOrErr, *ToUnderlyingTypeOrErr);
 }
 
-ExpectedType ASTNodeImporter::VisitReflectionSpliceType(
-                                                const ReflectionSpliceType *T) {
-  MaybeSpecializedSplicePtr ToSplice;
-  if (auto *SS = dyn_cast<SpliceSpecifier *>(T->getSplice())) {
-    ExpectedSplice ToSpliceOrErr = import(SS);
-    if (!ToSpliceOrErr)
-      return ToSpliceOrErr.takeError();
-    ToSplice = *ToSpliceOrErr;
-  } else {
-    auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(T->getSplice());
-    ExpectedSpliceSpecialization ToSpliceOrErr = import(SSS);
-    if (!ToSpliceOrErr)
-      return ToSpliceOrErr.takeError();
-    ToSplice = *ToSpliceOrErr;
-  }
+ExpectedType
+ASTNodeImporter::VisitReflectionSpliceType(const ReflectionSpliceType *T) {
+  ExpectedSplice ToSpliceOrErr = import(T->getSplice());
+  if (!ToSpliceOrErr)
+    return ToSpliceOrErr.takeError();
 
   ExpectedType ToUnderlyingTypeOrErr = import(T->getUnderlyingType());
   if (!ToUnderlyingTypeOrErr)
     return ToUnderlyingTypeOrErr.takeError();
 
   return Importer.getToContext().getReflectionSpliceType(
-      T->getTypenameKWLoc(), ToSplice, *ToUnderlyingTypeOrErr);
+      T->getTypenameKWLoc(), *ToSpliceOrErr, *ToUnderlyingTypeOrErr);
 }
 
 ExpectedType
@@ -9723,11 +9711,6 @@ llvm::Expected<SpliceSpecifier *> ASTImporter::Import(SpliceSpecifier *FromSS) {
 }
 
 
-llvm::Expected<SpliceSpecializationSpecifier *>
-ASTImporter::Import(SpliceSpecializationSpecifier *FromSSS) {
-  llvm_unreachable("unimplemented");
-}
-
 llvm::Expected<InheritedConstructor>
 ASTImporter::Import(const InheritedConstructor &From) {
   return ASTNodeImporter(*this).ImportInheritedConstructor(From);
@@ -9980,28 +9963,19 @@ ASTImporter::Import(NestedNameSpecifierLoc FromNNS) {
       if (!ToSourceRangeOrErr)
         return ToSourceRangeOrErr.takeError();
 
-      Builder.MakeSpliceScopeSpecifier(getToContext(), Spec->getAsSplice(),
-                                       ToSourceRangeOrErr->getEnd());
-      break;
-    }
-
-    case NestedNameSpecifier::SpliceSpecialization: {
-      auto ToSourceRangeOrErr = Import(NNS.getSourceRange());
-      if (!ToSourceRangeOrErr)
-        return ToSourceRangeOrErr.takeError();
       Builder.MakeSpliceScopeSpecifier(getToContext(), SourceLocation(),
-                                       Spec->getAsSpliceSpecialization(),
+                                       Spec->getAsSplice(),
                                        ToSourceRangeOrErr->getEnd());
       break;
     }
 
-    case NestedNameSpecifier::SpliceSpecializationWithTemplate: {
+    case NestedNameSpecifier::SpliceWithTemplate: {
       auto ToSourceRangeOrErr = Import(NNS.getSourceRange());
       if (!ToSourceRangeOrErr)
         return ToSourceRangeOrErr.takeError();
       Builder.MakeSpliceScopeSpecifier(getToContext(),
                                        ToSourceRangeOrErr->getBegin(),
-                                       Spec->getAsSpliceSpecialization(),
+                                       Spec->getAsSplice(),
                                        ToSourceRangeOrErr->getEnd());
       break;
     }

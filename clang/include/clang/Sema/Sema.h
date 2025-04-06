@@ -8663,7 +8663,7 @@ public:
   concepts::Requirement *ActOnTypeRequirement(
       SourceLocation TypenameKWLoc, CXXScopeSpec &SS, SourceLocation NameLoc,
       const IdentifierInfo *TypeName, TemplateIdAnnotation *TemplateId,
-      SpliceSpecifier *Splice, SpliceSpecializationSpecifier *SpliceSpec);
+      SpliceSpecifier *Splice);
   concepts::Requirement *ActOnCompoundRequirement(Expr *E,
                                                   SourceLocation NoexceptLoc);
   concepts::Requirement *ActOnCompoundRequirement(
@@ -15463,28 +15463,30 @@ public:
   SpliceResult ActOnSpliceSpecifier(SourceLocation LSpliceLoc,
                                     Expr *Operand,
                                     SourceLocation RSpliceLoc);
-  SpliceSpecResult ActOnSpliceSpecializationSpecifier(
-      SpliceSpecifier *Splice, SourceLocation LAngleLoc,
-      ASTTemplateArgsPtr TemplateArgs, SourceLocation RAngleLoc);
+  SpliceResult ActOnSpliceSpecifier(SourceLocation LSpliceLoc, Expr *Operand,
+                                    SourceLocation RSpliceLoc,
+                                    SourceLocation LAngleLoc,
+                                    ASTTemplateArgsPtr TemplateArgs,
+                                    SourceLocation RAngleLoc);
 
   ExprResult ActOnCXXSpliceExpression(SourceLocation TemplateKWLoc,
-                                      MaybeSpecializedSplicePtr Splice,
+                                      SpliceSpecifier *Splice,
                                       bool AllowMemberReference);
   TypeResult ActOnCXXSpliceTypeSpecifier(SourceLocation TypenameKWLoc,
-                                         MaybeSpecializedSplicePtr Splice,
+                                         SpliceSpecifier *Splice,
                                          bool Complain);
   DeclResult ActOnCXXSpliceExpectingNamespace(SpliceSpecifier *Splice);
   ParsedTemplateArgument ActOnSpliceTemplateArgument(SpliceSpecifier *Splice);
 
-  bool ActOnCXXSpliceScopeSpecifier(
-      CXXScopeSpec &SS, SourceLocation TemplateKWLoc,
-      MaybeSpecializedSplicePtr Splice, SourceLocation ColonColonLoc);
+  bool ActOnCXXSpliceScopeSpecifier(CXXScopeSpec &SS,
+                                    SourceLocation TemplateKWLoc,
+                                    SpliceSpecifier *Splice,
+                                    SourceLocation ColonColonLoc);
 
   ExprResult ActOnMemberAccessExpr(Scope *S, Expr *Base,
                                    SourceLocation OpLoc,
                                    tok::TokenKind OpKind,
-                                   CXXSpliceExpr *RHS,
-                                   SourceLocation TemplateKWLoc);
+                                   CXXSpliceExpr *RHS);
 
   Decl *ActOnConstevalBlockDeclaration(SourceLocation ConstevalLoc,
                                        Expr *EvaluatingExpr);
@@ -15514,20 +15516,18 @@ public:
                                       const CXXMetafunctionExpr::ImplFn &Impl,
                                       SmallVectorImpl<Expr *> &Args);
 
-  SpliceResult BuildSpliceSpecifier(SourceLocation LSpliceLoc, Expr *Operand,
-                                    SourceLocation RSpliceLoc);
-  SpliceSpecResult BuildSpliceSpecializationSpecifier(
-      SpliceSpecifier *Splice, ASTTemplateArgumentListInfo *TemplateArgs);
+  SpliceResult BuildSpliceSpecifier(
+      SourceLocation LSpliceLoc, Expr *Operand, SourceLocation RSpliceLoc,
+      const ASTTemplateArgumentListInfo *TemplateArgs);
 
   QualType BuildReflectionSpliceType(SourceLocation TypenameKWLoc,
-                                     MaybeSpecializedSplicePtr Splice,
-                                     bool Complain);
+                                     SpliceSpecifier *Splice, bool Complain);
   QualType BuildReflectionSpliceTypeLoc(TypeLocBuilder &TLB,
                                         SourceLocation TypenameKWLoc,
-                                        MaybeSpecializedSplicePtr Splice,
+                                        SpliceSpecifier * Splice,
                                         bool Complain);
   ExprResult BuildReflectionSpliceExpr(SourceLocation TemplateKWLoc,
-                                       MaybeSpecializedSplicePtr Splice,
+                                       SpliceSpecifier *Splice,
                                        bool AllowMemberReference);
   DeclResult BuildReflectionSpliceNamespace(SpliceSpecifier *Splice);
   TemplateTy BuildReflectionSpliceTemplate(SpliceSpecifier *Splice,
@@ -15536,8 +15536,7 @@ public:
   ExprResult BuildMemberReferenceExpr(Scope *S, Expr *Base,
                                       SourceLocation OpLoc,
                                       tok::TokenKind OpKind,
-                                      CXXSpliceExpr *RHS,
-                                      SourceLocation TemplateKWLoc);
+                                      CXXSpliceExpr *RHS);
   ExprResult BuildDependentMemberSpliceExpr(Expr *Base, SourceLocation OpLoc,
                                             bool IsArrow, CXXSpliceExpr *RHS);
 
@@ -15548,7 +15547,7 @@ public:
   Decl *BuildExpansionStmtDeclaration(SourceLocation TemplateKWLoc,
                                       NonTypeTemplateParmDecl *NTTP);
 
-  DeclContext *TryFindDeclContextOf(MaybeSpecializedSplicePtr Splice);
+  DeclContext *TryFindDeclContextOf(SpliceSpecifier *Splice);
 
   const CXXMetafunctionExpr::ImplFn &getMetafunctionCb(unsigned FnID);
 

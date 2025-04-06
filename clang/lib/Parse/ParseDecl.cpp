@@ -3783,17 +3783,26 @@ void Parser::ParseDeclarationSpecifiers(
       return;
 
     case tok::kw_template:
-      if (!NextToken().is(tok::l_splice))
+      if (!NextToken().is(tok::l_splice)) {
         goto DoneWithDeclSpec;
-      [[fallthrough]];
-    case tok::l_splice: {
-      Token Initial = Tok;
-      if (TryAnnotateTypeOrScopeToken()) {
+      } else if (TryAnnotateTypeOrScopeToken()) {
         DS.SetTypeSpecError();
         goto DoneWithDeclSpec;
       }
 
-      if (!Tok.is(Initial.getKind()))
+      if (!NextToken().is(tok::kw_template))
+        continue;
+      break;
+    case tok::l_splice: {
+      bool MaybeSpecialized =
+          AllowImplicitTypename == ImplicitTypenameContext::Yes;
+      if (ParseSpliceSpecifier(MaybeSpecialized) ||
+          TryAnnotateTypeOrScopeToken()) {
+        DS.SetTypeSpecError();
+        goto DoneWithDeclSpec;
+      }
+
+      if (!Tok.is(tok::l_splice))
         continue;
       break;
     }
@@ -3804,21 +3813,7 @@ void Parser::ParseDeclarationSpecifiers(
         DS.SetTypeSpecError();
         break;
       }
-      MaybeSpecializedSplicePtr Splice = SR.get();
-
-      if (AllowImplicitTypename == ImplicitTypenameContext::Yes &&
-          NextToken().is(tok::less)) {
-        if (ParseSpliceSpecializationSpecifier()) {
-          DS.SetTypeSpecError();
-          break;
-        }
-        SpliceSpecResult SSR = getSpliceSpecializationAnnotation(Tok);
-        if (SSR.isInvalid()) {
-          DS.SetTypeSpecError();
-          break;
-        }
-        Splice = SSR.get();
-      }
+      SpliceSpecifier *Splice = SR.get();
 
       if (DS.SetTypeSpecType(DeclSpec::TST_type_splice, Tok.getLocation(),
                              PrevSpec, DiagID, Splice, Policy)) {

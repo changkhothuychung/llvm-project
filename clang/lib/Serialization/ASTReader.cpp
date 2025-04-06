@@ -7252,20 +7252,16 @@ ConceptReference *ASTRecordReader::readConceptReference() {
 
 SpliceSpecifier *ASTRecordReader::readSpliceSpecifierRef() {
   auto LSpliceLoc = readSourceLocation();
-  auto RSpliceLoc = readSourceLocation();
   auto *Operand = readExpr();
-  auto *SS = SpliceSpecifier::Create(getContext(), LSpliceLoc, Operand,
-                                     RSpliceLoc);
-  return SS;
-}
+  auto RSpliceLoc = readSourceLocation();
 
-SpliceSpecializationSpecifier *
-ASTRecordReader::readSpliceSpecializationSpecifierRef() {
-  auto *SS = readSpliceSpecifierRef();
-  auto *TemplateArgs = readASTTemplateArgumentListInfo();
-  auto *SSS = SpliceSpecializationSpecifier::Create(getContext(), SS,
-                                                    *TemplateArgs);
-  return SSS;
+  const ASTTemplateArgumentListInfo *TArgs = nullptr;
+  if (readBool())
+    TArgs = readASTTemplateArgumentListInfo();
+
+  auto *Splice = SpliceSpecifier::Create(getContext(), LSpliceLoc, Operand,
+                                         RSpliceLoc, TArgs);
+  return Splice;
 }
 
 void TypeLocReader::VisitAutoTypeLoc(AutoTypeLoc TL) {
@@ -9966,10 +9962,17 @@ ASTRecordReader::readNestedNameSpecifierLoc() {
       break;
     }
 
-    case NestedNameSpecifier::Splice: {
+    case NestedNameSpecifier::Splice:
+    case NestedNameSpecifier::SpliceWithTemplate: {
       SpliceSpecifier *Splice = readSpliceSpecifierRef();
-      SourceLocation ColonColonLoc = readSourceLocation();
-      Builder.MakeSpliceScopeSpecifier(Context, Splice, ColonColonLoc);
+      bool HasTemplateKWLoc = readBool();
+      SourceRange Range = readSourceRange();
+
+      SourceLocation TemplateKWLoc = HasTemplateKWLoc ? Range.getBegin()
+                                                      : SourceLocation();
+
+      Builder.MakeSpliceScopeSpecifier(Context, TemplateKWLoc, Splice,
+                                       Range.getEnd());
       break;
     }
     }

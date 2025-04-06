@@ -2649,7 +2649,7 @@ public:
     return getTypePtr()->getTypenameKWLoc();
   }
 
-  MaybeSpecializedSplicePtr getSplice() const {
+  SpliceSpecifier *getSplice() const {
     return getTypePtr()->getSplice();
   }
 
@@ -2658,21 +2658,12 @@ public:
   }
 
   SourceRange getLocalSourceRange() const {
-    SourceLocation Begin = getTypePtr()->getTypenameKWLoc();
-    SourceLocation End;
-    if (auto *SS = dyn_cast<SpliceSpecifier *>(getTypePtr()->getSplice())) {
-      if (Begin.isInvalid())
-        Begin = SS->getBeginLoc();
-      End = SS->getEndLoc();
-    } else {
-      auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(
-          getTypePtr()->getSplice());
+    SpliceSpecifier *Splice = getTypePtr()->getSplice();
 
-      if (Begin.isInvalid())
-        Begin = SSS->getBeginLoc();
-      End = SSS->getEndLoc();
-    }
-    return SourceRange(Begin, End);
+    SourceLocation Begin = getTypePtr()->getTypenameKWLoc();
+    if (Begin.isInvalid())
+      Begin = Splice->getBeginLoc();
+    return SourceRange(Begin, Splice->getEndLoc());
   }
 
   // LocalData is empty and TypeLocBuilder doesn't handle DataSize 1.

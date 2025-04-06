@@ -1378,16 +1378,8 @@ Parser::isCXXDeclarationSpecifier(ImplicitTypenameContext AllowImplicitTypename,
              GetLookAheadToken(Lookahead + 1).isOneOf(tok::amp, tok::ampamp)));
   };
   switch (Tok.getKind()) {
-  case tok::annot_splice:
-    if (NextToken().is(tok::less) &&
-        AllowImplicitTypename == ImplicitTypenameContext::Yes) {
-      if (ParseSpliceSpecializationSpecifier())
-        return TPResult::Error;
-    }
-    [[fallthrough]];
-
   case tok::identifier:
-  case tok::annot_splice_specialization: {
+  case tok::annot_splice: {
     if (GetLookAheadToken(1).is(tok::ellipsis) &&
         GetLookAheadToken(2).is(tok::l_square)) {
 

@@ -1909,7 +1909,7 @@ bool CursorVisitor::VisitDecltypeTypeLoc(DecltypeTypeLoc TL) {
 }
 
 bool CursorVisitor::VisitReflectionSpliceTypeLoc(ReflectionSpliceTypeLoc TL) {
-  if (Expr *E = TL.getTypePtr()->getSpliceSpecifier()->getOperand())
+  if (Expr *E = TL.getTypePtr()->getSplice()->getOperand())
     return Visit(MakeCXCursor(E, StmtParent, TU));
 
   return false;

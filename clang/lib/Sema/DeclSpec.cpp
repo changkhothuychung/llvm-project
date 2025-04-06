@@ -124,23 +124,13 @@ void CXXScopeSpec::MakeSuper(ASTContext &Context, CXXRecordDecl *RD,
 
 void CXXScopeSpec::MakeSpliceScopeSpecifier(ASTContext &Context,
                                             SourceLocation TemplateKWLoc,
-                                            MaybeSpecializedSplicePtr Splice,
+                                            SpliceSpecifier *Splice,
                                             SourceLocation ColonColonLoc) {
-  if (auto *SS = dyn_cast<SpliceSpecifier *>(Splice)) {
-    assert(!TemplateKWLoc.isValid());
-
-    Builder.MakeSpliceScopeSpecifier(Context, SS, ColonColonLoc);
-    Range.setBegin(SS->getBeginLoc());
-    Range.setEnd(ColonColonLoc);
-  } else {
-    auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(Splice);
-
-    Builder.MakeSpliceScopeSpecifier(Context, TemplateKWLoc, SSS,
-                                     ColonColonLoc);
-    Range.setBegin(TemplateKWLoc.isValid() ? TemplateKWLoc :
-                                             SSS->getBeginLoc());
-    Range.setEnd(ColonColonLoc);
-  }
+  Builder.MakeSpliceScopeSpecifier(Context, TemplateKWLoc, Splice,
+                                   ColonColonLoc);
+  Range.setBegin(TemplateKWLoc.isValid() ? TemplateKWLoc :
+                 Splice->getBeginLoc());
+  Range.setEnd(ColonColonLoc);
 
   assert(Range == Builder.getSourceRange() &&
   "NestedNameSpecifierLoc range computation incorrect");
@@ -847,7 +837,7 @@ bool DeclSpec::SetTypeSpecType(TST T, SourceLocation Loc,
 bool DeclSpec::SetTypeSpecType(TST T, SourceLocation Loc,
                                const char *&PrevSpec,
                                unsigned &DiagID,
-                               MaybeSpecializedSplicePtr Rep,
+                               SpliceSpecifier *Rep,
                                const PrintingPolicy &Policy) {
   assert(isSpliceRep(T) && "T does not store a splice");
   assert(Rep && "no splice provided!");

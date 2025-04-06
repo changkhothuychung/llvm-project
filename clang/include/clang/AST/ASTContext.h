@@ -1888,7 +1888,7 @@ public:
                                 bool ExpectPackInType = true) const;
 
   QualType getReflectionSpliceType(SourceLocation TypenameKWLoc,
-                                   MaybeSpecializedSplicePtr Splice,
+                                   SpliceSpecifier *Splice,
                                    QualType UnderlyingType) const;
 
   QualType getObjCInterfaceType(const ObjCInterfaceDecl *Decl,

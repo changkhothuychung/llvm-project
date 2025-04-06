@@ -1290,8 +1290,7 @@ Sema::BuildMemberReferenceExpr(Expr *BaseExpr, QualType BaseExprType,
 
 ExprResult
 Sema::BuildMemberReferenceExpr(Scope *S, Expr *Base, SourceLocation OpLoc,
-                               tok::TokenKind OpKind, CXXSpliceExpr *RHS,
-                               SourceLocation TemplateKWLoc) {
+                               tok::TokenKind OpKind, CXXSpliceExpr *RHS) {
   // Disable access control for the duration of the splice expression
   AccessControlScopeGuard guard {*this, true};
 
@@ -1368,8 +1367,9 @@ Sema::BuildMemberReferenceExpr(Scope *S, Expr *Base, SourceLocation OpLoc,
   }
 
   ExprResult Res = BuildMemberReferenceExpr(
-      Base, Base->getType(), OpLoc, IsArrow, SS, TemplateKWLoc, nullptr, LR,
-      TemplateArgs.size() > 0 ? &TemplateArgs : 0, S, false, nullptr);
+      Base, Base->getType(), OpLoc, IsArrow, SS, RHS->getTemplateKWLoc(),
+      nullptr, LR, TemplateArgs.size() > 0 ? &TemplateArgs : 0, S, false,
+      nullptr);
 
   if (!Res.isInvalid() && isa<MemberExpr>(Res.get()))
     CheckMemberAccessOfNoDeref(cast<MemberExpr>(Res.get()));
@@ -1944,9 +1944,8 @@ ExprResult Sema::ActOnMemberAccessExpr(Scope *S, Expr *Base,
 ExprResult Sema::ActOnMemberAccessExpr(Scope *S, Expr *Base,
                                        SourceLocation OpLoc,
                                        tok::TokenKind OpKind,
-                                       CXXSpliceExpr *RHS,
-                                       SourceLocation TemplateKWLoc) {
-  return BuildMemberReferenceExpr(S, Base, OpLoc, OpKind, RHS, TemplateKWLoc);
+                                       CXXSpliceExpr *RHS) {
+  return BuildMemberReferenceExpr(S, Base, OpLoc, OpKind, RHS);
 }
 
 void Sema::CheckMemberAccessOfNoDeref(const MemberExpr *E) {
@@ -2084,7 +2083,7 @@ Sema::BuildImplicitMemberExpr(const CXXScopeSpec &SS,
     if (auto *Prefix = NNS->getPrefix())
       NNS = Prefix;
 
-    if (NNS->getAsSplice() || NNS->getAsSpliceSpecialization()) {
+    if (NNS->getAsSplice()) {
       Diag(SS.getBeginLoc(),
            diag::err_dependent_splice_implicit_member_reference)
           << SourceRange(SS.getBeginLoc(), R.getNameLoc());

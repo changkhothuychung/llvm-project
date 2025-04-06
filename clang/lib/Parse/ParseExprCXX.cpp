@@ -239,94 +239,56 @@ bool Parser::ParseOptionalCXXScopeSpecifier(
     HasScopeSpecifier = true;
   } else if (!HasScopeSpecifier && Tok.is(tok::kw_template) &&
              NextToken().is(tok::l_splice)) {
-    TentativeParsingAction TPA(*this);
-
-    // We have 'template [:' .
+    // We have 'template [:' . Parse as a (possibly specialized) splice.
     SourceLocation TemplateKWLoc = ConsumeToken();
-    if (ParseSpliceSpecifier()) {
-      // If we have a malformed splice-specifier, this can't be valid. Commit
-      // the tentative parse and indicate there was an error.
-      TPA.Commit();
+    if (ParseSpliceSpecifier(/*TryParseSpecialization=*/true)) {
+      // If we have a malformed splice-specifier, this can't be valid.
       return true;
-    } else if (!NextToken().is(tok::less) ||
-               ParseSpliceSpecializationSpecifier()) {
-      // We couldn't parse a splice-specifialization-specifier, but this could
-      // be a splice-expression of the form
-      //   template [: R :]
-      // (e.g., calling a function template with argument deduction). Revert
-      // the parse and return no error.
-      TPA.Revert();
-      return false;
     }
+    SpliceResult SR = getSpliceAnnotation(Tok);
+    if (SR.isInvalid())
+      return true;
 
     if (!NextToken().is(tok::coloncolon)) {
       if (IsTypename) {
         // 'typename template [: R :] < args >' can only be well-formed when
         // followed by '::', so this is definitely an error.
-        TPA.Commit();
         return true;
       }
 
       // This isn't a nested-name-specifier, but it might be a
       // splice-expression of the form
       //   template [: R :] < args >
-      // (e.g., calling a function template specialization). Revert the parse
-      // and return no error.
-      TPA.Revert();
+      // (e.g., calling a function template specialization). Return no error.
       return false;
     }
 
     // We have 'template [: R :] < args > ::', possibly preceded by 'typename'.
-    // Commit to parsing a splice-scope-specifier.
-    TPA.Commit();
-    assert(Tok.is(tok::annot_splice_specialization));
-
-    SpliceSpecResult SSR = getSpliceSpecializationAnnotation(Tok);
     ConsumeAnnotationToken();
 
     SourceLocation CCLoc = ConsumeToken();
-    if (Actions.ActOnCXXSpliceScopeSpecifier(SS, TemplateKWLoc, SSR.get(),
+    if (Actions.ActOnCXXSpliceScopeSpecifier(SS, TemplateKWLoc, SR.get(),
                                              CCLoc)) {
       SS.SetInvalid(SourceRange(TemplateKWLoc, CCLoc));
       return true;
     }
     HasScopeSpecifier = true;
-  } else if (!HasScopeSpecifier &&
-             Tok.isOneOf(tok::l_splice, tok::annot_splice,
-                         tok::annot_splice_specialization)) {
-    SourceLocation SpliceBeginLoc;
-
-    if (Tok.is(tok::l_splice) && ParseSpliceSpecifier())
+  } else if (!HasScopeSpecifier && Tok.isOneOf(tok::l_splice,
+                                               tok::annot_splice)) {
+    if (Tok.is(tok::l_splice) &&
+        ParseSpliceSpecifier(/*TryParseSpecialization=*/IsTypename))
       return true;
 
-    if (Tok.is(tok::annot_splice) && NextToken().is(tok::less)) {
-      if (!IsTypename)
-        return false;
-
-      // We have 'typename [:R:]<' - Interpret as template arguments.
-      if (ParseSpliceSpecializationSpecifier()) {
-        return true;
-      }
-    }
-    assert(Tok.isOneOf(tok::annot_splice, tok::annot_splice_specialization));
-
-    MaybeSpecializedSplicePtr Splice;
-    if (Tok.is(tok::annot_splice_specialization)) {
-      SpliceSpecResult SSR = getSpliceSpecializationAnnotation(Tok);
-      if (SSR.isInvalid())
-        return true;
-      Splice = SSR.get();
-      SpliceBeginLoc = SSR.get()->getBeginLoc();
-    } else {
-      SpliceResult SR = getSpliceAnnotation(Tok);
-      if (SR.isInvalid())
-        return true;
-      Splice = SR.get();
-      SpliceBeginLoc = SR.get()->getBeginLoc();
-    }
+    SpliceResult SR = getSpliceAnnotation(Tok);
+    if (SR.isInvalid())
+      return true;
+    SpliceSpecifier *Splice = SR.get();
 
     if (!NextToken().is(tok::coloncolon)) {
       if (IsTypename) {
+        // It's not a splice-scope-specifier, but it is a type: Unconsume the
+        // annot_splice token, and rewrite it as an annot_typename with a
+        // splice-type-specifier.
         Token SpliceTok = Tok;
         TypeResult Ty = ParseCXXSpliceAsType(SourceLocation(),
                                              /*AllowDependent=*/true,
@@ -342,14 +304,13 @@ bool Parser::ParseOptionalCXXScopeSpecifier(
       }
       return false;
     }
+    // We have a splice-scope-specifier.
     ConsumeAnnotationToken();
 
-    assert(Tok.is(tok::coloncolon));
     SourceLocation CCLoc = ConsumeToken();
-
     if (Actions.ActOnCXXSpliceScopeSpecifier(SS, SourceLocation(), Splice,
                                              CCLoc)) {
-      SS.SetInvalid(SourceRange(SpliceBeginLoc, CCLoc));
+      SS.SetInvalid(SourceRange(Splice->getBeginLoc(), CCLoc));
       return true;
     }
     HasScopeSpecifier = true;
@@ -3974,7 +3935,6 @@ ExprResult Parser::ParseRequiresExpression() {
             IdentifierInfo *II = nullptr;
             TemplateIdAnnotation *TemplateId = nullptr;
             SpliceSpecifier *Splice = nullptr;
-            SpliceSpecializationSpecifier *SpliceSpec = nullptr;
             if (Tok.is(tok::identifier)) {
               II = Tok.getIdentifierInfo();
               ConsumeToken();
@@ -3991,15 +3951,12 @@ ExprResult Parser::ParseRequiresExpression() {
 
               QualType QT = cast<LocInfoType>(TR.get().get())->getType();
               auto *RST = cast<ReflectionSpliceType>(QT);
-              Splice = dyn_cast<SpliceSpecifier *>(RST->getSplice());
-              SpliceSpec = dyn_cast<SpliceSpecializationSpecifier *>(
-                  RST->getSplice());
+              Splice = RST->getSplice();
             }
 
             if (auto *Req = Actions.ActOnTypeRequirement(TypenameKWLoc, SS,
                                                          NameLoc, II,
-                                                         TemplateId,
-                                                         Splice, SpliceSpec)) {
+                                                         TemplateId, Splice)) {
               Requirements.push_back(Req);
             }
             break;

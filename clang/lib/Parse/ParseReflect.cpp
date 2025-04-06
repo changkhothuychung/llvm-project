@@ -130,7 +130,7 @@ ExprResult Parser::ParseCXXMetafunctionExpression() {
   return Actions.ActOnCXXMetafunction(KwLoc, LPLoc, Args, RPLoc);
 }
 
-bool Parser::ParseSpliceSpecifier() {
+bool Parser::ParseSpliceSpecifier(bool TryParseSpecialization) {
   assert(Tok.is(tok::l_splice) && "expected '[:'");
 
   BalancedDelimiterTracker SpliceTokens(*this, tok::l_splice);
@@ -151,7 +151,26 @@ bool Parser::ParseSpliceSpecifier() {
   SourceLocation LSplice = SpliceTokens.getOpenLocation();
   SourceLocation RSplice = SpliceTokens.getCloseLocation();
 
-  SpliceResult SR = Actions.ActOnSpliceSpecifier(LSplice, Operand, RSplice);
+  SpliceResult SR;
+  if (TryParseSpecialization && Tok.is(tok::less)) {
+    ASTTemplateArgsPtr TArgsPtr;
+    SourceLocation LAngleLoc, RAngleLoc;
+    {
+      TemplateArgList TArgs;
+      if (ParseTemplateIdAfterTemplateName(/*ConsumeLastToken=*/false,
+                                           LAngleLoc, TArgs, RAngleLoc,
+                                           /*Template=*/nullptr))
+        return true;
+
+      TArgsPtr = ASTTemplateArgsPtr(TArgs.data(), TArgs.size());
+      end = Tok;
+      ConsumeToken();
+    }
+    SR = Actions.ActOnSpliceSpecifier(LSplice, Operand, RSplice, LAngleLoc,
+                                      TArgsPtr, RAngleLoc);
+  } else {
+    SR = Actions.ActOnSpliceSpecifier(LSplice, Operand, RSplice);
+  }
   if (SR.isInvalid())
     return true;
   SpliceSpecifier *Splice = SR.get();
@@ -159,70 +178,24 @@ bool Parser::ParseSpliceSpecifier() {
   UnconsumeToken(end);
   Tok.setKind(tok::annot_splice);
   setSpliceAnnotation(Tok, Splice);
-  Tok.setLocation(LSplice);
-  Tok.setAnnotationEndLoc(RSplice);
+  Tok.setLocation(Splice->getBeginLoc());
+  Tok.setAnnotationEndLoc(Splice->getEndLoc());
   PP.AnnotateCachedTokens(Tok);
-
-  return false;
-}
-
-bool Parser::ParseSpliceSpecializationSpecifier() {
-  assert(Tok.isOneOf(tok::l_splice, tok::annot_splice) && "expected '[:'");
-
-  if (Tok.is(tok::l_splice))
-    if (ParseSpliceSpecifier())
-      return true;
-
-  SpliceResult SR = getSpliceAnnotation(Tok);
-  if (SR.isInvalid() || !NextToken().is(tok::less))
-    return true;
-  ConsumeAnnotationToken();
-
-  ASTTemplateArgsPtr TArgsPtr;
-  SourceLocation LAngleLoc, RAngleLoc;
-  {
-    TemplateArgList TArgs;
-    if (ParseTemplateIdAfterTemplateName(/*ConsumeLastToken=*/false,
-                                         LAngleLoc, TArgs, RAngleLoc,
-                                         /*Template=*/nullptr))
-      return true;
-
-    TArgsPtr = ASTTemplateArgsPtr(TArgs.data(), TArgs.size());
-  }
-  SpliceSpecResult SSR =
-      Actions.ActOnSpliceSpecializationSpecifier(SR.get(), LAngleLoc, TArgsPtr,
-                                                 RAngleLoc);
-  if (SSR.isInvalid())
-    return true;
-  SpliceSpecializationSpecifier *SSS = SSR.get();
-
-  Tok.setKind(tok::annot_splice_specialization);
-  setSpliceSpecializationAnnotation(Tok, SSS);
-  Tok.setLocation(SR.get()->getBeginLoc());
-  Tok.setAnnotationEndLoc(SSS->getEndLoc());
 
   return false;
 }
 
 ExprResult Parser::ParseCXXSpliceAsExpr(SourceLocation TemplateKWLoc,
                                         bool AllowMemberReference) {
-  assert(Tok.isOneOf(tok::annot_splice, tok::annot_splice_specialization) &&
-         "expected a splice annotation");
+  assert(Tok.is(tok::annot_splice) && "expected a splice annotation");
 
-  MaybeSpecializedSplicePtr Splice;
-  if (Tok.is(tok::annot_splice_specialization)) {
-    assert(TemplateKWLoc.isValid());
+  SpliceResult SR = getSpliceAnnotation(Tok);
+  if (SR.isInvalid())
+    return ExprError();
+  SpliceSpecifier *Splice = SR.get();
 
-    SpliceSpecResult SSR = getSpliceSpecializationAnnotation(Tok);
-    if (SSR.isInvalid())
-      return ExprError();
-    Splice = SSR.get();
-  } else {
-    SpliceResult SR = getSpliceAnnotation(Tok);
-    if (SR.isInvalid())
-      return ExprError();
-    Splice = SR.get();
-  }
+  assert((!Splice->isSpecialization() || TemplateKWLoc.isValid()) &&
+         "splice-specialization-specifier required leading 'template'");
   ConsumeAnnotationToken();
 
   return Actions.ActOnCXXSpliceExpression(TemplateKWLoc, Splice,
@@ -231,24 +204,15 @@ ExprResult Parser::ParseCXXSpliceAsExpr(SourceLocation TemplateKWLoc,
 
 TypeResult Parser::ParseCXXSpliceAsType(SourceLocation TypenameKWLoc,
                                         bool AllowDependent, bool Complain) {
-  assert(Tok.isOneOf(tok::annot_splice, tok::annot_splice_specialization) &&
-         "expected a splice annotation");
+  assert(Tok.is(tok::annot_splice) && "expected a splice annotation");
 
-  MaybeSpecializedSplicePtr Splice;
-  if (Tok.is(tok::annot_splice_specialization)) {
-    SpliceSpecResult SSR = getSpliceSpecializationAnnotation(Tok);
-    if (SSR.isInvalid() || (!AllowDependent && SSR.get()->isDependent()))
-      return TypeError();
-    Splice = SSR.get();
-  } else {
-    SpliceResult SR = getSpliceAnnotation(Tok);
-    if (SR.isInvalid() || (!AllowDependent && SR.get()->isDependent()))
-      return TypeError();
-    Splice = SR.get();
-  }
+  SpliceResult SR = getSpliceAnnotation(Tok);
+  if (SR.isInvalid())
+    return TypeError();
+  SpliceSpecifier *Splice = SR.get();
 
-  TypeResult Result = Actions.ActOnCXXSpliceTypeSpecifier(TypenameKWLoc, Splice,
-                                                          Complain);
+  TypeResult Result = Actions.ActOnCXXSpliceTypeSpecifier(TypenameKWLoc,
+                                                          Splice, Complain);
   if (!Result.isInvalid())
     ConsumeAnnotationToken();
 
@@ -258,11 +222,36 @@ TypeResult Parser::ParseCXXSpliceAsType(SourceLocation TypenameKWLoc,
 DeclResult Parser::ParseCXXSpliceAsNamespace() {
   assert(Tok.is(tok::annot_splice) && "expected annot_splice");
 
-  Token SpliceTok = Tok;
+  SpliceResult SR = getSpliceAnnotation(Tok);
+  if (SR.isInvalid())
+    return DeclError();
+  SpliceSpecifier *Splice = SR.get();
+
+  assert(!Splice->isSpecialization() &&
+         "splice-specialization-specifier cannot represent a namespace");
   ConsumeAnnotationToken();
 
-  SpliceResult SR = getSpliceAnnotation(SpliceTok);
-  assert(!SR.isInvalid());
+  return Actions.ActOnCXXSpliceExpectingNamespace(Splice);
+}
 
-  return Actions.ActOnCXXSpliceExpectingNamespace(SR.get());
+ParsedTemplateArgument Parser::ParseSpliceTemplateArgument() {
+  assert(Tok.is(tok::annot_splice) && "expected annot_splice");
+
+  SpliceResult SR = getSpliceAnnotation(Tok);
+  if (SR.isInvalid())
+    return ParsedTemplateArgument();
+  SpliceSpecifier *Splice = SR.get();
+
+  assert(!Splice->isSpecialization() &&
+         "splice-template-argument cannot be specialized");
+  ConsumeAnnotationToken();
+
+  ParsedTemplateArgument Result = Actions.ActOnSpliceTemplateArgument(Splice);
+
+  SourceLocation EllipsisLoc;
+  if (TryConsumeToken(tok::ellipsis, EllipsisLoc) && EllipsisLoc.isValid() &&
+      !Result.isInvalid()) {
+    Result = Actions.ActOnPackExpansion(Result, EllipsisLoc);
+  }
+  return Result;
 }

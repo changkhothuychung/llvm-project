@@ -1439,8 +1439,7 @@ void CXXNameMangler::mangleUnresolvedPrefix(NestedNameSpecifier *qualifier,
     // An Identifier has no type information, so we can't emit abi tags for it.
     break;
   case NestedNameSpecifier::Splice:
-  case NestedNameSpecifier::SpliceSpecialization:
-  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
+  case NestedNameSpecifier::SpliceWithTemplate:
     llvm_unreachable("should not get this far");
   }
 
@@ -2227,19 +2226,16 @@ void CXXNameMangler::manglePrefix(NestedNameSpecifier *qualifier) {
     return;
   }
   case NestedNameSpecifier::Splice:
-    Out << "s";
-    mangleExpression(qualifier->getAsSplice()->getOperand());
-    Out << "E";
-    return;
-  case NestedNameSpecifier::SpliceSpecialization:
-  case NestedNameSpecifier::SpliceSpecializationWithTemplate: {
+  case NestedNameSpecifier::SpliceWithTemplate: {
     Out << "s";
 
-    const SpliceSpecializationSpecifier *SSS =
-        qualifier->getAsSpliceSpecialization();
-    mangleExpression(SSS->getSpliceSpecifier()->getOperand());
-    for (const TemplateArgumentLoc &Arg : SSS->getTemplateArgs()->arguments())
-      mangleTemplateArg(Arg.getArgument(), false);
+    const SpliceSpecifier *Splice = qualifier->getAsSplice();
+    mangleExpression(Splice->getOperand());
+    if (Splice->isSpecialization())
+      for (const TemplateArgumentLoc &Arg :
+           Splice->getTemplateArgs()->arguments())
+        mangleTemplateArg(Arg.getArgument(), false);
+
     Out << "E";
     return;
   }

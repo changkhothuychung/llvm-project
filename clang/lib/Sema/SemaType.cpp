@@ -1279,7 +1279,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   }
 
   case DeclSpec::TST_type_splice: {
-    MaybeSpecializedSplicePtr Splice = DS.getRepAsSpliceSpecifier();
+    SpliceSpecifier *Splice = DS.getRepAsSpliceSpecifier();
     assert(Splice && "Didn't get a splice for type-splice?");
     // TypeQuals handled by caller.
     Result = S.BuildReflectionSpliceType(DS.getTypeSpecTypeLoc(), Splice,

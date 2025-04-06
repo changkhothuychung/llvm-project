@@ -1004,13 +1004,7 @@ ExprDependence clang::computeDependence(CXXMetafunctionExpr *E) {
 
 
 ExprDependence clang::computeDependence(CXXSpliceExpr *E) {
-  auto D = E->getSpliceSpecifier()->getOperand()->getDependence();
-
-  // Handle case where splice-specialization-specifier arguments are dependent,
-  // but splice-specifier is not.
-  if (auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(E->getSplice());
-      SSS && SSS->isDependent())
-    D |= ExprDependence::Value;
+  auto D = toExprDependence(E->getSplice()->getDependence());
 
   if (auto *M = E->getModel())
     D |= M->getDependence();

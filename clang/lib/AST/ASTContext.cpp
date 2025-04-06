@@ -5975,7 +5975,7 @@ QualType ASTContext::getPackExpansionType(QualType Pattern,
 }
 
 QualType ASTContext::getReflectionSpliceType(SourceLocation TypenameKWLoc,
-                                             MaybeSpecializedSplicePtr Splice,
+                                             SpliceSpecifier *Splice,
                                              QualType UnderlyingType) const {
   ReflectionSpliceType *RST;
 
@@ -7326,13 +7326,9 @@ static bool isSameQualifier(const NestedNameSpecifier *X,
       return false;
     break;
   case NestedNameSpecifier::Splice:
+  case NestedNameSpecifier::SpliceWithTemplate:
     // TODO(P2996): This might not be good enough.
     if (X->getAsSplice() != Y->getAsSplice())
-      return false;
-    break;
-  case NestedNameSpecifier::SpliceSpecialization:
-  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
-    if (X->getAsSpliceSpecialization() != Y->getAsSpliceSpecialization())
       return false;
     break;
   case NestedNameSpecifier::Global:
@@ -7737,8 +7733,7 @@ ASTContext::getCanonicalNestedNameSpecifier(NestedNameSpecifier *NNS) const {
   case NestedNameSpecifier::Global:
   case NestedNameSpecifier::Super:
   case NestedNameSpecifier::Splice:
-  case NestedNameSpecifier::SpliceSpecialization:
-  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
+  case NestedNameSpecifier::SpliceWithTemplate:
     // The global specifier and __super specifer are canonical and unique.
     return NNS;
   }

@@ -165,14 +165,9 @@ DeclContext *Sema::computeDeclContext(const CXXScopeSpec &SS,
     return NNS->getAsRecordDecl();
 
   case NestedNameSpecifier::Splice:
+  case NestedNameSpecifier::SpliceWithTemplate:
     return TryFindDeclContextOf(
         const_cast<SpliceSpecifier *>(NNS->getAsSplice()));
-
-  case NestedNameSpecifier::SpliceSpecialization:
-  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
-    return TryFindDeclContextOf(
-        const_cast<SpliceSpecializationSpecifier *>(
-            NNS->getAsSpliceSpecialization()));
   }
 
   llvm_unreachable("Invalid NestedNameSpecifier::Kind!");
@@ -1034,8 +1029,7 @@ bool Sema::ShouldEnterDeclaratorScope(Scope *S, const CXXScopeSpec &SS) {
   case NestedNameSpecifier::TypeSpecWithTemplate:
   case NestedNameSpecifier::Super:
   case NestedNameSpecifier::Splice:
-  case NestedNameSpecifier::SpliceSpecialization:
-  case NestedNameSpecifier::SpliceSpecializationWithTemplate:
+  case NestedNameSpecifier::SpliceWithTemplate:
     // These are never namespace scopes.
     return true;
   }

@@ -858,29 +858,16 @@ let Class = ReflectionSpliceType in {
   def : Property<"typenameLoc", SourceLocation> {
     let Read = [{ node->getTypenameKWLoc() }];
   }
-  def : Property<"isSpecialization", Bool> {
-    let Read = [{ isa<SpliceSpecializationSpecifier *>(node->getSplice()) }];
-  }
   def : Property<"spliceSpecifier", SpliceSpecifierRef> {
-    let Read = [{ cast<SpliceSpecifier *>(node->getSplice()) }];
-    let Conditional = [{ !isSpecialization }];
-  }
-  def : Property<"specializationSpecifier", SpliceSpecializationSpecifierRef> {
-    let Read = [{ cast<SpliceSpecializationSpecifier *>(node->getSplice()) }];
-    let Conditional = [{ isSpecialization }];
+    let Read = [{ node->getSplice() }];
   }
   def : Property<"underlyingType", QualType> {
     let Read = [{ node->getUnderlyingType() }];
   }
 
   def : Creator<[{
-    if (isSpecialization)
-      return ctx.getReflectionSpliceType(typenameLoc,
-                                         specializationSpecifier.value(),
-                                         underlyingType);
-    else
-      return ctx.getReflectionSpliceType(typenameLoc, spliceSpecifier.value(),
-                                         underlyingType);
+    return ctx.getReflectionSpliceType(typenameLoc, spliceSpecifier,
+                                       underlyingType);
   }]>;
 }
 

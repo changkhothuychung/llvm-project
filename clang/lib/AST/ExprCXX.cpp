@@ -2017,7 +2017,7 @@ CXXMetafunctionExpr *CXXMetafunctionExpr::CreateEmpty(ASTContext &C) {
 
 CXXSpliceExpr::CXXSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
                              SourceLocation TemplateKWLoc,
-                             MaybeSpecializedSplicePtr Splice, Expr *Model,
+                             SpliceSpecifier *Splice, Expr *Model,
                              bool AllowMemberReference)
   : Expr(CXXSpliceExprClass, ResultTy, ValueKind, OK_Ordinary),
     TemplateKWLoc(TemplateKWLoc), Splice(Splice), Model(Model),
@@ -2031,17 +2031,11 @@ CXXSpliceExpr::CXXSpliceExpr(EmptyShell Empty)
 
 CXXSpliceExpr *CXXSpliceExpr::Create(ASTContext &C, ExprValueKind ValueKind,
                                      SourceLocation TemplateKWLoc,
-                                     MaybeSpecializedSplicePtr Splice,
-                                     Expr *Model, bool AllowMemberReference) {
-  QualType ResultTy = Model->getType();
-  if (auto *SS = dyn_cast<SpliceSpecifier *>(Splice); SS && SS->isDependent())
-    ResultTy = C.DependentTy;
-  else if (auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(Splice);
-           SSS && SSS->isDependent())
-    ResultTy = C.DependentTy;
-  else if (Model)
-    ResultTy = Model->getType();
-  assert(!ResultTy.isNull());
+                                     SpliceSpecifier *Splice, Expr *Model,
+                                     bool AllowMemberReference) {
+  QualType ResultTy =
+      (Splice->getDependence() == SpliceSpecifierDependence::None) ?
+      Model->getType() : C.DependentTy;
 
   return new (C) CXXSpliceExpr(ResultTy, ValueKind, TemplateKWLoc, Splice,
                                Model, AllowMemberReference);

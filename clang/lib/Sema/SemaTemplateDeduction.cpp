@@ -7088,15 +7088,10 @@ MarkUsedTemplateParameters(ASTContext &Ctx, QualType T,
     break;
 
   case Type::ReflectionSplice: {
-    auto *RST = cast<ReflectionSpliceType>(T);
-    auto *SS = dyn_cast<SpliceSpecifier *>(RST->getSplice());
-    if (!SS)
-      SS = cast<SpliceSpecializationSpecifier *>(RST->getSplice())
-          ->getSpliceSpecifier();
-
     if (!OnlyDeduced)
-      MarkUsedTemplateParameters(Ctx, SS->getOperand(), OnlyDeduced, Depth,
-                                 Used);
+      MarkUsedTemplateParameters(
+          Ctx, cast<ReflectionSpliceType>(T)->getSplice()->getOperand(),
+          OnlyDeduced, Depth, Used);
     break;
   }
   case Type::PackIndexing:

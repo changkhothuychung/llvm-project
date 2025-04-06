@@ -362,12 +362,6 @@ class TypeSourceInfo;
     Import(const SpliceSpecifier *FromD) {
       return Import(const_cast<SpliceSpecifier *>(FromD));
     }
-    llvm::Expected<SpliceSpecializationSpecifier *>
-    Import(SpliceSpecializationSpecifier *FromSSS);
-    llvm::Expected<const SpliceSpecializationSpecifier *>
-    Import(const SpliceSpecializationSpecifier *FromSSS) {
-      return Import(const_cast<SpliceSpecializationSpecifier *>(FromSSS));
-    }
 
     llvm::Expected<InheritedConstructor>
     Import(const InheritedConstructor &From);

@@ -500,14 +500,7 @@ void ASTStmtWriter::VisitCXXMetafunctionExpr(CXXMetafunctionExpr *E) {
 void ASTStmtWriter::VisitCXXSpliceExpr(CXXSpliceExpr *E) {
   VisitExpr(E);
   Record.AddSourceLocation(E->getTemplateKWLoc());
-  Record.writeBool(E->hasExplicitTemplateArgs());
-
-  if (E->hasExplicitTemplateArgs())
-    Record.AddSpliceSpecializationSpecifier(
-        dyn_cast<SpliceSpecializationSpecifier *>(E->getSplice()));
-  else
-    Record.AddSpliceSpecifier(dyn_cast<SpliceSpecifier *>(E->getSplice()));
-
+  Record.AddSpliceSpecifier(E->getSplice());
   Record.AddStmt(E->getModel());
   Record.writeBool(E->allowMemberReference());
 

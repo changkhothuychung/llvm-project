@@ -1,6 +1,6 @@
 //===--- SpliceSpecifier.cpp - Class for splice specifiers ------*- C++ -*-===//
 //
-// Copyright 2024 Bloomberg Finance L.P.
+// Copyright 2025 Bloomberg Finance L.P.
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,14 +8,14 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//  This file implements the SpliceSpecifier and SpliceSpecializationSpecifier
-//  classes.
+//  This file implements the SpliceSpecifier class.
 //
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/SpliceSpecifier.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/TemplateBase.h"
 
 namespace clang {
 
@@ -24,47 +24,36 @@ void *SpliceSpecifier::operator new(size_t bytes, const ASTContext &C,
   return ::operator new(bytes, C, alignment);
 }
 
-SpliceSpecifier::SpliceSpecifier(SourceLocation LSplice, Expr *Operand,
-                                 SourceLocation RSplice)
-: LSpliceLoc(LSplice), Operand(Operand), RSpliceLoc(RSplice) {
+SpliceSpecifier::SpliceSpecifier(
+    SourceLocation LSplice, Expr *Operand, SourceLocation RSplice,
+    const ASTTemplateArgumentListInfo *TemplateArgs)
+: LSpliceLoc(LSplice), Operand(Operand), RSpliceLoc(RSplice),
+  TemplateArgs(TemplateArgs) {
 }
 
-SpliceSpecifier *SpliceSpecifier::Create(ASTContext &C, SourceLocation LSplice,
-                                         Expr *Operand,
-                                         SourceLocation RSplice) {
-  return new (C) SpliceSpecifier(LSplice, Operand, RSplice);
+SpliceSpecifier *SpliceSpecifier::Create(
+    ASTContext &C, SourceLocation LSplice, Expr *Operand,
+    SourceLocation RSplice, const ASTTemplateArgumentListInfo *TemplateArgs) {
+  return new (C) SpliceSpecifier(LSplice, Operand, RSplice, TemplateArgs);
 }
 
-bool SpliceSpecifier::isDependent() const {
-  return Operand->isValueDependent();
+SpliceSpecifierDependence SpliceSpecifier::getDependence() const {
+  auto Result = toSpliceSpecifierDependence(Operand->getDependence());
+  if (TemplateArgs)
+    for (const auto &TArg : TemplateArgs->arguments())
+      Result |=
+        toSpliceSpecifierDependence(TArg.getArgument().getDependence());
+
+  return Result;
 }
 
-void *SpliceSpecializationSpecifier::operator new(size_t bytes,
-                                                  const ASTContext &C,
-                                                  unsigned alignment) {
-  return ::operator new(bytes, C, alignment);
-}
-
-SpliceSpecializationSpecifier::SpliceSpecializationSpecifier(
-    SpliceSpecifier *Splice, const ASTTemplateArgumentListInfo *Args)
-: Splice(Splice), TemplateArgs(Args) {
-}
-
-SpliceSpecializationSpecifier *
-SpliceSpecializationSpecifier::Create(ASTContext &C, SpliceSpecifier *Splice,
-                                      const ASTTemplateArgumentListInfo &Args) {
-  return new (C) SpliceSpecializationSpecifier(Splice, &Args);
-}
-
-SourceLocation SpliceSpecializationSpecifier::getLAngleLoc() const {
+SourceLocation SpliceSpecifier::getLAngleLoc() const {
+  assert(isSpecialization());
   return TemplateArgs->getLAngleLoc();
 }
 
-SourceLocation SpliceSpecializationSpecifier::getRAngleLoc() const {
-  return TemplateArgs->getRAngleLoc();
-}
-
-SourceLocation SpliceSpecializationSpecifier::getEndLoc() const {
+SourceLocation SpliceSpecifier::getRAngleLoc() const {
+  assert(isSpecialization());
   return TemplateArgs->getRAngleLoc();
 }
 

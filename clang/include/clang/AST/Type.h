@@ -7263,17 +7263,16 @@ public:
 /// context of a 'ReflectionSpliceType'.
 class ReflectionSpliceType : public Type {
   SourceLocation TypenameKWLoc;
-  MaybeSpecializedSplicePtr Splice;
+  SpliceSpecifier *Splice;
   QualType UnderlyingTy;
 
   static TypeDependence computeDependence(QualType Canon,
-                                          MaybeSpecializedSplicePtr Splice);
+                                          SpliceSpecifier *Splice);
 
 protected:
   friend class ASTContext;
 
-  ReflectionSpliceType(SourceLocation TypenameKWLoc,
-                       MaybeSpecializedSplicePtr Splice,
+  ReflectionSpliceType(SourceLocation TypenameKWLoc, SpliceSpecifier *Splice,
                        QualType Canon = QualType());
 
 public:
@@ -7281,13 +7280,7 @@ public:
   SourceLocation getTypenameKWLoc() const { return TypenameKWLoc; }
 
   /// Returns the splice specifier.
-  MaybeSpecializedSplicePtr getSplice() const { return Splice; }
-
-  SpliceSpecifier *getSpliceSpecifier() const {
-    if (auto *SSS = dyn_cast<SpliceSpecializationSpecifier *>(Splice))
-      return SSS->getSpliceSpecifier();
-    return cast<SpliceSpecifier *>(Splice);
-  }
+  SpliceSpecifier *getSplice() const { return Splice; }
 
   /// Returns the underlying type (i.e., the one spliced).
   QualType getUnderlyingType() const { return UnderlyingTy; }
@@ -7316,14 +7309,10 @@ class DependentReflectionSpliceType : public ReflectionSpliceType,
 public:
   DependentReflectionSpliceType(const ASTContext &Context,
                                 SourceLocation TypenameKWLoc,
-                                MaybeSpecializedSplicePtr Splice);
+                                SpliceSpecifier *Splice);
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    if (auto *SS = dyn_cast<SpliceSpecifier *>(getSplice())) {
-      ID.AddPointer(SS);
-    } else {
-      ID.AddPointer(cast<SpliceSpecializationSpecifier *>(getSplice()));
-    }
+    ID.AddPointer(getSplice());
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
