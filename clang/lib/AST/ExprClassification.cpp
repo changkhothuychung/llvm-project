@@ -282,7 +282,8 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
     if (const auto *DRE = dyn_cast<DeclRefExpr>(SE->getModel())) {
       if (auto *MD = dyn_cast<CXXMethodDecl>(DRE->getDecl());
           MD && !MD->isStatic())
-        return Cl::CL_MemberFunction;
+        return MD->isExplicitObjectMemberFunction() ?
+               Cl::CL_PRValue : Cl::CL_MemberFunction;
       else if (isa<EnumConstantDecl>(DRE->getDecl()))
         return Cl::CL_PRValue;
       return Cl::CL_LValue;

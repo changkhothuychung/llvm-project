@@ -300,3 +300,15 @@ struct Cls
 void fn(int);
 static_assert(^^decltype(Cls<^^fn>::Impl(&fn)) == ^^Cls<^^fn>::Impl<void, int>);
 }  // namespace bb_clang_p2996_issue_22_regression_test
+
+                  // ========================================
+                  // bb_clang_p2996_issue_131_regression_test
+                  // ========================================
+
+namespace bb_clang_p2996_issue_131_regression_test {
+struct Y 
+{
+    int g(this Y const&, int, int);
+};
+static_assert(&Y::g == &[:^^Y::g:]);
+}  // namespace bb_clang_p2996_issue_131_regression_test
