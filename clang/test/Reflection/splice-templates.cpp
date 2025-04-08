@@ -220,4 +220,6 @@ template [:^^Nonexistent:]<3>::type u;
   // expected-error@-1 {{use of undeclared identifier 'Nonexistent'}} \
   // expected-error@-1 {{expected unqualified-id}}
 
+template [:^^non_dependent::TCls:] t = {1};
+  // expected-error@-1 {{expected unqualified-id}}
 }  // namespace error_cases

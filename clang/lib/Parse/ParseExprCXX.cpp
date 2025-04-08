@@ -239,20 +239,26 @@ bool Parser::ParseOptionalCXXScopeSpecifier(
     HasScopeSpecifier = true;
   } else if (!HasScopeSpecifier && Tok.is(tok::kw_template) &&
              NextToken().is(tok::l_splice)) {
+    TentativeParsingAction TPA(*this);
+
     // We have 'template [:' . Parse as a (possibly specialized) splice.
     SourceLocation TemplateKWLoc = ConsumeToken();
     if (ParseSpliceSpecifier(/*TryParseSpecialization=*/true)) {
       // If we have a malformed splice-specifier, this can't be valid.
+      TPA.Commit();
       return true;
     }
     SpliceResult SR = getSpliceAnnotation(Tok);
-    if (SR.isInvalid())
+    if (SR.isInvalid()) {
+      TPA.Commit();
       return true;
+    }
 
     if (!NextToken().is(tok::coloncolon)) {
       if (IsTypename) {
         // 'typename template [: R :] < args >' can only be well-formed when
         // followed by '::', so this is definitely an error.
+        TPA.Revert();
         return true;
       }
 
@@ -260,8 +266,10 @@ bool Parser::ParseOptionalCXXScopeSpecifier(
       // splice-expression of the form
       //   template [: R :] < args >
       // (e.g., calling a function template specialization). Return no error.
+      TPA.Revert();
       return false;
     }
+    TPA.Commit();
 
     // We have 'template [: R :] < args > ::', possibly preceded by 'typename'.
     ConsumeAnnotationToken();

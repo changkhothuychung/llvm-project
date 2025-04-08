@@ -1795,7 +1795,9 @@ DeclContext *Sema::TryFindDeclContextOf(SpliceSpecifier *Splice) {
       TAListInfo.addArgument(TArg);
     QualType QT = CheckTemplateIdType(ER.Val.getReflectedTemplate(),
                                       SourceLocation(), TAListInfo);
-    if (auto *RD = QT->getAsTagDecl())
+    if (QT.isNull())
+      return nullptr;
+    else if (auto *RD = QT->getAsTagDecl())
       return RD;
 
     Diag(Splice->getBeginLoc(), diag::err_expected_class_or_namespace)
