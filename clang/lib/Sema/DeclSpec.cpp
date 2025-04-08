@@ -400,11 +400,15 @@ bool Declarator::isDeclarationOfFunction() const {
       return false;
 
     case TST_decltype:
-    case TST_type_splice:
     case TST_typeof_unqualExpr:
     case TST_typeofExpr:
       if (Expr *E = DS.getRepAsExpr())
         return E->getType()->isFunctionType();
+      return false;
+
+    case TST_type_splice:
+      // TODO(P2996): This is wrong; a splice of a function type (or a
+      // non-dependent splice-specialization-specifier declares a function.
       return false;
 
 #define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case TST_##Trait:

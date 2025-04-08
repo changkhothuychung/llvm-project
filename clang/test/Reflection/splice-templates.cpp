@@ -196,6 +196,21 @@ S<V1> s1;  // expected-note {{in instantiation of template class}}
 S<V2> s2;
 }  // namespace tomasz_example
 
+// =============
+// barry_example
+// =============
+
+namespace barry_example {
+template <int...> struct V {};
+
+template <template <int> class X>
+struct S {
+  X<0> x;
+  [: ^^X :]<1> y;
+};
+
+S<V> s;
+}  // namespace barry_example
                                  // ===========
                                  // error_cases
                                  // ===========
