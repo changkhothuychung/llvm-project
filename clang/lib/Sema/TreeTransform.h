@@ -4751,7 +4751,8 @@ NestedNameSpecifierLoc TreeTransform<Derived>::TransformNestedNameSpecifierLoc(
         TemplateKWLoc = Q.getLocalBeginLoc();
       SS.MakeSpliceScopeSpecifier(SemaRef.Context, TemplateKWLoc, SR.get(),
                                   Q.getLocalEndLoc());
-      if (!getSema().TryFindDeclContextOf(SR.get()))
+      if (SR.get()->getDependence() == SpliceSpecifierDependence::None &&
+          !getSema().TryFindDeclContextOf(SR.get()))
         return NestedNameSpecifierLoc();
       break;
     }

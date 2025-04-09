@@ -312,3 +312,21 @@ struct Y
 };
 static_assert(&Y::g == &[:^^Y::g:]);
 }  // namespace bb_clang_p2996_issue_131_regression_test
+
+                  // ========================================
+                  // bb_clang_p2996_issue_132_regression_test
+                  // ========================================
+
+namespace bb_clang_p2996_issue_132_regression_test {
+template<typename>
+void f()
+{
+   auto func = []<auto Mem>() static {
+      return [: ^^[:Mem:] ::func :];
+   };
+}
+
+void g() {
+   f<int>();
+}
+}  // namespace bb_clang_p2996_issue_132_regression_test
