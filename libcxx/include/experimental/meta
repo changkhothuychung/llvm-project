@@ -361,6 +361,11 @@ consteval auto annotate(info) -> info;
 
 // modeling access control (P3547)
 struct access_context {
+  access_context() = delete;
+
+  consteval auto scope() const -> info;
+  consteval auto naming_class() const -> info;
+
   static consteval auto current() noexcept -> access_context;
   static consteval auto unprivileged() noexcept -> access_context;
   static consteval auto unchecked() noexcept -> access_context;
@@ -942,22 +947,26 @@ consteval auto is_class_type(info r) -> bool {
 
 class access_context {
   consteval access_context(info scope, info naming_class) noexcept
-      : scope{scope}, naming_class{naming_class} { }
+      : d_scope{scope}, d_naming_class{naming_class} { }
 
 public:
-  const info scope;
-  const info naming_class;
+  const info d_scope;
+  const info d_naming_class;
 
-  consteval access_context() noexcept : scope{^^::}, naming_class{} { };
+  consteval access_context() = delete;
+
   consteval access_context(const access_context &) noexcept = default;
   consteval access_context(access_context &&) noexcept = default;
+
+  consteval info scope() const { return d_scope; }
+  consteval info naming_class() const { return d_naming_class; }
 
   static consteval access_context current() noexcept {
     return {__metafunction(detail::__metafn_access_context), {}};
   }
 
   static consteval access_context unprivileged() noexcept {
-    return access_context{};
+    return access_context{^^::, info{}};
   }
 
   static consteval access_context unchecked() noexcept {
@@ -968,7 +977,7 @@ public:
     if (!is_class_type(new_naming_class))
       throw "naming class must be a reflection of a class type";
 
-    return access_context{scope, new_naming_class};
+    return access_context{d_scope, new_naming_class};
   }
 };
 
@@ -977,7 +986,7 @@ consteval auto is_accessible(info r, access_context ctx) -> bool {
     return true;
 
   return __metafunction(detail::__metafn_is_accessible,
-                        r, ctx.scope, ctx.naming_class);
+                        r, ctx.scope(), ctx.naming_class());
 }
 
 #endif  // __has_feature(access_contexts)
@@ -1571,55 +1580,6 @@ consteval auto size_of(info r) -> size_t {
 consteval auto bit_size_of(info r) -> size_t {
   return __metafunction(detail::__metafn_bit_size_of, r);
 }
-
-namespace __define_static {
-
-template <typename ValTy, ValTy... Vals>
-inline constexpr ValTy FixedArray[sizeof...(Vals)] = {Vals...};
-
-template <auto &S>
-inline constexpr span StaticSpan(S, size(S));
-
-template <typename ValTy>
-consteval span<const ValTy> impl(const span<const ValTy> &in) {
-  if (in.size() == 0)
-    return {};
-
-  vector Args = {^^ValTy};
-  for (const auto &V : in)
-    Args.push_back(reflect_value(V));
-
-  return extract<span<const ValTy>>(
-    substitute(^^StaticSpan, { substitute(^^FixedArray, Args) }));
-}
-}  // namespace __define_static
-
-template <ranges::input_range R>
-    requires (is_constructible_v<ranges::range_value_t<R>,
-                                 ranges::range_reference_t<R>>)
-consteval auto define_static_array(R &&elems)
-    -> span<const ranges::range_value_t<R>> {
-  using ValTy  = ranges::range_value_t<R>;
-  using ImplTy = span<const ValTy>(*)(const span<const ValTy> &);
-  auto impl = extract<ImplTy>(substitute(^^__define_static::impl, {^^ValTy}));
-
-  vector<ValTy> vals(from_range, elems);
-  return impl(vals);
-}
-
-// Returns a static string having the provided contents.
-consteval auto define_static_string(string_view in) -> const char * {
-  const char nullterm[1] = {0};
-  vector<span<const char>> v = {in, nullterm};
-  return define_static_array(views::join(v)).data();
-}
-
-consteval auto define_static_string(u8string_view in) -> const char8_t * {
-  const char8_t nullterm[1] = {0};
-  vector<span<const char8_t>> v = {in, nullterm};
-  return define_static_array(views::join(v)).data();
-}
-
 
 // Type trait wrappers
 
@@ -2383,6 +2343,62 @@ consteval auto has_complete_definition(info r) -> bool {
 
 #endif  // __has_feature(access_contexts)
 
+_LIBCPP_END_NAMESPACE_REFLECTION_V2
+
+_LIBCPP_BEGIN_NAMESPACE_STD
+
+namespace __define_static {
+
+template <typename ValTy, ValTy... Vals>
+inline constexpr ValTy FixedArray[sizeof...(Vals)] = {Vals...};
+
+template <auto &S>
+inline constexpr span StaticSpan(S, size(S));
+
+template <typename ValTy>
+consteval span<const ValTy> impl(const span<const ValTy> &in) {
+  if (in.size() == 0)
+    return {};
+
+  vector Args = {^^ValTy};
+  for (const auto &V : in)
+    Args.push_back(meta::reflect_value(V));
+
+  return meta::extract<span<const ValTy>>(
+    meta::substitute(^^StaticSpan, { meta::substitute(^^FixedArray, Args) }));
+}
+}  // namespace __define_static
+
+template <ranges::input_range R>
+    requires (is_constructible_v<ranges::range_value_t<R>,
+                                 ranges::range_reference_t<R>>)
+consteval auto define_static_array(R &&elems)
+    -> span<const ranges::range_value_t<R>> {
+  using ValTy  = ranges::range_value_t<R>;
+  using ImplTy = span<const ValTy>(*)(const span<const ValTy> &);
+  auto impl = meta::extract<ImplTy>(meta::substitute(^^__define_static::impl,
+                                                     {^^ValTy}));
+
+  vector<ValTy> vals(from_range, elems);
+  return impl(vals);
+}
+
+// Returns a static string having the provided contents.
+consteval auto define_static_string(string_view in) -> const char * {
+  const char nullterm[1] = {0};
+  vector<span<const char>> v = {in, nullterm};
+  return define_static_array(views::join(v)).data();
+}
+
+consteval auto define_static_string(u8string_view in) -> const char8_t * {
+  const char8_t nullterm[1] = {0};
+  vector<span<const char8_t>> v = {in, nullterm};
+  return define_static_array(views::join(v)).data();
+}
+
+_LIBCPP_END_NAMESPACE_STD
+
+_LIBCPP_BEGIN_NAMESPACE_REFLECTION_V2
 
                     // ====================================
                     // (u8)display_string_of implementation

@@ -24,10 +24,10 @@
                                 // =============
 
 namespace static_arrays {
-constexpr auto empty = std::meta::define_static_array(std::vector<int>{});
+constexpr auto empty = std::define_static_array(std::vector<int>{});
 static_assert(empty.size() == 0);
 
-constexpr auto ints = std::meta::define_static_array(std::vector{1, 3, 5});
+constexpr auto ints = std::define_static_array(std::vector{1, 3, 5});
 static_assert(ints.size() == 3);
 static_assert(ints[0] == 1 && ints[1] == 3 && ints[2] == 5);
 
@@ -37,11 +37,11 @@ struct Cls {
   consteval Cls(int v) : k(v) {}
   consteval Cls(const Cls &rhs) : k(rhs.k + 1) {}
 };
-constexpr auto objs = std::meta::define_static_array(std::vector<Cls>{1, 3, 5});
+constexpr auto objs = std::define_static_array(std::vector<Cls>{1, 3, 5});
 static_assert(objs.size() == 3);
 static_assert(objs[0].k == 5 && objs[1].k == 7 && objs[2].k == 9);
 
-constexpr auto infos = std::meta::define_static_array(
+constexpr auto infos = std::define_static_array(
                                               nonstatic_data_members_of(^^Cls));
 static_assert(infos.size() == 1);
 static_assert(infos[0] == ^^Cls::k);
@@ -54,7 +54,7 @@ static_assert(infos[0] == ^^Cls::k);
 namespace static_strings {
 // Ensure 'define_static_string("literal")' can be used as a template argument.
 template <auto S> consteval auto fn() { return S[0]; }
-static_assert(fn<std::meta::define_static_string("literal")>() == 'l');
+static_assert(fn<std::define_static_string("literal")>() == 'l');
 
 }  // namespace static_strings
 

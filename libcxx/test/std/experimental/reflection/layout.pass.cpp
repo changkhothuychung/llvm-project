@@ -50,20 +50,29 @@ struct BitField {
 };
 static_assert(offset_of(^^BitField::bf1) == std::meta::member_offset{0, 0});
 static_assert(offset_of(^^BitField::bf2) == std::meta::member_offset{0, 1});
-static_assert(offset_of(nonstatic_data_members_of(^^BitField, {})[2]) ==
-              std::meta::member_offset{1, 0});
+static_assert(
+    offset_of(
+        nonstatic_data_members_of(^^BitField,
+                                  std::meta::access_context::current())[2]) ==
+    std::meta::member_offset{1, 0});
 static_assert(offset_of(^^BitField::bf3) == std::meta::member_offset{1, 0});
 static_assert(offset_of(^^BitField::bf4) == std::meta::member_offset{1, 3});
 static_assert(bit_size_of(^^BitField::bf1) == 1);
 static_assert(bit_size_of(^^BitField::bf2) == 2);
-static_assert(bit_size_of((members_of(^^BitField, {}) |
-                  std::views::filter(std::meta::is_bit_field) |
-                  std::ranges::to<std::vector>())[2]) == 0);
+static_assert(
+    bit_size_of(
+        (members_of(^^BitField, std::meta::access_context::current()) |
+            std::views::filter(std::meta::is_bit_field) |
+            std::ranges::to<std::vector>())[2]) ==
+    0);
 static_assert(bit_size_of(^^BitField::bf3) == 3);
 static_assert(bit_size_of(^^BitField::bf4) == 3);
 
 // unnamed bitfield not included.
-static_assert(nonstatic_data_members_of(^^BitField, {}).size() == 4);
+static_assert(
+    nonstatic_data_members_of(
+        ^^BitField,
+        std::meta::access_context::current()).size() == 4);
 static_assert(size_of(^^BitField) == 4);
 
 alignas(64) int i1;
@@ -125,12 +134,18 @@ struct A { char a; };
 struct B { bool b; };
 struct C : A, B {};
 
-static_assert(offset_of(bases_of(^^C, {})[0]) == std::meta::member_offset{0, 0});
-static_assert(offset_of(bases_of(^^C, {})[1]) == std::meta::member_offset{1, 0});
+static_assert(
+    offset_of(bases_of(^^C, std::meta::access_context::current())[0]) ==
+    std::meta::member_offset{0, 0});
+static_assert(
+    offset_of(bases_of(^^C, std::meta::access_context::current())[1]) ==
+    std::meta::member_offset{1, 0});
 
 struct V { };
 struct D : V { virtual void fn() = 0; };
-static_assert(offset_of(bases_of(^^D, {})[0]) == std::meta::member_offset{0, 0});
+static_assert(
+    offset_of(bases_of(^^D, std::meta::access_context::current())[0]) ==
+    std::meta::member_offset{0, 0});
 
 }  // namespace base_offsets
 

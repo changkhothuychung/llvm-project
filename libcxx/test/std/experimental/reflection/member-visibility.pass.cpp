@@ -248,16 +248,14 @@ consteval access_context FriendFnOfAccess() {
                             // =====================
 
 
-static_assert(access_context{}.scope == ^^::);
-static_assert(access_context::current().scope == ^^::);
+static_assert(access_context::current().scope() == ^^::);
 namespace new_accessibility_api {
-static_assert(access_context::current().scope == ^^::new_accessibility_api);
+static_assert(access_context::current().scope() == ^^::new_accessibility_api);
 
 void fn() {
-  static_assert(access_context{}.scope == ^^::);
-  static_assert(access_context::current().scope == ^^fn);
+  static_assert(access_context::current().scope() == ^^fn);
   [] {
-    constexpr auto repr = access_context::current().scope;
+    constexpr auto repr = access_context::current().scope();
     static_assert(is_function(repr));
     static_assert(repr != ^^fn);
   }();

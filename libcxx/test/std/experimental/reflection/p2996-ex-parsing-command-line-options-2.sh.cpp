@@ -76,7 +76,7 @@ struct Clap {
     };
 
     template for (constexpr auto Pair :
-                  std::meta::define_static_array([]() consteval {
+                  std::define_static_array([]() consteval {
       auto ctx = std::meta::access_context::current();
 
       auto spec_members = nonstatic_data_members_of(^^Spec, ctx);
