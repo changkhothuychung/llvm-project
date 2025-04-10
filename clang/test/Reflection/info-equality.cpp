@@ -108,6 +108,7 @@ static_assert(^^int != ^^unsigned int);
 static_assert(^^int != ^^Enum);
 static_assert(^^int != ^^EnumCls);
 static_assert(^^int_alias != ^^int);
+static_assert(^^int_alias const == ^^int const);
 static_assert(^^int_alias != ^^Test::type);
 static_assert(^^int_alias != ^^myns::Test::type);
 static_assert(^^Test::type != ^^myns::Test::type);

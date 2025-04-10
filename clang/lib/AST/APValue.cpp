@@ -1573,9 +1573,9 @@ LinkageInfo LinkageComputer::getLVForValue(const APValue &V,
 }
 
 static QualType unwrapReflectedType(QualType QT) {
-  bool UnwrapAliases = false;
   bool IsConst = QT.isConstQualified();
   bool IsVolatile = QT.isVolatileQualified();
+  bool UnwrapAliases = (IsConst || IsVolatile);
 
   void *AsPtr;
   do {
