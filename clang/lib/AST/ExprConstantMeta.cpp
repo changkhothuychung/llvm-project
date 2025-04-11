@@ -5628,27 +5628,25 @@ bool is_accessible(APValue &Result, ASTContext &C, MetaActions &Meta,
   if (!Evaluator(RV, Args[0], true))
     return true;
 
-  auto validate = [&](Decl *D) -> bool {
-    if (!D || !D->getDeclContext() || !isa<CXXRecordDecl>(D->getDeclContext()))
-      return DiagnoseReflectionKind(Diagnoser, Range, "a class member");
+  auto validate = [&](Decl *D, CXXRecordDecl *&NamingCls) -> bool {
+    auto *DC = dyn_cast<CXXRecordDecl>(D->getNonTransparentDeclContext());
+    if (!NamingCls)
+      NamingCls = DC;
 
-    if (auto *Ctx = cast<CXXRecordDecl>(D->getDeclContext());
-        Ctx->isBeingDefined())
+    if (DC && DC->isBeingDefined())
       return Diagnoser(Range.getBegin(),
                        diag::metafn_access_query_class_being_defined)
-          << Ctx << Range;
-
+          << DC << Range;
     return false;
   };
 
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Type: {
     NamedDecl *D = findTypeDecl(RV.getReflectedType());
-    if (validate(D))
+    if (validate(D, NamingCls))
       return true;
-
-    if (!NamingCls)
-      NamingCls = cast<CXXRecordDecl>(D->getDeclContext());
+    else if (!NamingCls)
+      return SetAndSucceed(Result, makeBool(C, true));
 
     bool Accessible = UnconditionalAccess ||
                       Meta.IsAccessible(D, AccessDC, NamingCls);
@@ -5656,11 +5654,10 @@ bool is_accessible(APValue &Result, ASTContext &C, MetaActions &Meta,
   }
   case ReflectionKind::Declaration: {
     ValueDecl *D = RV.getReflectedDecl();
-    if (validate(D))
+    if (validate(D, NamingCls))
       return true;
-
-    if (!NamingCls)
-      NamingCls = cast<CXXRecordDecl>(D->getDeclContext());
+    else if (!NamingCls)
+      return SetAndSucceed(Result, makeBool(C, true));
 
     bool Accessible = UnconditionalAccess ||
                       Meta.IsAccessible(RV.getReflectedDecl(), AccessDC,
@@ -5669,11 +5666,10 @@ bool is_accessible(APValue &Result, ASTContext &C, MetaActions &Meta,
   }
   case ReflectionKind::Template: {
     TemplateDecl *D = RV.getReflectedTemplate().getAsTemplateDecl();
-    if (validate(D))
+    if (validate(D, NamingCls))
       return true;
-
-    if (!NamingCls)
-      NamingCls = cast<CXXRecordDecl>(D->getDeclContext());
+    else if (!NamingCls)
+      return SetAndSucceed(Result, makeBool(C, true));
 
     bool Accessible = UnconditionalAccess ||
                       Meta.IsAccessible(D, AccessDC, NamingCls);
@@ -5710,8 +5706,7 @@ bool is_accessible(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::Namespace:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
-    return DiagnoseReflectionKind(Diagnoser, Range, "a class member",
-                                  DescriptionOf(RV));
+    return SetAndSucceed(Result, makeBool(C, true));
   }
   llvm_unreachable("invalid reflection type");
 }

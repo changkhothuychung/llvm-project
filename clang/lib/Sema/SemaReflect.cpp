@@ -178,12 +178,34 @@ public:
   bool IsAccessible(NamedDecl *Target, DeclContext *Ctx,
                     CXXRecordDecl *NamingCls) override {
     bool Result = false;
+
+    // If 'Target' is a (possibly nested) anonymous struct/union or unscoped
+    // enumerator, replace it with its parent recursively until it's no longer
+    // such a member.
+    while (Target && Target->getDeclContext() &&
+           Target->getDeclContext() != NamingCls &&
+           [](DeclContext *DC) {
+             if (auto *RD = dyn_cast<CXXRecordDecl>(DC))
+               return RD->isAnonymousStructOrUnion();
+             else return DC->isTransparentContext();
+           }(Target->getDeclContext()))
+      if (isa<TranslationUnitDecl>(Target->getDeclContext()))
+        // Can happen if Target was a member of a static anonymous union at
+        // namespace scope.
+        return true;
+      else
+        Target = cast<NamedDecl>(Target->getDeclContext());
+
     if (auto *Cls = dyn_cast_or_null<CXXRecordDecl>(Target->getDeclContext())) {
       if (Cls != NamingCls &&
           !S.IsDerivedFrom(SourceLocation{},
                            QualType(NamingCls->getTypeForDecl(), 0),
                            QualType(Cls->getTypeForDecl(), 0)))
         return false;
+      else if (NamingCls->isAnonymousStructOrUnion())
+        // Clang's access-checking machinery isn't equipped to deal with checks
+        // where the "naming" class (ha!) is anonymous - can't imagine why!
+        return true;
 
       DeclContext *PreviousDC = S.CurContext;
       {

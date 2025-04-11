@@ -288,4 +288,55 @@ static_assert(!is_private(std::meta::info{}));
 static_assert(!is_private(^^int));
 }  // namespace queries
 
+                               // ==============
+                               // unscoped_enums
+                               // ==============
+
+namespace unscoped_enums {
+class C {
+  enum { E };
+public:
+  enum { F };
+  static constexpr auto r = ^^E;
+};
+
+static_assert(!is_accessible(C::r,
+              std::meta::access_context::unprivileged()));
+static_assert(!is_accessible(C::r,
+              std::meta::access_context::unprivileged().via(^^C)));
+
+static_assert(is_accessible(^^C::F,
+              std::meta::access_context::unprivileged()));
+static_assert(is_accessible(^^C::F,
+              std::meta::access_context::unprivileged().via(^^C)));
+}  // namespace unscoped_enums
+
+                          // ========================
+                          // anonymous_structs_unions
+                          // ========================
+
+namespace anonymous_structs_unions {
+class C {
+  struct { struct { struct { int a; }; }; };
+public:
+  union { union { union { int b; }; }; };
+  static constexpr auto r_a = ^^a;
+};
+
+static_assert(is_accessible(C::r_a,
+              std::meta::access_context::unprivileged()));
+static_assert(!is_accessible(C::r_a,
+              std::meta::access_context::unprivileged().via(^^C)));
+
+static_assert(is_accessible(^^C::b,
+              std::meta::access_context::unprivileged()));
+static_assert(is_accessible(^^C::b,
+              std::meta::access_context::unprivileged().via(^^C)));
+
+static union { int a; };
+
+static_assert(is_accessible(^^a,
+              std::meta::access_context::unprivileged()));
+}  // namespace anonymous_structs_unions
+
 int main() { }
