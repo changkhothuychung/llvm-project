@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// RUN: %clang_cc1 %s -std=c++23 -freflection
+// RUN: %clang_cc1 %s -std=c++23 -freflection -verify
 
 // Reflecting Types
 using info = decltype(^^void);
@@ -166,18 +166,26 @@ consteval int fn(decltype(^^::) x = ^^x) { return 0; }
 constexpr int x = fn();
 }  // namspace self_reference
 
-                               // ==============
-                               // lambda_capture
-                               // ==============
+                              // =================
+                              // enclosing_lambdas
+                              // =================
 
-namespace lambda_capture {
+namespace enclosing_lambdas {
+static int s1;
 void fn() {
-  int x;
-  [=]<auto r> {
-    static_assert(^^x == r);
-  }.operator()<^^x>();
+  int l1;
+  static int s2;
+  constexpr auto rl1 = ^^l1;
+  (void) [] -> decltype(^^s1, ^^l1, s2) {
+    // expected-error@-1 {{intervening lambda expression}}
+    int l2;
+
+    constexpr auto rl1_2 = ^^l1;
+      // expected-error@-1 {{intervening lambda expression}}
+    constexpr auto rl2 = ^^l2;
+  };
 }
-}  // namespace lambda_capture
+}  // namespace enclosing_lambdas
 
                    // =======================================
                    // bb_clang_p2996_issue_35_regression_test

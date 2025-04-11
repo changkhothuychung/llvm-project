@@ -3106,10 +3106,9 @@ def err_reflect_nttp : Error<
   "cannot take the reflection of a non-type template parameter">;
 def err_reflect_init_capture : Error<
   "cannot take the reflection of a local entity declared by init-capture">;
-def err_template_arg_bad_reflection_kind : Error<
-  "reflection of this kind cannot appear as a template argument">;
-def err_reflect_dependent_splice : Error<
-  "cannot take the reflection of a dependent splice expression">;
+def err_reflect_intervening_lambda : Error<
+  "cannot take the reflection of a local entity for which there is an "
+  "intervening lambda expression">;
 
 def err_splice_operand_not_reflection : Error<
   "splice operand must be a reflection">;
@@ -3142,6 +3141,9 @@ def err_dependent_splice_implicit_member_reference : Error<
   "cannot implicitly reference a class member through a splice">;
 def note_dependent_splice_explicit_this_may_fix : Note<
   "an explicit 'this' pointer may fix the problem">;
+def err_splice_intervening_lambda : Error<
+  "cannot splice local entity %0 for which there is an intervening lambda "
+  "expression">;
 
 def err_metafunction_empty_args : Error<
   "__metafunction requires arguments">;

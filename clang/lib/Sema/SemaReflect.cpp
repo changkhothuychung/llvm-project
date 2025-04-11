@@ -89,13 +89,63 @@ Expr *CreateRefToDecl(Sema &S, ValueDecl *D, SourceLocation ExprLoc) {
   }
 }
 
-static Decl *findInjectionCone(Decl *ContainingDecl) {
+Decl *findInjectionCone(Decl *ContainingDecl) {
   for (Decl *Ctx = ContainingDecl; Ctx;
        Ctx = cast<Decl>(Ctx->getDeclContext())) {
     if (isa<RecordDecl, FunctionDecl, TranslationUnitDecl>(Ctx))
       return Ctx;
   }
   llvm_unreachable("should have terminated at a TranslationUnitDecl");
+}
+
+bool CheckReflectVar(Sema &S, VarDecl *VD, SourceRange Range) {
+  // Reflections of 'init-capture's are always ill-formed.
+  if (VD->isInitCapture()) {
+    S.Diag(Range.getBegin(), diag::err_reflect_init_capture) << Range;
+    return true;
+  }
+
+  // All other cases that aren't local entities are fine.
+  if (!VD->isLocalVarDeclOrParm() || VD->isStaticLocal())
+    return false;
+
+  // Check for an intervening lambda scope.
+  for (DeclContext *DC = S.CurContext; DC != VD->getDeclContext();
+       DC = DC->getParent()) {
+    assert(DC && "Var context not a parent of the current context");
+    if (auto *RD = dyn_cast<CXXRecordDecl>(DC); RD && RD->isLambda()) {
+      S.Diag(Range.getBegin(), diag::err_reflect_intervening_lambda) << Range;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool CheckSpliceVar(Sema &S, VarDecl *VD, SourceRange Range) {
+  // All non-local entities are fine.
+  if (!VD->isLocalVarDeclOrParm() || VD->isStaticLocal())
+    return false;
+
+  // Unevaluated contexts are fine.
+  //
+  // We should also ignore any enclosing 'typeid' expressions, but clang (as far
+  // as I can tell) doesn't implement that for lambda captures either, so we
+  // likewise ignore that here.
+  if (!S.currentEvaluationContext().isPotentiallyEvaluated())
+    return false;
+
+  // Check for an intervening lambda scope.
+  for (DeclContext *DC = S.CurContext; DC != VD->getDeclContext();
+       DC = DC->getParent()) {
+    assert(DC && "Var context not a parent of the current context");
+    if (auto *RD = dyn_cast<CXXRecordDecl>(DC); RD && RD->isLambda()) {
+      S.Diag(Range.getBegin(), diag::err_splice_intervening_lambda)
+          << VD << Range;
+      S.Diag(VD->getLocation(), diag::note_entity_declared_at) << VD;
+      return true;
+    }
+  }
+  return false;
 }
 
 class MetaActionsImpl : public MetaActions {
@@ -828,12 +878,8 @@ ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OpLoc,
     return BuildCXXReflectExpr(OpLoc, NameInfo.getBeginLoc(), ND);
 
   if (auto *VD = dyn_cast<VarDecl>(ND);
-      VD && (VD->isInitCapture())) {
-    Diag(Id.StartLocation, diag::err_reflect_init_capture)
-        << Id.getSourceRange();
+      VD && CheckReflectVar(*this, VD, Id.getSourceRange()))
     return ExprError();
-  }
-
 
   // Why do we have to build an expression here? Just stash in an APValue?
   if (isa<VarDecl, BindingDecl, FunctionDecl, FieldDecl, EnumConstantDecl,
@@ -1526,6 +1572,10 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation TemplateKWLoc,
         Diag(Splice->getBeginLoc(), diag::err_splice_unnamed_bit_field);
         return ExprError();
       }
+
+      if (auto *VD = dyn_cast<VarDecl>(TheDecl);
+          VD && CheckSpliceVar(*this, VD, Splice->getSourceRange()))
+        return ExprError();
 
       // Create a new DeclRefExpr, since the operand of the reflect expression
       // was parsed in an unevaluated context (but a splice expression is not

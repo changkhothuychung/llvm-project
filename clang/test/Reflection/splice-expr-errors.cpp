@@ -68,3 +68,19 @@ void fn([:^^int:]);
   // expected-error@-1 {{not usable in a splice expression}}
 
 }  // namespace parameter_declaration_ambiguity
+
+                              // =================
+                              // enclosing_lambdas
+                              // =================
+
+namespace enclosing_lambdas {
+void fn() {
+  int x = 1;  // expected-note {{'x' declared here}}
+  constexpr auto r = ^^x;
+
+  (void) [] -> decltype([:r:]) {
+    return [:r:];
+      // expected-error@-1 {{'x' for which there is an intervening lambda}}
+  };
+}
+}  // namespace enclosing_lambdas
