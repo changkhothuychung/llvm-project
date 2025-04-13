@@ -5398,8 +5398,12 @@ bool return_type_of(APValue &Result, ASTContext &C, MetaActions &Meta,
 
   case ReflectionKind::Declaration:
     if (auto *FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl());
-        FD && !isa<CXXConstructorDecl>(FD) && !isa<CXXDestructorDecl>(FD))
-      return SetAndSucceed(Result, makeReflection(FD->getReturnType()));
+        FD && !isa<CXXConstructorDecl>(FD) && !isa<CXXDestructorDecl>(FD)) {
+      QualType QT =
+          desugarType(FD->getReturnType(), /*UnwrapAliases=*/ true,
+                      /*DropCV=*/false, /*DropRefs=*/false);
+      return SetAndSucceed(Result, makeReflection(QT));
+    }
     [[fallthrough]];
   case ReflectionKind::Null:
   case ReflectionKind::Object:
