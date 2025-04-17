@@ -943,6 +943,11 @@ consteval auto is_class_type(info r) -> bool {
   return extract<bool>(substitute(^^is_class_v, {r}));
 }
 
+// Returns true if the reflected entity is a complete type.
+consteval auto is_complete_type(info r) -> bool {
+  return __metafunction(detail::__metafn_is_complete_type, r);
+}
+
 #if __has_feature(access_contexts)
 
 class access_context {
@@ -974,8 +979,8 @@ public:
   }
 
   consteval access_context via(info new_naming_class) const {
-    if (!is_class_type(new_naming_class))
-      throw "naming class must be a reflection of a class type";
+    if (!is_class_type(new_naming_class) || !is_complete_type(new_naming_class))
+      throw "naming class must be a reflection of a complete class type";
 
     return access_context{d_scope, new_naming_class};
   }
@@ -1128,11 +1133,6 @@ consteval auto get_public_nonstatic_data_members(info r) -> vector<info> {
                                         ranges::to<vector>();
 }
 #endif  // !__has_feature(access_contexts)
-
-// Returns true if the reflected entity is a complete type.
-consteval auto is_complete_type(info r) -> bool {
-  return __metafunction(detail::__metafn_is_complete_type, r);
-}
 
 // Returns whether the reflected entity is a protected class member.
 consteval auto is_protected(info r) -> bool {
