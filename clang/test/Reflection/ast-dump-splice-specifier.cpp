@@ -13,7 +13,7 @@
 using info = decltype(^^int);
 
 constexpr int f() { return 42; }
-template <info R> consteval int g() { return [:R:](); }
+template <int T> constexpr int g() { return T; }
 
 void Test() {
     int x = 11;
@@ -37,12 +37,13 @@ void Test() {
     // CHECK-NEXT:  |         | `-CXXReflectExpr {{.*}} <col:{{.*}}, col:{{.*}}> 'meta::info'
     // CHECK-NEXT:  |         `-DeclRefExpr {{.*}} <col:{{.*}}> 'int ()' lvalue Function {{.*}} 'f' 'int ()'
 
-    int z = g<^^f>();
+    int z = [:^^g<42>:]();
     // CHECK:    `-VarDecl {{.*}} <col:{{.*}}, col:{{.*}}> col:{{.*}} z 'int' cinit
-    // CHECK-NEXT:      `-ConstantExpr {{.*}} <col:{{.*}}, col:{{.*}}> 'int'
-    // CHECK-NEXT:        |-value: Int 42
-    // CHECK-NEXT:        `-CallExpr {{.*}} <col:{{.*}}, col:{{.*}}> 'int'
-    // CHECK-NEXT:          `-ImplicitCastExpr {{.*}} <col:{{.*}}, col:{{.*}}> 'int (*)()' <FunctionToPointerDecay>
-    // CHECK-NEXT:            `-DeclRefExpr {{.*}} <col:{{.*}}, col:{{.*}}> 'int ()' lvalue Function {{.*}} 'g' 'int ()' (FunctionTemplate {{.*}} 'g')
+    // CHECK-NEXT:      `-CallExpr {{.*}} <col:{{.*}}, col:{{.*}}> 'int'
+    // CHECK-NEXT:        `-ImplicitCastExpr {{.*}} <col:{{.*}}, col:{{.*}}> 'int (*)()' <FunctionToPointerDecay>
+    // CHECK-NEXT:          `-CXXSpliceExpr {{.*}} <col:{{.*}}, col:{{.*}}> 'int ()' lvalue
+    // CHECK-NEXT:            |-SpliceSpecifier {{.*}} <col:{{.*}}, col:{{.*}}>
+    // CHECK-NEXT:            | `-CXXReflectExpr {{.*}} <col:{{.*}}, col:{{.*}}> 'meta::info'
+    // CHECK-NEXT:            `-DeclRefExpr {{.*}} <col:{{.*}}> 'int ()' lvalue Function {{.*}} 'g' 'int ()'
 
 }
