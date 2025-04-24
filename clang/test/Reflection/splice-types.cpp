@@ -270,26 +270,11 @@ using AliasFloat = T;
 
 // Simple requirement
 template <typename T>
-constexpr auto simple_addable = requires(T a, T b) { [:^^a:] + b; };
-template <typename T>
-constexpr auto simple_addable2 = requires(T a, T b) { a + [:^^b:]; };
-template <typename T>
-constexpr auto simple_addable3 = requires(T a, T b) { [:^^a:] + [:^^b:]; };
-template <typename T>
 constexpr auto simple_addable_nns =
   requires(T b) { [:^^Namespace:]::Addable() + b; };
 constexpr auto simple_addable_nns2 = requires { [:^^Namespace:]::Addable(); };
 template <typename T>
 constexpr auto simple_dep_nns = requires { typename [:^^T:]::Nested(); };
-
-static_assert(simple_addable<Addable>);
-static_assert(!simple_addable<NonAddable>);
-
-static_assert(simple_addable2<Addable>);
-static_assert(!simple_addable2<NonAddable>);
-
-static_assert(simple_addable3<Addable>);
-static_assert(!simple_addable3<NonAddable>);
 
 static_assert(simple_addable_nns<Addable>);
 static_assert(!simple_addable_nns<NonAddable>);

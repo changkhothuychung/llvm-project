@@ -187,6 +187,18 @@ void fn() {
 }
 }  // namespace enclosing_lambdas
 
+                            // ====================
+                            // requires_expressions
+                            // ====================
+
+namespace requires_expressions {
+void fn(int p) {
+    (void) requires(int a) { ^^p; };
+    (void) requires(int a) { ^^a; };
+      // expected-error@-1 {{local parameter of a requires-expression}}
+}
+}  // namespace requires_expressions
+
                    // =======================================
                    // bb_clang_p2996_issue_35_regression_test
                    // =======================================

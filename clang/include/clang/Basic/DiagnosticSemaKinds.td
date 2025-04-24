@@ -3106,6 +3106,8 @@ def err_reflect_nttp : Error<
   "cannot take the reflection of a non-type template parameter">;
 def err_reflect_init_capture : Error<
   "cannot take the reflection of a local entity declared by init-capture">;
+def err_reflect_local_requires_param : Error<
+  "cannot take the reflection of a local parameter of a requires-expression">;
 def err_reflect_intervening_lambda : Error<
   "cannot take the reflection of a local entity for which there is an "
   "intervening lambda expression">;

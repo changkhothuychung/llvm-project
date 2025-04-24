@@ -106,6 +106,12 @@ bool CheckReflectVar(Sema &S, VarDecl *VD, SourceRange Range) {
     return true;
   }
 
+  if (isa<RequiresExprBodyDecl>(VD->getDeclContext())) {
+    assert(isa<ParmVarDecl>(VD));
+    S.Diag(Range.getBegin(), diag::err_reflect_local_requires_param) << Range;
+    return true;
+  }
+
   // All other cases that aren't local entities are fine.
   if (!VD->isLocalVarDeclOrParm() || VD->isStaticLocal())
     return false;
