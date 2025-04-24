@@ -2858,7 +2858,7 @@ bool substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
 
     APValue RV(ReflectionKind::Type,
                const_cast<Type *>(TSpecDecl->getTypeForDecl()));
-    C.recordCachedSubstitution(SubstitutionHash, RV);
+    //C.recordCachedSubstitution(SubstitutionHash, RV);
     return SetAndSucceed(Result, RV);
   } else if (auto *TATD = dyn_cast<TypeAliasTemplateDecl>(TDecl)) {
     TArgs.clear();
@@ -2868,14 +2868,14 @@ bool substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
     assert(!QT.isNull() && "substitution failed after validating arguments?");
 
     APValue RV = makeReflection(QT);
-    C.recordCachedSubstitution(SubstitutionHash, RV);
+    //C.recordCachedSubstitution(SubstitutionHash, RV);
     return SetAndSucceed(Result, makeReflection(QT));
   } else if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TDecl)) {
     FunctionDecl *Spec = Meta.Substitute(FTD, ExpandedTArgs, Range.getBegin());
     assert(Spec && "substitution failed after validating arguments?");
 
     APValue RV = makeReflection(Spec);
-    C.recordCachedSubstitution(SubstitutionHash, RV);
+    //C.recordCachedSubstitution(SubstitutionHash, RV);
     return SetAndSucceed(Result, RV);
   } else if (auto *VTD = dyn_cast<VarTemplateDecl>(TDecl)) {
     TArgs.clear();
@@ -2885,7 +2885,7 @@ bool substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
     assert(Spec && "substitution failed after validating arguments?");
 
     APValue RV = makeReflection(Spec);
-    C.recordCachedSubstitution(SubstitutionHash, RV);
+    //C.recordCachedSubstitution(SubstitutionHash, RV);
     return SetAndSucceed(Result, makeReflection(Spec));
   } else if (auto *CD = dyn_cast<ConceptDecl>(TDecl)) {
     TArgs.clear();
@@ -2899,7 +2899,7 @@ bool substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
       llvm_unreachable("failed to evaluate substituted concept");
 
     APValue RV = SatisfiesConcept.Lift(C.BoolTy);
-    C.recordCachedSubstitution(SubstitutionHash, RV);
+    //C.recordCachedSubstitution(SubstitutionHash, RV);
     return SetAndSucceed(Result, SatisfiesConcept.Lift(C.BoolTy));
   }
   llvm_unreachable("unimplemented for template kind");
