@@ -989,6 +989,9 @@ static bool getParameterName(ParmVarDecl *PVD, std::string &Out) {
   StringRef FirstNameSeen = PVD->getName();
   unsigned ParamIdx = PVD->getFunctionScopeIndex();
 
+  // TODO(P2996): This will crash if we're in the trailing requires-clause of
+  // a function declaration, since the DeclContext is not the function but the
+  // TranslationUnitDecl.
   FunctionDecl *FD = cast<FunctionDecl>(PVD->getDeclContext());
   FD = FD->getMostRecentDecl();
 
@@ -1019,6 +1022,9 @@ static bool getParameterName(ParmVarDecl *PVD, std::string &Out) {
 }
 
 static ParmVarDecl *getMostRecentParmVarDecl(ParmVarDecl *PVD) {
+  // TODO(P2996): This will crash if we're in the trailing requires-clause of
+  // a function declaration, since the DeclContext is not the function but the
+  // TranslationUnitDecl.
   FunctionDecl *FD = cast<FunctionDecl>(PVD->getDeclContext());
   FD = FD->getMostRecentDecl();
   return FD->getParamDecl(PVD->getFunctionScopeIndex());
@@ -5570,14 +5576,22 @@ bool current_access_context(APValue &Result, ASTContext &C, MetaActions &Meta,
                             SourceRange Range, ArrayRef<Expr *> Args,
                             Decl *ContainingDecl) {
   assert(ResultTy == C.MetaInfoTy);
+  Decl *Ctx = nullptr;
 
   StackLocationExpr *SLE = StackLocationExpr::Create(C, SourceRange(), 1);
-  if (!Evaluator(Result, SLE, true) || !Result.isReflection())
+  if (!Evaluator(Result, SLE, true) || !Result.isReflectedDecl())
     return true;
-  else if (Result.getReflectedDecl() != nullptr)
-    return false;
+  else if (Ctx = Result.getReflectedDecl(); !Ctx)
+    Ctx = Meta.CurrentCtx();
 
-  return SetAndSucceed(Result, makeReflection(Meta.CurrentCtx()));
+  if (auto *Ctor = dyn_cast<CXXConstructorDecl>(Ctx);
+      Ctor && Ctor->isInheritingConstructor())
+    Ctx = cast<Decl>(Ctor->getDeclContext());
+
+  if (auto *RD = dyn_cast<CXXRecordDecl>(Ctx))
+    return SetAndSucceed(Result,
+                         makeReflection(QualType(RD->getTypeForDecl(), 0)));
+  return SetAndSucceed(Result, makeReflection(Ctx));
 }
 
 bool is_accessible(APValue &Result, ASTContext &C, MetaActions &Meta,

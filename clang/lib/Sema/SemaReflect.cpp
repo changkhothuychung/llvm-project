@@ -26,6 +26,7 @@
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateDeduction.h"
 #include "llvm/Support/raw_ostream.h"
+#include <iostream>
 
 using namespace clang;
 using namespace sema;

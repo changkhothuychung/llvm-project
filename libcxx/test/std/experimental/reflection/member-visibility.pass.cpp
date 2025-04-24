@@ -339,4 +339,22 @@ static_assert(is_accessible(^^a,
               std::meta::access_context::unprivileged()));
 }  // namespace anonymous_structs_unions
 
+                          // ========================
+                          // default_mem_initializers
+                          // ========================
+
+namespace default_mem_initializers {
+struct A {
+  int a;
+  consteval A(int p) : a(p) {}
+};
+struct B : A {
+  using A::A;
+  consteval B(int p, int q) : A(p * q) {}
+  std::meta::info s = std::meta::access_context::current().scope();
+};
+static_assert(B(1).s == ^^B);
+static_assert(is_constructor(B{1, 2}.s) && parent_of(B{1, 2}.s) == ^^B);
+}  // namespace default_mem_initializers
+
 int main() { }
