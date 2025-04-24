@@ -54,8 +54,8 @@ static_assert(type_of(std::meta::reflect_value(ConstVar)) == ^^int);
 static_assert([:std::meta::reflect_value(ConstexprVar):] == ConstexprVar);
 static_assert(type_of(std::meta::reflect_value(ConstexprVar)) == ^^int);
 
-static_assert([:std::meta::reflect_value(fn):] == &fn);
-static_assert(type_of(std::meta::reflect_value(fn)) == ^^void(*)());
+static_assert([:std::meta::reflect_value(&fn):] == &fn);
+static_assert(type_of(std::meta::reflect_value(&fn)) == ^^void(*)());
 
 static_assert([:std::meta::reflect_value(&Cls::k):] == &Cls::k);
 static_assert(type_of(std::meta::reflect_value(&Cls::k)) == ^^int (Cls::*));

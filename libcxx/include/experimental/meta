@@ -80,7 +80,7 @@ template <reflection_range R = initializer_list<info>>
 
 // reflect expression results
 template <typename T>
-  consteval auto reflect_value(T) -> info;
+  consteval auto reflect_value(const T&) -> info;
 template <typename T>
   consteval auto reflect_object(T &) -> info;
 template <typename T>
@@ -979,8 +979,8 @@ public:
   }
 
   consteval access_context via(info new_naming_class) const {
-    if (!is_class_type(new_naming_class) || !is_complete_type(new_naming_class))
-      throw "naming class must be a reflection of a complete class type";
+    if (!is_class_type(new_naming_class))
+      throw "naming class must be a reflection of a class type";
 
     return access_context{d_scope, new_naming_class};
   }
@@ -1433,11 +1433,9 @@ consteval auto is_user_declared(info r) -> bool {
 template <typename T> 
   requires (!is_reference_v<T> && 
             __metafunction(detail::__metafn_is_structural_type, ^^T))
-consteval auto reflect_value(T r) -> info {
-  constexpr info Ty = type_of(^^r);
-
-  return __metafunction(detail::__metafn_reflect_result, Ty,
-                        static_cast<typename [:Ty:] &&>(r));
+consteval auto reflect_value(const T &r) -> info {
+  return __metafunction(detail::__metafn_reflect_result, ^^T,
+                        static_cast<T>(r));
 }
 
 // Returns a reflection of the object designated by the provided argument.
