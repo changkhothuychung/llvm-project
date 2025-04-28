@@ -280,8 +280,6 @@ public:
   void VisitObjCPropertyDecl(const ObjCPropertyDecl *D);
   void VisitObjCPropertyImplDecl(const ObjCPropertyImplDecl *D);
   void VisitBlockDecl(const BlockDecl *D);
-  void VisitSpliceSpecifier(const SpliceSpecifier* Splice);
-  void VisitCXXSpliceExpr(const CXXSpliceExpr *Node);
 
   void VisitOpenACCDeclareDecl(const OpenACCDeclareDecl *D);
   void VisitOpenACCRoutineDecl(const OpenACCRoutineDecl *D);

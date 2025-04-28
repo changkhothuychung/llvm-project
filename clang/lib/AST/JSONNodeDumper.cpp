@@ -273,20 +273,6 @@ void JSONNodeDumper::writeIncludeStack(PresumedLoc Loc, bool JustFirst) {
   JOS.attributeEnd();
 }
 
-void JSONNodeDumper::VisitSpliceSpecifier(const SpliceSpecifier* Splice) {
-  JOS.attribute("kind", "SpliceSpecifier");
-  JOS.attributeObject("range",
-    [Splice, this] { writeSourceRange(Splice->getSourceRange()); });
-
-  Visit(Splice->getOperand());
-}
-
-void JSONNodeDumper::VisitCXXSpliceExpr(const CXXSpliceExpr *Node)
-{
-  VisitSpliceSpecifier(Node->getSplice());
-  Visit(Node->getModel());
-}
-
 void JSONNodeDumper::writeBareSourceLocation(SourceLocation Loc,
                                              bool IsSpelling) {
   PresumedLoc Presumed = SM.getPresumedLoc(Loc);

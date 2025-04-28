@@ -250,6 +250,11 @@ void TextNodeDumper::Visit(const Type *T) {
   TypeVisitor<TextNodeDumper>::Visit(T);
 }
 
+void TextNodeDumper::VisitReflectionSpliceType(const ReflectionSpliceType *Node)
+{
+  AddChild([=] { VisitSpliceSpecifier(Node->getSplice()); });
+}
+
 void TextNodeDumper::Visit(QualType T) {
   OS << "QualType";
   dumpPointer(T.getAsOpaquePtr());

@@ -297,6 +297,7 @@ public:
   void VisitCXXConstructExpr(const CXXConstructExpr *Node);
   void VisitCXXBindTemporaryExpr(const CXXBindTemporaryExpr *Node);
   void VisitCXXNewExpr(const CXXNewExpr *Node);
+  void VisitReflectionSpliceType(const ReflectionSpliceType *Node);
   void VisitSpliceSpecifier(const SpliceSpecifier *Node);
   void VisitCXXSpliceExpr(const CXXSpliceExpr *Node);
   void VisitCXXDeleteExpr(const CXXDeleteExpr *Node);
