@@ -4904,11 +4904,15 @@ void CXXNameMangler::mangleReflection(const APValue &R) {
     Context.mangleCanonicalTypeName(QT, Out, false);
     break;
   }
-  case ReflectionKind::Object:
+  case ReflectionKind::Object: {
     Out << 'o';
-    mangleValueInTemplateArg(R.getTypeOfReflectedResult(getASTContext()),
-                             R.getReflectedObject(), false, true);
+
+    QualType QT = R.getTypeOfReflectedResult(getASTContext());
+    if (!QT->isReferenceType())
+      QT = getASTContext().getLValueReferenceType(QT);
+    mangleValueInTemplateArg(QT, R.getReflectedObject(), false, true);
     break;
+  }
   case ReflectionKind::Value:
     Out << "v";
     mangleValueInTemplateArg(R.getTypeOfReflectedResult(getASTContext()),

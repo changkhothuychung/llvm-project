@@ -1785,9 +1785,8 @@ bool get_ith_template_argument_of(APValue &Result, ASTContext &C,
 
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Type: {
-    QualType QT = RV.getReflectedType();
     SmallVector<TemplateArgument, 4> TArgs;
-    if (getTemplateArgumentsFromType(QT, TArgs))
+    if (getTemplateArgumentsFromType(RV.getReflectedType(), TArgs))
       return DiagnoseReflectionKind(Diagnoser, Range,
                                     "a template specialization");
 
@@ -2957,7 +2956,13 @@ bool extract(APValue &Result, ASTContext &C, MetaActions &Meta,
       return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
           << 1 << ObjectTy << ReturnsLValue << ResultTy << Range;
 
-    return SetAndSucceed(Result, RV.getReflectedObject());
+    Expr *OVE = new (C) OpaqueValueExpr(Range.getBegin(), ObjectTy, VK_LValue);
+    Expr *CE = ConstantExpr::Create(C, OVE, RV.getReflectedObject());
+
+    if (!Evaluator(RV, CE, !ReturnsLValue))
+      return true;
+
+    return SetAndSucceed(Result, RV);
   }
   case ReflectionKind::Value: {
     if (ReturnsLValue)
@@ -4716,7 +4721,7 @@ bool reflect_result(APValue &Result, ASTContext &C, MetaActions &Meta,
             makeReflection(
                 const_cast<ValueDecl *>(LVBase.get<const ValueDecl *>())));
 
-  return SetAndSucceed(Result, Arg.Lift(Args[1]->getType()));
+  return SetAndSucceed(Result, Arg.Lift(ArgTy.getReflectedType()));
 }
 
 bool data_member_spec(APValue &Result, ASTContext &C, MetaActions &Meta,
