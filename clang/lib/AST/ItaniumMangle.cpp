@@ -1335,8 +1335,6 @@ void CXXNameMangler::manglePrefix(QualType type) {
       if (DTST->hasIdentifier())
         Template = getASTContext().getDependentTemplateName(
             DTST->getQualifier(), DTST->getIdentifier());
-      else if (DTST->hasSplice())
-        Template = getASTContext().getDependentTemplateName(DTST->getSplice());
       mangleTemplatePrefix(Template);
 
       // FIXME: GCC does not appear to mangle the template arguments when
@@ -2620,9 +2618,6 @@ bool CXXNameMangler::mangleUnresolvedTypeOrSimpleId(QualType Ty,
       Template = getASTContext().getDependentTemplateName(
         DTST->getQualifier(), DTST->getIdentifier());
       mangleSourceName(DTST->getIdentifier());
-    } else if (DTST->hasSplice()) {
-      Template = getASTContext().getDependentTemplateName(DTST->getSplice());
-      mangleExpression(DTST->getSplice()->getOperand());
     }
     mangleTemplateArgs(Template, DTST->template_arguments());
     break;
@@ -4541,8 +4536,6 @@ void CXXNameMangler::mangleType(const DependentTemplateSpecializationType *T) {
   if (T->hasIdentifier())
     Prefix = getASTContext().getDependentTemplateName(T->getQualifier(),
                                                       T->getIdentifier());
-  else if (T->hasSplice())
-    Prefix = getASTContext().getDependentTemplateName(T->getSplice());
 
   mangleTemplatePrefix(Prefix);
 
