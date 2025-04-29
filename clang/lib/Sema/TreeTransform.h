@@ -1177,44 +1177,6 @@ public:
         Keyword, QualifierLoc.getNestedNameSpecifier(), T);
   }
 
-  /// Build a new typename type that refers to a template-id.
-  ///
-  /// By default, builds a new DependentNameType type from the
-  /// nested-name-specifier and the given type. Subclasses may override
-  /// this routine to provide different behavior.
-  QualType RebuildDependentTemplateSpecializationType(
-                                       ElaboratedTypeKeyword Keyword,
-                                       SourceLocation TemplateKWLoc,
-                                       const SpliceSpecifier *Splice,
-                                       TemplateArgumentListInfo &Args,
-                                       bool AllowInjectedClassName) {
-    // Rebuild the template name.
-    // TODO: avoid TemplateName abstraction
-    SpliceResult SR = getDerived().TransformSpliceSpecifier(
-            const_cast<SpliceSpecifier *>(Splice));
-    TemplateName InstName = getDerived().RebuildTemplateName(SR.get());
-
-    if (InstName.isNull())
-      return QualType();
-
-    // If it's still dependent, make a dependent specialization.
-    if (InstName.getAsDependentTemplateName())
-      return SemaRef.Context.getDependentTemplateSpecializationType(
-          Keyword, Splice, Args.arguments());
-
-    // Otherwise, make an elaborated type wrapping a non-dependent
-    // specialization.
-    QualType T =
-        getDerived().RebuildTemplateSpecializationType(InstName,
-                                                       Splice->getBeginLoc(),
-                                                       Args);
-    if (T.isNull())
-      return QualType();
-    return SemaRef.Context.getElaboratedType(
-        Keyword, nullptr, T);
-  }
-
-
   /// Build a new typename type that refers to an identifier.
   ///
   /// By default, performs semantic analysis when building the typename type
@@ -1367,8 +1329,6 @@ public:
                                    SourceLocation NameLoc, QualType ObjectType,
                                    NamedDecl *FirstQualifierInScope,
                                    bool AllowInjectedClassName);
-
-  TemplateName RebuildTemplateName(const SpliceSpecifier *Splice);
 
   /// Build a new template name given a nested name specifier and the
   /// overloaded operator name that is referred to as a template.
@@ -4894,12 +4854,6 @@ TreeTransform<Derived>::TransformTemplateName(CXXScopeSpec &SS,
                                               ObjectType,
                                               FirstQualifierInScope,
                                               AllowInjectedClassName);
-    } else if (DTN->isSpliceSpecifier()) {
-      SpliceResult SR = getDerived().TransformSpliceSpecifier(
-            const_cast<SpliceSpecifier *>(DTN->getSpliceSpecifier()));
-      if (SR.isInvalid())
-        return TemplateName();
-      return getDerived().RebuildTemplateName(SR.get());
     }
 
     return getDerived().RebuildTemplateName(SS, TemplateKWLoc,
@@ -5536,9 +5490,6 @@ TypeSourceInfo *TreeTransform<Derived>::TransformTSIInObjectScope(
               SpecTL.getTemplateNameLoc(),
               ObjectType, UnqualLookup,
               /*AllowInjectedClassName=*/true);
-    else if (SpecTL.getTypePtr()->hasSplice())
-      Template = getDerived().RebuildTemplateName(
-                                         SpecTL.getTypePtr()->getSplice());
 
     if (Template.isNull())
       return nullptr;
@@ -7588,10 +7539,6 @@ QualType TreeTransform<Derived>::TransformDependentTemplateSpecializationType(
       Result = getSema().Context.getDependentTemplateSpecializationType(
           TL.getTypePtr()->getKeyword(), DTN->getQualifier(),
           DTN->getIdentifier(), NewTemplateArgs.arguments());
-    else if (DTN->isSpliceSpecifier())
-      Result = getSema().Context.getDependentTemplateSpecializationType(
-          TL.getTypePtr()->getKeyword(), DTN->getSpliceSpecifier(),
-          NewTemplateArgs.arguments());
 
     DependentTemplateSpecializationTypeLoc NewTL
       = TLB.push<DependentTemplateSpecializationTypeLoc>(Result);
@@ -7942,10 +7889,6 @@ TransformDependentTemplateSpecializationType(TypeLocBuilder &TLB,
         T->getKeyword(), QualifierLoc, TL.getTemplateKeywordLoc(),
         T->getIdentifier(), TL.getTemplateNameLoc(), NewTemplateArgs,
         /*AllowInjectedClassName*/ false);
-  else if (T->hasSplice())
-    Result = getDerived().RebuildDependentTemplateSpecializationType(
-        T->getKeyword(), TL.getTemplateKeywordLoc(), T->getSplice(),
-        NewTemplateArgs, /*AllowInjectedClassName*/ false);
   if (Result.isNull())
     return QualType();
 
@@ -18139,14 +18082,6 @@ TreeTransform<Derived>::RebuildTemplateName(CXXScopeSpec &SS,
                               /*EnteringContext=*/false, Template,
                               AllowInjectedClassName);
   return Template.get();
-}
-
-template<typename Derived>
-TemplateName
-TreeTransform<Derived>::RebuildTemplateName(const SpliceSpecifier *Splice) {
-  return getSema().BuildReflectionSpliceTemplate(
-        const_cast<SpliceSpecifier *>(Splice),
-        /*Complain=*/true).get();
 }
 
 template<typename Derived>

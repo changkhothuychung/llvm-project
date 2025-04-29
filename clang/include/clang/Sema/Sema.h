@@ -15533,8 +15533,6 @@ public:
                                        SpliceSpecifier *Splice,
                                        bool AllowMemberReference);
   DeclResult BuildReflectionSpliceNamespace(SpliceSpecifier *Splice);
-  TemplateTy BuildReflectionSpliceTemplate(SpliceSpecifier *Splice,
-                                           bool Complain);
 
   ExprResult BuildMemberReferenceExpr(Scope *S, Expr *Base,
                                       SourceLocation OpLoc,

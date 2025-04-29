@@ -3519,10 +3519,6 @@ QualType Sema::CheckTemplateIdType(TemplateName Name,
       return Context.getDependentTemplateSpecializationType(
           ElaboratedTypeKeyword::None, DTN->getQualifier(), DTN->getIdentifier(),
           TemplateArgs.arguments());
-    else if (DTN->isSpliceSpecifier())
-      return Context.getDependentTemplateSpecializationType(
-          ElaboratedTypeKeyword::None, DTN->getSpliceSpecifier(),
-          TemplateArgs.arguments());
   }
 
   if (Name.getAsAssumedTemplateName() &&
@@ -3862,10 +3858,6 @@ TypeResult Sema::ActOnTemplateIdType(
       T = Context.getDependentTemplateSpecializationType(
           ElaboratedTypeKeyword::None, DTN->getQualifier(), DTN->getIdentifier(),
           TemplateArgs.arguments());
-    else if (DTN->isSpliceSpecifier())
-      T = Context.getDependentTemplateSpecializationType(
-          ElaboratedTypeKeyword::None, DTN->getSpliceSpecifier(),
-          TemplateArgs.arguments());
     // Build type-source information.
     TypeLocBuilder TLB;
     DependentTemplateSpecializationTypeLoc SpecTL
@@ -3938,9 +3930,6 @@ TypeResult Sema::ActOnTagTemplateIdType(TagUseKind TUK,
       T = Context.getDependentTemplateSpecializationType(
           Keyword, DTN->getQualifier(), DTN->getIdentifier(),
           TemplateArgs.arguments());
-    else if (DTN->isSpliceSpecifier())
-      T = Context.getDependentTemplateSpecializationType(
-          Keyword, DTN->getSpliceSpecifier(), TemplateArgs.arguments());
 
     // Build type-source information.
     TypeLocBuilder TLB;
@@ -10788,10 +10777,6 @@ Sema::ActOnTypenameType(Scope *S, SourceLocation TypenameLoc,
       T = Context.getDependentTemplateSpecializationType(
           ElaboratedTypeKeyword::Typename, DTN->getQualifier(),
           DTN->getIdentifier(), TemplateArgs.arguments());
-    else if (DTN->isSpliceSpecifier())
-      T = Context.getDependentTemplateSpecializationType(
-          ElaboratedTypeKeyword::Typename, DTN->getSpliceSpecifier(),
-          TemplateArgs.arguments());
 
     // Create source-location information for this type.
     TypeLocBuilder Builder;

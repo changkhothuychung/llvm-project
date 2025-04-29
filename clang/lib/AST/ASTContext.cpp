@@ -5839,60 +5839,6 @@ ASTContext::getDependentTemplateSpecializationType(
   return QualType(T, 0);
 }
 
-QualType ASTContext::getDependentTemplateSpecializationType(
-    ElaboratedTypeKeyword Keyword, const SpliceSpecifier *Splice,
-    ArrayRef<TemplateArgumentLoc> Args) const {
-  // TODO: avoid this copy
-  SmallVector<TemplateArgument, 16> ArgCopy;
-  for (unsigned I = 0, E = Args.size(); I != E; ++I)
-    ArgCopy.push_back(Args[I].getArgument());
-  return getDependentTemplateSpecializationType(Keyword, Splice, ArgCopy);
-}
-
-QualType
-ASTContext::getDependentTemplateSpecializationType(
-                                 ElaboratedTypeKeyword Keyword,
-                                 const SpliceSpecifier *Splice,
-                                 ArrayRef<TemplateArgument> Args) const {
-  llvm::FoldingSetNodeID ID;
-  DependentTemplateSpecializationType::Profile(ID, *this, Keyword, Splice,
-                                               Args);
-
-  void *InsertPos = nullptr;
-  DependentTemplateSpecializationType *T
-    = DependentTemplateSpecializationTypes.FindNodeOrInsertPos(ID, InsertPos);
-  if (T)
-    return QualType(T, 0);
-
-  ElaboratedTypeKeyword CanonKeyword = Keyword;
-  if (Keyword == ElaboratedTypeKeyword::None)
-    CanonKeyword = ElaboratedTypeKeyword::Typename;
-
-  bool AnyNonCanonArgs = false;
-  auto CanonArgs =
-      ::getCanonicalTemplateArguments(*this, Args, AnyNonCanonArgs);
-
-  QualType Canon;
-  if (AnyNonCanonArgs || CanonKeyword != Keyword) {
-    Canon = getDependentTemplateSpecializationType(CanonKeyword, Splice,
-                                                   CanonArgs);
-
-    // Find the insert position again.
-    [[maybe_unused]] auto *Nothing =
-        DependentTemplateSpecializationTypes.FindNodeOrInsertPos(ID, InsertPos);
-    assert(!Nothing && "canonical type broken");
-  }
-
-  void *Mem = Allocate((sizeof(DependentTemplateSpecializationType) +
-                        sizeof(TemplateArgument) * Args.size()),
-                       alignof(DependentTemplateSpecializationType));
-  T = new (Mem) DependentTemplateSpecializationType(Keyword, Splice, Args,
-                                                    Canon);
-  Types.push_back(T);
-  DependentTemplateSpecializationTypes.InsertNode(T, InsertPos);
-  return QualType(T, 0);
-}
-
 TemplateArgument ASTContext::getInjectedTemplateArg(NamedDecl *Param) const {
   TemplateArgument Arg;
   if (const auto *TTP = dyn_cast<TemplateTypeParmDecl>(Param)) {
@@ -10233,25 +10179,6 @@ ASTContext::getDependentTemplateName(NestedNameSpecifier *NNS,
   return TemplateName(QTN);
 }
 
-/// Retrieve the template name that represents a dependent
-/// template name such as \c [:R:] where \c R is dependent.
-TemplateName ASTContext::getDependentTemplateName(
-        const SpliceSpecifier *Splice) const {
-  llvm::FoldingSetNodeID ID;
-  DependentTemplateName::Profile(ID, Splice);
-
-  void *InsertPos = nullptr;
-  DependentTemplateName *QTN
-    = DependentTemplateNames.FindNodeOrInsertPos(ID, InsertPos);
-
-  if (!QTN) {
-    QTN = new (*this, alignof(DependentTemplateName))
-        DependentTemplateName(Splice);
-    DependentTemplateNames.InsertNode(QTN, InsertPos);
-  }
-  return TemplateName(QTN);
-}
-
 TemplateName ASTContext::getSubstTemplateTemplateParm(
     TemplateName Replacement, Decl *AssociatedDecl, unsigned Index,
     std::optional<unsigned> PackIndex) const {
@@ -14235,10 +14162,6 @@ static QualType getCommonNonSugarTypeNode(ASTContext &Ctx, const Type *X,
           getCommonTypeKeyword(TX, TY),
           getCommonQualifier(Ctx, TX, TY, /*IsSame=*/true), TX->getIdentifier(),
           As);
-    } else {
-      assert(TX->getSplice() == TY->getSplice());
-      return Ctx.getDependentTemplateSpecializationType(
-          getCommonTypeKeyword(TX, TY), TX->getSplice(), As);
     }
   }
   case Type::UnaryTransform: {

@@ -2117,10 +2117,7 @@ TemplateName TemplateInstantiator::TransformTemplateName(
         Arg = getPackSubstitutedTemplateArgument(getSema(), Arg);
       }
 
-      if (Arg.getKind() == TemplateArgument::Splice)
-        return SemaRef.Context.getDependentTemplateName(
-            Arg.getAsSpliceSpecifier());
-
+      //Arg.dump();
       TemplateName Template = Arg.getAsTemplate();
       assert(!Template.isNull() && "Null template template argument");
 

@@ -1866,14 +1866,6 @@ public:
       ElaboratedTypeKeyword Keyword, NestedNameSpecifier *NNS,
       const IdentifierInfo *Name, ArrayRef<TemplateArgument> Args) const;
 
-  QualType getDependentTemplateSpecializationType(
-      ElaboratedTypeKeyword Keyword,
-      const SpliceSpecifier *Splice, ArrayRef<TemplateArgumentLoc> Args) const;
-  QualType getDependentTemplateSpecializationType(
-      ElaboratedTypeKeyword Keyword,
-      const SpliceSpecifier *Splice, ArrayRef<TemplateArgument> Args) const;
-
-
   TemplateArgument getInjectedTemplateArg(NamedDecl *ParamDecl) const;
 
   /// Form a pack expansion type with the given pattern.
@@ -2429,8 +2421,6 @@ public:
                                         const IdentifierInfo *Name) const;
   TemplateName getDependentTemplateName(NestedNameSpecifier *NNS,
                                         OverloadedOperatorKind Operator) const;
-  TemplateName
-  getDependentTemplateName(const SpliceSpecifier *S) const;
   TemplateName
   getSubstTemplateTemplateParm(TemplateName replacement, Decl *AssociatedDecl,
                                unsigned Index,

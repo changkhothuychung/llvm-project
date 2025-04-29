@@ -1827,39 +1827,6 @@ DeclResult Sema::BuildReflectionSpliceNamespace(SpliceSpecifier *Splice) {
   return ER.Val.getReflectedNamespace();
 }
 
-Sema::TemplateTy Sema::BuildReflectionSpliceTemplate(SpliceSpecifier *Splice,
-                                                     bool Complain) {
-  if (Splice->getDependence() != SpliceSpecifierDependence::None)
-    return TemplateTy::make(Context.getDependentTemplateName(Splice));
-
-  SmallVector<PartialDiagnosticAt, 4> Diags;
-  Expr::EvalResult ER;
-  ER.Diag = &Diags;
-
-  if (!Splice->getOperand()->EvaluateAsRValue(ER, Context, true)) {
-    Diag(Splice->getBeginLoc(),
-        diag::err_splice_operand_not_constexpr) << Splice->getOperand();
-    for (PartialDiagnosticAt PD : Diags)
-      Diag(PD.first, PD.second);
-    return TemplateTy();
-  }
-
-  if (!ER.Val.isReflection()) {
-    Diag(Splice->getBeginLoc(),
-         diag::err_splice_operand_not_reflection) << Splice->getSourceRange();
-    return TemplateTy();
-  }
-
-  if (!ER.Val.isReflectedTemplate()) {
-    if (Complain)
-      Diag(Splice->getBeginLoc(), diag::err_unexpected_reflection_kind)
-          << 3 << Splice->getSourceRange();
-    return TemplateTy();
-  }
-
-  return TemplateTy::make(ER.Val.getReflectedTemplate());
-}
-
 Decl *Sema::BuildConstevalBlockDeclaration(SourceLocation ConstevalLoc,
                                            Expr *EvaluatingExpr) {
   Decl *Result = ConstevalBlockDecl::Create(Context, CurContext, ConstevalLoc,

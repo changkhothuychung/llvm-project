@@ -883,10 +883,6 @@ bool Sema::ActOnCXXNestedNameSpecifier(Scope *S,
       T = Context.getDependentTemplateSpecializationType(
             ElaboratedTypeKeyword::None, DTN->getQualifier(),
             DTN->getIdentifier(), TemplateArgs.arguments());
-    else if (DTN->isSpliceSpecifier())
-      T = Context.getDependentTemplateSpecializationType(
-            ElaboratedTypeKeyword::None, DTN->getSpliceSpecifier(),
-            TemplateArgs.arguments());
 
     // Create source-location information for this type.
     TypeLocBuilder Builder;
