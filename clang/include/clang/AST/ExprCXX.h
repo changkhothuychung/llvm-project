@@ -5604,6 +5604,49 @@ public:
   }
 };
 
+// Implementation detail of the 'access_context::current()' metafunction.
+// Used to indicate an explicitly dependent call expression, wrapped in
+// 'TemplateDepth'-many layers of template parameters. Is value-dependent
+// if and only if 'TemplateDepth' is nonzero.
+class ExplDependentCallExpr : public Expr {
+  unsigned TemplateDepth;
+  CallExpr *SubExpr;
+
+  ExplDependentCallExpr(CallExpr *SubExpr, unsigned TemplateDepth);
+
+public:
+  static ExplDependentCallExpr *Create(ASTContext &C, CallExpr *SubExpr,
+                                       unsigned TemplateDepth);
+
+  CallExpr *getSubExpr() const {
+    return SubExpr;
+  }
+
+  int getTemplateDepth() const {
+    return TemplateDepth;
+  }
+
+  SourceLocation getBeginLoc() const {
+    return SubExpr->getBeginLoc();
+  }
+
+  SourceLocation getEndLoc() const {
+    return SubExpr->getEndLoc();
+  }
+
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+
+  const_child_range children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == ExplDependentCallExprClass;
+  }
+};
+
 class CXXSpliceExpr final : public Expr {
   SourceLocation TemplateKWLoc;
   SpliceSpecifier *Splice;

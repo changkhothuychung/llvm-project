@@ -552,6 +552,10 @@ void ASTStmtReader::VisitExtractLValueExpr(ExtractLValueExpr *E) {
   llvm_unreachable("unimplemented");
 }
 
+void ASTStmtReader::VisitExplDependentCallExpr(ExplDependentCallExpr *E) {
+  llvm_unreachable("unimplemented");
+}
+
 void ASTStmtReader::VisitCXXIndeterminateExpansionStmt(
                                              CXXIndeterminateExpansionStmt *S) {
   llvm_unreachable("unimplemented");

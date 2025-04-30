@@ -530,6 +530,12 @@ void ASTStmtWriter::VisitExtractLValueExpr(ExtractLValueExpr *E) {
   Code = serialization::EXPR_EXTRACT_LVALUE;
 }
 
+void ASTStmtWriter::VisitExplDependentCallExpr(ExplDependentCallExpr *E) {
+  VisitExpr(E);
+  // TODO(P2996): Implement this.
+  Code = serialization::EXPR_EXPL_DEPENDENT_CALL;
+}
+
 void ASTStmtWriter::VisitCXXIndeterminateExpansionStmt(
                                              CXXIndeterminateExpansionStmt *S) {
   VisitStmt(S);

@@ -357,4 +357,19 @@ static_assert(B(1).s == ^^B);
 static_assert(is_constructor(B{1, 2}.s) && parent_of(B{1, 2}.s) == ^^B);
 }  // namespace default_mem_initializers
 
+                    // =====================================
+                    // access_context_always_value_dependent
+                    // =====================================
+
+namespace access_context_always_value_dependent {
+template <bool B> consteval auto baz() -> int {
+  static constexpr int v = (std::meta::access_context::current().scope() ==
+                            ^^baz<true>) ?
+                           42 : INT_MAX + 1;
+  return v;
+}
+
+static_assert(baz<true>() == 42);
+}  // namespace access_context_always_value_dependent
+
 int main() { }

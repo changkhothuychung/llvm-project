@@ -2793,6 +2793,10 @@ void StmtPrinter::VisitExtractLValueExpr(ExtractLValueExpr *S) {
   OS << "ExtractLValue(<Decl>)";
 }
 
+void StmtPrinter::VisitExplDependentCallExpr(ExplDependentCallExpr *S) {
+  PrintExpr(S->getSubExpr());
+}
+
 void StmtPrinter::VisitCXXIndeterminateExpansionStmt(
                                           CXXIndeterminateExpansionStmt *Node) {
   Indent() << "template for (";

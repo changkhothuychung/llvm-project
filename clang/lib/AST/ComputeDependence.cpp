@@ -1034,6 +1034,13 @@ ExprDependence clang::computeDependence(ExtractLValueExpr *E) {
   return ExprDependence::None;
 }
 
+ExprDependence clang::computeDependence(ExplDependentCallExpr *E) {
+  auto D = computeDependence(E->getSubExpr(), {});
+  if (E->getTemplateDepth() > 0)
+    D |= ExprDependence::Value;
+  return D;
+}
+
 ExprDependence clang::computeDependence(CXXExpansionInitListExpr *E) {
   auto D = ExprDependence::None;
   for (auto *SubExpr : E->getSubExprs())

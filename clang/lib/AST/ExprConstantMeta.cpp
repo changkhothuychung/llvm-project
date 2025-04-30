@@ -5640,8 +5640,10 @@ bool is_accessible(APValue &Result, ASTContext &C, MetaActions &Meta,
     return true;
   assert(Scratch.isNullReflection() || Scratch.isReflectedType());
   if (Scratch.isReflectedType()) {
-    NamingCls = cast<CXXRecordDecl>(
-            findTypeDecl(Scratch.getReflectedType()))->getDefinition();
+    NamingCls = cast<CXXRecordDecl>(findTypeDecl(Scratch.getReflectedType()));
+
+    Meta.EnsureInstantiated(NamingCls, Range);
+    NamingCls = NamingCls->getDefinition();
 
     if (!NamingCls)
       return true;  // TODO(P2996): Diagnostic for naming class.

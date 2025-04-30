@@ -966,6 +966,7 @@ public:
   consteval info scope() const { return d_scope; }
   consteval info naming_class() const { return d_naming_class; }
 
+  [[clang::instantiation_dependent]]
   static consteval access_context current() noexcept {
     return {__metafunction(detail::__metafn_access_context), {}};
   }

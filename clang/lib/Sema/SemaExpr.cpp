@@ -6504,8 +6504,20 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     Call = OpenMP().ActOnOpenMPCall(Call, Scope, LParenLoc, ArgExprs, RParenLoc,
                                     ExecConfig);
   if (LangOpts.CPlusPlus) {
-    if (const auto *CE = dyn_cast<CallExpr>(Call.get()))
+    if (const auto *CE = dyn_cast<CallExpr>(Call.get())) {
       DiagnosedUnqualifiedCallsToStdFunctions(*this, CE);
+
+      if (auto *Fn = CE->getCalleeDecl();
+          Fn && Scope && Fn->hasAttr<InstantiationDependentAttr>()) {
+        unsigned TemplateDepth = 0;
+        for (DeclContext *DC = getCurContext(); DC; DC = DC->getParent())
+          if (cast<Decl>(DC)->getDescribedTemplateParams())
+            ++TemplateDepth;
+
+        Call = BuildExplDependentCallExpr(cast<CallExpr>(Call.get()),
+                                          TemplateDepth);
+      }
+    }
 
     // If we previously found that the id-expression of this call refers to a
     // consteval function but the call is dependent, we should not treat is an

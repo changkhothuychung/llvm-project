@@ -2219,6 +2219,11 @@ static void handleCXX2CAnnotation(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(Annot);
 }
 
+static void handleInstantiationDependentAttr(Sema &S, Decl *D,
+                                             const ParsedAttr &AL) {
+  D->addAttr(::new (S.Context) InstantiationDependentAttr(S.Context, AL));
+}
+
 static bool checkAvailabilityAttr(Sema &S, SourceRange Range,
                                   IdentifierInfo *Platform,
                                   VersionTuple Introduced,
@@ -7773,6 +7778,10 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
 
   case ParsedAttr::AnnotationAttribute:
     handleCXX2CAnnotation(S, D, AL);
+    break;
+
+  case ParsedAttr::AT_InstantiationDependent:
+    handleInstantiationDependentAttr(S, D, AL);
     break;
   }
 }

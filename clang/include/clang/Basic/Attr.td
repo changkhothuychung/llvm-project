@@ -1028,6 +1028,13 @@ public:
   let Documentation = [InternalOnly];
 }
 
+def InstantiationDependent : Attr {
+  let Spellings = [CXX11<"clang", "instantiation_dependent">];
+  let TemplateDependent = 1;
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [InternalOnly];
+}
+
 def ARMInterrupt : InheritableAttr, TargetSpecificAttr<TargetARM> {
   // NOTE: If you add any additional spellings, M68kInterrupt's,
   // MSP430Interrupt's, MipsInterrupt's and AnyX86Interrupt's spellings

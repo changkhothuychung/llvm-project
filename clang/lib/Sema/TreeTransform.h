@@ -9235,6 +9235,21 @@ TreeTransform<Derived>::TransformExtractLValueExpr(ExtractLValueExpr *E) {
   return E;
 }
 
+template <typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformExplDependentCallExpr(
+                                                     ExplDependentCallExpr *E) {
+  ExprResult Call = getDerived().TransformExpr(E->getSubExpr());
+  if (Call.isInvalid())
+    return ExprError();
+
+  unsigned OldDepth = E->getTemplateDepth();
+  unsigned NewDepth = getDerived().TransformTemplateDepth(OldDepth);
+
+  return getSema().BuildExplDependentCallExpr(cast<CallExpr>(Call.get()),
+                                              NewDepth);
+}
+
 // Expansions Statements (C++2c, P1306).
 
 template <typename Derived>
@@ -14081,6 +14096,7 @@ TreeTransform<Derived>::TransformCallExpr(CallExpr *E) {
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformMemberExpr(MemberExpr *E) {
+
   ExprResult Base = getDerived().TransformExpr(E->getBase());
   if (Base.isInvalid())
     return ExprError();

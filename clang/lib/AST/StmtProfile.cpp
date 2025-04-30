@@ -2386,6 +2386,10 @@ void StmtProfiler::VisitExtractLValueExpr(const ExtractLValueExpr *E) {
   VisitDecl(E->getValueDecl());
 }
 
+void StmtProfiler::VisitExplDependentCallExpr(const ExplDependentCallExpr *E) {
+  VisitExpr(E);
+}
+
 void StmtProfiler::VisitCXXIndeterminateExpansionStmt(
                                        const CXXIndeterminateExpansionStmt *S) {
   VisitStmt(S);

@@ -3089,6 +3089,9 @@ DEF_TRAVERSE_STMT(StackLocationExpr, {})
 DEF_TRAVERSE_STMT(ExtractLValueExpr, {
   TRY_TO(TraverseDecl(S->getValueDecl()));
 })
+DEF_TRAVERSE_STMT(ExplDependentCallExpr, {
+  TRY_TO(TraverseStmt(S->getSubExpr()));
+})
 DEF_TRAVERSE_STMT(CXXParenListInitExpr, {})
 
 DEF_TRAVERSE_STMT(MaterializeTemporaryExpr, {
