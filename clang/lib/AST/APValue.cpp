@@ -553,6 +553,7 @@ static void profileReflection(llvm::FoldingSetNodeID &ID, APValue V) {
     return;
   }
   case ReflectionKind::Namespace:
+  case ReflectionKind::EntityProxy:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::Annotation:
     ID.AddPointer(V.getOpaqueReflectionData());
@@ -929,6 +930,13 @@ Decl *APValue::getReflectedNamespace() const {
           const_cast<void *>(getOpaqueReflectionData()));
 }
 
+UsingShadowDecl *APValue::getReflectedEntityProxy() const {
+  assert(getReflectionKind() == ReflectionKind::EntityProxy &&
+         "not a reflection of an entity proxy");
+  return reinterpret_cast<UsingShadowDecl *>(
+          const_cast<void *>(getOpaqueReflectionData()));
+}
+
 CXXBaseSpecifier *APValue::getReflectedBaseSpecifier() const {
   assert(getReflectionKind() == ReflectionKind::BaseSpecifier &&
          "not a reflection of a base specifier");
@@ -1294,6 +1302,9 @@ void APValue::printPretty(raw_ostream &Out, const PrintingPolicy &Policy,
     case ReflectionKind::Namespace:
       Repr = "namespace";
       break;
+    case ReflectionKind::EntityProxy:
+      Repr = "entity-proxy";
+      break;
     case ReflectionKind::BaseSpecifier:
       Repr = "base-specifier";
       break;
@@ -1636,6 +1647,7 @@ void APValue::setReflection(ReflectionKind RK, const void *Ptr) {
   case ReflectionKind::Declaration:
   case ReflectionKind::Template:
   case ReflectionKind::Namespace:
+  case ReflectionKind::EntityProxy:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:

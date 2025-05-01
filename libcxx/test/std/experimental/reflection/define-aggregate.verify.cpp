@@ -21,6 +21,9 @@
 
 #include <print>
 
+
+constexpr auto ctx = std::meta::access_context::unchecked();
+
                                  // ===========
                                  // well_formed
                                  // ===========
@@ -185,7 +188,8 @@ struct S1 {
 namespace speculative_and_trial_evaluations {
 struct S1;
 consteval auto fn() {
-  return members_of(define_aggregate(^^S1, {})).empty() ? new int : nullptr;
+  return members_of(define_aggregate(^^S1, {}), ctx).empty() ? new int :
+                                                               nullptr;
 };
 
 consteval void fn2() {

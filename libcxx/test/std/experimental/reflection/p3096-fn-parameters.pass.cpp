@@ -19,6 +19,8 @@
 #include <experimental/meta>
 
 
+constexpr auto ctx = std::meta::access_context::unchecked();
+
                               // =================
                               // with_no_arguments
                               // =================
@@ -84,7 +86,8 @@ struct Cls {
 };
 
 constexpr auto ctor =
-    (members_of(^^Cls) | std::views::filter(std::meta::is_constructor)).front();
+    (members_of(^^Cls, ctx) |
+     std::views::filter(std::meta::is_constructor)).front();
 static_assert(parameters_of(ctor).size() == 1);
 static_assert(type_of(parameters_of(ctor)[0]) == ^^int);
 static_assert(identifier_of(parameters_of(ctor)[0]) == "a");
@@ -94,7 +97,8 @@ static_assert(!is_explicit_object_parameter(parameters_of(ctor)[0]));
 static_assert(!has_ellipsis_parameter(ctor));
 
 constexpr auto dtor =
-    (members_of(^^Cls) | std::views::filter(std::meta::is_destructor)).front();
+    (members_of(^^Cls, ctx) |
+     std::views::filter(std::meta::is_destructor)).front();
 static_assert(parameters_of(dtor).size() == 0);
 static_assert(!has_ellipsis_parameter(dtor));
 

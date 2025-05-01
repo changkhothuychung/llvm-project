@@ -320,7 +320,7 @@ FEATURE(reflection, LangOpts.Reflection)
 FEATURE(parameter_reflection, LangOpts.ParameterReflection)
 FEATURE(expansion_statements, LangOpts.ExpansionStatements)
 FEATURE(annotation_attributes, LangOpts.AnnotationAttributes)
-FEATURE(access_contexts, LangOpts.AccessContexts)
+FEATURE(entity_proxy_reflection, LangOpts.EntityProxyReflection)
 FEATURE(reflection_latest, LangOpts.ReflectionLatest)
 
 // CUDA/HIP Features

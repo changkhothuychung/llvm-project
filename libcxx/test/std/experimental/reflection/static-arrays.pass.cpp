@@ -19,6 +19,8 @@
 #include <experimental/meta>
 
 
+constexpr auto ctx = std::meta::access_context::unchecked();
+
                                 // =============
                                 // static_arrays
                                 // =============
@@ -42,7 +44,8 @@ static_assert(objs.size() == 3);
 static_assert(objs[0].k == 5 && objs[1].k == 7 && objs[2].k == 9);
 
 constexpr auto infos = std::define_static_array(
-                                              nonstatic_data_members_of(^^Cls));
+                                              nonstatic_data_members_of(^^Cls,
+                                                                        ctx));
 static_assert(infos.size() == 1);
 static_assert(infos[0] == ^^Cls::k);
 }  // namespace static_arrays

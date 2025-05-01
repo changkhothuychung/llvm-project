@@ -19,6 +19,8 @@
 #include <experimental/meta>
 
 
+constexpr auto ctx = std::meta::access_context::unchecked();
+
                          // ==========================
                          // class_or_namespace_members
                          // ==========================
@@ -214,8 +216,8 @@ struct B1 {};
 struct B2 {};
 struct D : B1, virtual B2 { };
 
-static_assert(!is_virtual(bases_of(^^D)[0]));
-static_assert(is_virtual(bases_of(^^D)[1]));
+static_assert(!is_virtual(bases_of(^^D, ctx)[0]));
+static_assert(is_virtual(bases_of(^^D, ctx)[1]));
 
 static_assert(!is_virtual(^^B1));
 static_assert(!is_virtual(^^B2));
@@ -241,12 +243,14 @@ struct S {
   template <typename T> void TMemFn();
   struct Inner {};
 };
-static_assert((members_of(^^S) | std::views::filter(std::meta::is_constructor) |
-                                std::ranges::to<std::vector>()).size() == 4);
-static_assert((members_of(^^S) | std::views::filter(std::meta::is_destructor) |
-                                std::ranges::to<std::vector>()).size() == 1);
+static_assert((members_of(^^S, ctx) |
+               std::views::filter(std::meta::is_constructor) |
+               std::ranges::to<std::vector>()).size() == 4);
+static_assert((members_of(^^S, ctx) |
+               std::views::filter(std::meta::is_destructor) |
+               std::ranges::to<std::vector>()).size() == 1);
 static_assert(
-    (members_of(^^S) |
+    (members_of(^^S, ctx) |
          std::views::filter(std::meta::is_special_member_function) |
          std::ranges::to<std::vector>()).size() == 6);
 
@@ -350,32 +354,32 @@ static_assert(!is_explicit(^^S::mem));
 static_assert(!is_explicit(^^S::memfn));
 static_assert(!is_explicit(^^S::TMemFn));
 static_assert(
-    !is_explicit((members_of(^^S) |
+    !is_explicit((members_of(^^S, ctx) |
                       std::views::filter(std::meta::is_constructor) |
                       std::ranges::to<std::vector>())[0]));
 static_assert(
-    !is_explicit((members_of(^^S) |
+    !is_explicit((members_of(^^S, ctx) |
                       std::views::filter(std::meta::is_constructor_template) |
                       std::ranges::to<std::vector>())[0]));
 static_assert(
-    is_explicit((members_of(^^S) |
+    is_explicit((members_of(^^S, ctx) |
                      std::views::filter(std::meta::is_constructor) |
                      std::ranges::to<std::vector>())[1]));
 
 static_assert(!is_explicit(^^S::operator int));
 static_assert(
-    !is_explicit((members_of(^^S) |
+    !is_explicit((members_of(^^S, ctx) |
                       std::views::filter(std::meta::is_template) |
                       std::ranges::to<std::vector>())[3]));
 static_assert(is_explicit(^^S::operator bool));
 
 // P2996R3 removes support for checking 'explicit' on templates.
 static_assert(
-    !is_explicit((members_of(^^S) |
+    !is_explicit((members_of(^^S, ctx) |
                       std::views::filter(std::meta::is_constructor) |
                       std::ranges::to<std::vector>())[3]));
 static_assert(
-    !is_explicit((members_of(^^S) |
+    !is_explicit((members_of(^^S, ctx) |
                       std::views::filter(std::meta::is_template) |
                       std::ranges::to<std::vector>())[4]));
 
@@ -768,27 +772,30 @@ struct S {
 };
 
 static_assert(
-    (members_of(^^S) | std::views::filter(std::meta::is_user_provided) |
-                      std::views::transform(std::meta::is_default_constructor) |
-                      std::ranges::to<std::vector>()) ==
+    (members_of(^^S, ctx) |
+     std::views::filter(std::meta::is_user_provided) |
+     std::views::transform(std::meta::is_default_constructor) |
+     std::ranges::to<std::vector>()) ==
     std::vector {true, true,
                  false, false, false, false, false,
                  false, false, false, false, false,
                  false});
 
 static_assert(
-    (members_of(^^S) | std::views::filter(std::meta::is_user_provided) |
-                      std::views::transform(std::meta::is_copy_constructor) |
-                      std::ranges::to<std::vector>()) ==
+    (members_of(^^S, ctx) |
+     std::views::filter(std::meta::is_user_provided) |
+     std::views::transform(std::meta::is_copy_constructor) |
+     std::ranges::to<std::vector>()) ==
     std::vector {false, false,
                  true, true, true, true, true,
                  false, false, false, false, false,
                  false});
 
 static_assert(
-    (members_of(^^S) | std::views::filter(std::meta::is_user_provided) |
-                      std::views::transform(std::meta::is_move_constructor) |
-                      std::ranges::to<std::vector>()) ==
+    (members_of(^^S, ctx) |
+     std::views::filter(std::meta::is_user_provided) |
+     std::views::transform(std::meta::is_move_constructor) |
+     std::ranges::to<std::vector>()) ==
     std::vector {false, false,
                  false, false, false, false, false,
                  true, true, true, true, true,
@@ -818,27 +825,29 @@ struct S {
 };
 
 static_assert(
-    (members_of(^^S) | std::views::filter(std::meta::is_user_provided) |
-                      std::views::transform(std::meta::is_assignment) |
-                      std::ranges::to<std::vector>()) ==
+    (members_of(^^S, ctx) | std::views::filter(std::meta::is_user_provided) |
+                            std::views::transform(std::meta::is_assignment) |
+                            std::ranges::to<std::vector>()) ==
     std::vector {true, true, true, true,
                  true, true, true, true,
                  true,
                  false});
 
 static_assert(
-    (members_of(^^S) | std::views::filter(std::meta::is_user_provided) |
-                      std::views::transform(std::meta::is_copy_assignment) |
-                      std::ranges::to<std::vector>()) ==
+    (members_of(^^S, ctx) |
+     std::views::filter(std::meta::is_user_provided) |
+     std::views::transform(std::meta::is_copy_assignment) |
+     std::ranges::to<std::vector>()) ==
     std::vector {true, true, true, true,
                  false, false, false, false,
                  false,
                  false});
 
 static_assert(
-    (members_of(^^S) | std::views::filter(std::meta::is_user_provided) |
-                      std::views::transform(std::meta::is_move_assignment) |
-                      std::ranges::to<std::vector>()) ==
+    (members_of(^^S, ctx) |
+     std::views::filter(std::meta::is_user_provided) |
+     std::views::transform(std::meta::is_move_assignment) |
+     std::ranges::to<std::vector>()) ==
     std::vector {false, false, false, false,
                  true, true, true, true,
                  false,
@@ -858,7 +867,7 @@ struct S {
 };
 
 static_assert(
-    (nonstatic_data_members_of(^^S) |
+    (nonstatic_data_members_of(^^S, ctx) |
         std::views::transform(std::meta::has_default_member_initializer) |
         std::ranges::to<std::vector>()) == std::vector {false, true, true});
 
@@ -957,7 +966,7 @@ int operator""_b();
 
 
 constexpr auto conversion_template =
-    (members_of(^^T) | std::views::filter(std::meta::is_template)).front();
+    (members_of(^^T, ctx) | std::views::filter(std::meta::is_template)).front();
 
 static_assert(is_operator_function(^^S::operator+));
 static_assert(is_operator_function(^^operator&&));

@@ -23,6 +23,7 @@
 
 #include <print>
 
+constexpr auto ctx = std::meta::access_context::unchecked();
 
                           // =========================
                           // completion_with_no_fields
@@ -43,9 +44,9 @@ consteval {
 static_assert(is_complete_type(^^S));
 static_assert(is_complete_type(^^C));
 static_assert(is_complete_type(^^U));
-static_assert(nonstatic_data_members_of(^^S).size() == 0);
-static_assert(nonstatic_data_members_of(^^C).size() == 0);
-static_assert(nonstatic_data_members_of(^^U).size() == 0);
+static_assert(nonstatic_data_members_of(^^S, ctx).size() == 0);
+static_assert(nonstatic_data_members_of(^^C, ctx).size() == 0);
+static_assert(nonstatic_data_members_of(^^U, ctx).size() == 0);
 
 S s;
 C c;
@@ -69,17 +70,18 @@ consteval {
 }
 static_assert(is_complete_type(^^S));
 // unnamed bitfields are not nonstatic data members.
-static_assert(nonstatic_data_members_of(^^S).size() == 3);
+static_assert(nonstatic_data_members_of(^^S, ctx).size() == 3);
 static_assert(alignment_of(^^S::count) == 16);
-static_assert(bit_size_of(nonstatic_data_members_of(^^S)[2]) == 5);
-static_assert((members_of(^^S) | std::views::filter(std::meta::is_bit_field) |
+static_assert(bit_size_of(nonstatic_data_members_of(^^S, ctx)[2]) == 5);
+static_assert((members_of(^^S, ctx) |
+               std::views::filter(std::meta::is_bit_field) |
                std::views::transform(std::meta::bit_size_of) |
                std::ranges::to<std::vector>()) == std::vector<size_t> {0, 5});
 
 constexpr S s = {14, true, 11};
 static_assert(s.count == 14);
 static_assert(s.flag);
-static_assert(s.[:nonstatic_data_members_of(^^S)[2]:] == 11);
+static_assert(s.[:nonstatic_data_members_of(^^S, ctx)[2]:] == 11);
 
 struct Empty {};
 struct WithEmpty;
@@ -105,9 +107,9 @@ consteval {
   });
 }
 static_assert(is_complete_type(^^C));
-static_assert(nonstatic_data_members_of(^^C).size() == 2);
+static_assert(nonstatic_data_members_of(^^C, ctx).size() == 2);
 static_assert(
-        (members_of(^^C) |
+        (members_of(^^C, ctx) |
             std::views::filter(std::meta::is_nonstatic_data_member) |
             std::views::filter(std::meta::is_public) |
             std::ranges::to<std::vector>()).size() == 2);
@@ -130,9 +132,9 @@ consteval {
 }
 static_assert(is_complete_type(^^U));
 static_assert(size_of(^^U) == size_of(^^U::count));
-static_assert(nonstatic_data_members_of(^^U).size() == 2);
+static_assert(nonstatic_data_members_of(^^U, ctx).size() == 2);
 static_assert(
-        (members_of(^^U) |
+        (members_of(^^U, ctx) |
             std::views::filter(std::meta::is_nonstatic_data_member) |
             std::ranges::to<std::vector>()).size() == 2);
 
@@ -164,11 +166,11 @@ consteval {
   });
 }
 
-static_assert(nonstatic_data_members_of(^^S<0>).size() == 0);
-static_assert(nonstatic_data_members_of(^^S<1>).size() == 1);
+static_assert(nonstatic_data_members_of(^^S<0>, ctx).size() == 0);
+static_assert(nonstatic_data_members_of(^^S<1>, ctx).size() == 1);
 static_assert(type_of(^^S<1>::mem) == ^^int);
-static_assert(nonstatic_data_members_of(^^S<2>).size() == 0);
-static_assert(nonstatic_data_members_of(^^S<3>).size() == 1);
+static_assert(nonstatic_data_members_of(^^S<2>, ctx).size() == 0);
+static_assert(nonstatic_data_members_of(^^S<3>, ctx).size() == 1);
 static_assert(type_of(^^S<3>::mem) == ^^bool);
 static_assert(!is_complete_type(^^S<4>));
 }  // namespace template_specialization_completion
@@ -190,7 +192,7 @@ consteval {
                   data_member_spec(^^int, {.name="count"})>();
 }
 static_assert(is_complete_type(^^S));
-static_assert(nonstatic_data_members_of(^^S).size() == 2);
+static_assert(nonstatic_data_members_of(^^S, ctx).size() == 2);
 
 S s;
 }  // namespace completion_of_dependent_type
@@ -261,7 +263,7 @@ consteval {
 
 static_assert(type_of(^^foo::i) == ^^int);
 static_assert(type_of(^^foo::b) == ^^bool);
-static_assert(nonstatic_data_members_of(^^foo).size() == 2);
+static_assert(nonstatic_data_members_of(^^foo, ctx).size() == 2);
 }  // namespace with_non_contiguous_range
 
                         // =============================
@@ -277,9 +279,10 @@ consteval {
     data_member_spec(^^int, {.name=u8identifier_of(^^Kühl)})
   });
 }
-static_assert(u8identifier_of(nonstatic_data_members_of(^^Cls1)[0]) ==
+static_assert(u8identifier_of(nonstatic_data_members_of(^^Cls1, ctx)[0]) ==
               u8"Kühl");
-static_assert(identifier_of(nonstatic_data_members_of(^^Cls1)[0]) == "Kühl");
+static_assert(identifier_of(nonstatic_data_members_of(^^Cls1, ctx)[0]) ==
+              "Kühl");
 }  // namespace utf8_identifier_of_roundtrip
 
                          // ===========================

@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// RUN: %clang_cc1 %s -std=c++23 -freflection
+// RUN: %clang_cc1 %s -std=c++26 -freflection -fentity-proxy-reflection
 
 using info = decltype(^^int);
 
@@ -179,6 +179,33 @@ class WithPrivateBase : S {} d;
 int dK = d.[:^^S::k:];
 
 }  // namespace with_member_access
+
+                             // ===================
+                             // with_entity_proxies
+                             // ===================
+
+namespace with_entity_proxies {
+namespace NS {
+namespace Inner {
+consteval int fn() { return 42; }
+template <auto V> consteval int tfn() { return V; }
+}  // namespace Inner
+
+using Inner::fn;
+using Inner::tfn;
+}  // namespace NS
+
+// splice-expressions
+static_assert([:^^NS::fn:]() == 42);
+static_assert(template [:^^NS::tfn:]<4>() == 4);
+
+// nested proxies
+struct A { int m; };
+struct B : A { using A::m; };
+struct C : B { using B::m; };
+
+static_assert(&[:^^C::m:] == &A::m);
+}  // namespace with_entity_proxies
 
                          // ===========================
                          // with_implicit_member_access

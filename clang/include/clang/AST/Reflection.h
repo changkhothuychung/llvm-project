@@ -82,6 +82,11 @@ enum class ReflectionKind {
   /// the Decl class.
   Namespace,
 
+  /// \brief A reflection of an entity proxy.
+  ///
+  /// Corresponds to a UsingShadowDecl.
+  EntityProxy,
+
   /// \brief A reflection of a base class specifier.
   ///
   /// Corresponds to a CXXBaseSpecifier.

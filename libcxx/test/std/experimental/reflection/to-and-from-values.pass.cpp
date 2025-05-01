@@ -144,7 +144,8 @@ static_assert(CheckValueIs<42>([]() {
 static_assert(
     CheckValueIs<3>(
         static_data_members_of(substitute(^^TCls,
-                                          {std::meta::reflect_value(3)}))[0]));
+                                          {std::meta::reflect_value(3)}),
+                               std::meta::access_context::unchecked())[0]));
 }  // namespace extract_results
 
                                   // =========

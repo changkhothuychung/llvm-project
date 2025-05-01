@@ -102,8 +102,8 @@ def err_fe_invalid_code_complete_file : Error<
 def err_fe_parameter_reflection_without_reflection : Error<
     "cannot specify '-fparameter-reflection' without '-freflection'">,
     DefaultFatal;
-def err_fe_access_contexts_without_reflection : Error<
-    "cannot specify '-faccess-contexts' without '-freflection'">,
+def err_fe_entity_proxy_reflection_without_reflection : Error<
+    "cannot specify '-fentity-proxy-reflection' without '-freflection'">,
     DefaultFatal;
 def err_fe_dependency_file_requires_MT : Error<
     "-dependency-file requires at least one -MT or -MQ option">;

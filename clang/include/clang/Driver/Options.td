@@ -3531,10 +3531,10 @@ defm annotation_attributes : BoolFOption<"annotation-attributes",
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
           "Enable proposed annotation attributes as described by P3394">,
   NegFlag<SetFalse>>;
-defm access_contexts : BoolFOption<"access-contexts",
-  LangOpts<"AccessContexts">, DefaultFalse,
+defm entity_proxy_reflection : BoolFOption<"entity-proxy-reflection",
+  LangOpts<"EntityProxyReflection">, DefaultFalse,
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
-          "Enable access context model as described by P3547">,
+          "Enable proposed reflection of entity proxies as described by P3XYZ">,
   NegFlag<SetFalse>>;
 defm reflection_latest : BoolFOption<"reflection-latest",
   LangOpts<"ReflectionLatest">, DefaultFalse,

@@ -42,6 +42,7 @@ template <typename T> class BasicReaderBase;
   class NamespaceDecl;
   struct PrintingPolicy;
   class Type;
+  class UsingShadowDecl;
   class ValueDecl;
   class QualType;
 
@@ -560,6 +561,9 @@ public:
   bool isReflectedNamespace() const {
     return isReflection() && getReflectionKind() == ReflectionKind::Namespace;
   }
+  bool isReflectedEntityProxy() const {
+    return isReflection() && getReflectionKind() == ReflectionKind::EntityProxy;
+  }
   bool isReflectedBaseSpecifier() const {
     return isReflection() &&
            getReflectionKind() == ReflectionKind::BaseSpecifier;
@@ -758,6 +762,7 @@ public:
   ValueDecl *getReflectedDecl() const;
   const TemplateName getReflectedTemplate() const;
   Decl *getReflectedNamespace() const;
+  UsingShadowDecl *getReflectedEntityProxy() const;
   CXXBaseSpecifier *getReflectedBaseSpecifier() const;
   TagDataMemberSpec *getReflectedDataMemberSpec() const;
   CXX26AnnotationAttr *getReflectedAnnotation() const;

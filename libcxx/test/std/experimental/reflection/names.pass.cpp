@@ -19,6 +19,8 @@
 #include <experimental/meta>
 
 
+constexpr auto ctx = std::meta::access_context::unchecked();
+
 static_assert(u8display_string_of(^^::) == u8"(global-namespace)");
 static_assert(display_string_of(^^::) == "(global-namespace)");
 static_assert(!has_identifier(^^::));
@@ -148,7 +150,7 @@ struct Cls : Base {
   enum class EnumCls { B };
 };
 static_assert(identifier_of(^^Cls) == "Cls");
-static_assert(!has_identifier(bases_of(^^Cls)[0]));
+static_assert(!has_identifier(bases_of(^^Cls, ctx)[0]));
 static_assert(identifier_of(^^Cls::Alias) == "Alias");
 static_assert(has_identifier(^^Cls::Alias));
 static_assert(identifier_of(^^Cls::mem) == "mem");
@@ -157,18 +159,18 @@ static_assert(identifier_of(^^Cls::sfn) == "sfn");
 static_assert(identifier_of(^^Cls::Inner) == "Inner");
 
 static_assert(
-    !has_identifier((members_of(^^Cls) |
+    !has_identifier((members_of(^^Cls, ctx) |
          std::views::filter(std::meta::is_constructor)).front()));
 static_assert(
-    !has_identifier((members_of(^^Cls) |
+    !has_identifier((members_of(^^Cls, ctx) |
          std::views::filter(std::meta::is_constructor_template)).front()));
 static_assert(
-    !has_identifier((members_of(^^Cls) |
+    !has_identifier((members_of(^^Cls, ctx) |
          std::views::filter(std::meta::is_destructor)).front()));
 static_assert(!has_identifier(^^Cls::operator bool));
 static_assert(
     !has_identifier(
-        (members_of(^^Cls) |
+        (members_of(^^Cls, ctx) |
              std::views::filter(std::meta::is_template) |
              std::ranges::to<std::vector>())[5]));
 static_assert(identifier_of(^^Cls::TInner) == "TInner");
@@ -180,34 +182,34 @@ static_assert(identifier_of(^^Cls::Enum::B) == "B");
 static_assert(identifier_of(^^Cls::EnumCls) == "EnumCls");
 static_assert(identifier_of(^^Cls::EnumCls::B) == "B");
 static_assert(display_string_of(^^Cls) == "Cls");
-static_assert(display_string_of(bases_of(^^Cls)[0]) == "Base");
+static_assert(display_string_of(bases_of(^^Cls, ctx)[0]) == "Base");
 static_assert(display_string_of(^^Cls::Alias) == "Alias");
 static_assert(display_string_of(^^Cls::mem) == "mem");
 static_assert(display_string_of(^^Cls::memfn) == "memfn");
 static_assert(display_string_of(^^Cls::sfn) == "sfn");
 static_assert(display_string_of(^^Cls::Inner) == "Inner");
 static_assert(
-    (members_of(^^Cls) |
+    (members_of(^^Cls, ctx) |
          std::views::filter(std::meta::is_constructor) |
          std::views::filter(std::meta::is_user_provided) |
          std::views::transform(std::meta::display_string_of) |
          std::ranges::to<std::vector>()) ==
     std::vector<std::string_view>{"Cls"});
 static_assert(
-    (members_of(^^Cls) |
+    (members_of(^^Cls, ctx) |
          std::views::filter(std::meta::is_constructor_template) |
          std::views::transform(std::meta::display_string_of) |
          std::ranges::to<std::vector>()) ==
     std::vector<std::string_view>{"Cls"});
 static_assert(
-    (members_of(^^Cls) |
+    (members_of(^^Cls, ctx) |
          std::views::filter(std::meta::is_destructor) |
          std::views::transform(std::meta::display_string_of) |
          std::ranges::to<std::vector>()) ==
     std::vector<std::string_view>{"~Cls"});
 static_assert(display_string_of(^^Cls::operator bool) == "operator bool");
 static_assert(
-    (members_of(^^Cls) |
+    (members_of(^^Cls, ctx) |
          std::views::filter(std::meta::is_template) |
          std::views::transform(std::meta::display_string_of) |
          std::ranges::to<std::vector>())[5] ==

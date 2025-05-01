@@ -58,10 +58,10 @@ consteval std::meta::info enrich(std::meta::info r) {
   // the first constructor. The copy/move constructors are added at the }, so
   // will be the last ones in the list.
   std::array ctors = {
-      (members_of(^^Choices) |
+      (members_of(^^Choices, std::meta::access_context::current()) |
            std::views::filter(std::meta::is_constructor) |
            std::views::filter(std::meta::is_user_provided)).front()...,
-      (members_of(^^unmatched) |
+      (members_of(^^unmatched, std::meta::access_context::current()) |
            std::views::filter(std::meta::is_constructor) |
            std::views::filter(std::meta::is_user_provided)).front()
   };

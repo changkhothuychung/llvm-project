@@ -18,6 +18,9 @@
 #include <experimental/meta>
 #include <tuple>
 
+
+constexpr auto ctx = std::meta::access_context::current();
+
 struct type {};
 using alias = type;
 
@@ -558,8 +561,8 @@ static_assert(is_complete_type(^^IncompleteTClsAlias<int>));
 struct Base {};
 struct Derived : Base {};
 static_assert(!is_base(^^Base));
-static_assert(!is_type(bases_of(^^Derived)[0]));
-static_assert(is_base(bases_of(^^Derived)[0]));
+static_assert(!is_type(bases_of(^^Derived, ctx)[0]));
+static_assert(is_base(bases_of(^^Derived, ctx)[0]));
 
               // =================================================
               // test_is_structured_binding_and_related_edge_cases
@@ -630,29 +633,29 @@ struct S3 { S3(); };
 S3::S3() {}
 
 static_assert(
-    (members_of(^^S1) | std::views::filter(std::meta::is_constructor) |
-                       std::views::filter(std::meta::is_user_provided) |
-                       std::ranges::to<std::vector>()).size() == 0);
+    (members_of(^^S1, ctx) | std::views::filter(std::meta::is_constructor) |
+                             std::views::filter(std::meta::is_user_provided) |
+                             std::ranges::to<std::vector>()).size() == 0);
 static_assert(
-    (members_of(^^S1) | std::views::filter(std::meta::is_constructor) |
-                       std::views::filter(std::meta::is_user_declared) |
-                       std::ranges::to<std::vector>()).size() == 0);
+    (members_of(^^S1, ctx) | std::views::filter(std::meta::is_constructor) |
+                             std::views::filter(std::meta::is_user_declared) |
+                             std::ranges::to<std::vector>()).size() == 0);
 static_assert(
-    (members_of(^^S2) | std::views::filter(std::meta::is_constructor) |
-                       std::views::filter(std::meta::is_user_provided) |
-                       std::ranges::to<std::vector>()).size() == 0);
+    (members_of(^^S2, ctx) | std::views::filter(std::meta::is_constructor) |
+                             std::views::filter(std::meta::is_user_provided) |
+                             std::ranges::to<std::vector>()).size() == 0);
 static_assert(
-    (members_of(^^S2) | std::views::filter(std::meta::is_constructor) |
-                       std::views::filter(std::meta::is_user_declared) |
-                       std::ranges::to<std::vector>()).size() == 2);
+    (members_of(^^S2, ctx) | std::views::filter(std::meta::is_constructor) |
+                             std::views::filter(std::meta::is_user_declared) |
+                             std::ranges::to<std::vector>()).size() == 2);
 static_assert(
-    (members_of(^^S3) | std::views::filter(std::meta::is_constructor) |
-                       std::views::filter(std::meta::is_user_provided) |
-                       std::ranges::to<std::vector>()).size() == 1);
+    (members_of(^^S3, ctx) | std::views::filter(std::meta::is_constructor) |
+                             std::views::filter(std::meta::is_user_provided) |
+                             std::ranges::to<std::vector>()).size() == 1);
 static_assert(
-    (members_of(^^S3) | std::views::filter(std::meta::is_constructor) |
-                       std::views::filter(std::meta::is_user_declared) |
-                       std::ranges::to<std::vector>()).size() == 1);
+    (members_of(^^S3, ctx) | std::views::filter(std::meta::is_constructor) |
+                             std::views::filter(std::meta::is_user_declared) |
+                             std::ranges::to<std::vector>()).size() == 1);
 }  // namespace test_is_user_provided_and_declared
 
 

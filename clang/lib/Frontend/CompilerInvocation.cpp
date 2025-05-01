@@ -638,8 +638,8 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
   if (!LangOpts.Reflection) {
     if (LangOpts.ParameterReflection) {
       Diags.Report(diag::err_fe_parameter_reflection_without_reflection);
-    } else if (LangOpts.AccessContexts) {
-      Diags.Report(diag::err_fe_access_contexts_without_reflection);
+    } else if (LangOpts.EntityProxyReflection) {
+      Diags.Report(diag::err_fe_entity_proxy_reflection_without_reflection);
     }
   }
 

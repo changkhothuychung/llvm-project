@@ -7182,8 +7182,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-freflection");
     CmdArgs.push_back("-fparameter-reflection");
     CmdArgs.push_back("-fannotation-attributes");
-    if (!Args.hasArg(options::OPT_fno_access_contexts))
-      CmdArgs.push_back("-faccess-contexts");
+    CmdArgs.push_back("-fentity-proxy-reflection");
     CmdArgs.push_back("-fexpansion-statements");
   }
 
@@ -7524,9 +7523,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // -fannotation-attributes is likewise off by default.
   Args.addOptInFlag(CmdArgs, options::OPT_fannotation_attributes,
                     options::OPT_fno_annotation_attributes);
-  // -faccess-contexts is likewise off by default.
-  Args.addOptInFlag(CmdArgs, options::OPT_faccess_contexts,
-                    options::OPT_fno_access_contexts);
+  Args.addOptInFlag(CmdArgs, options::OPT_fentity_proxy_reflection,
+                    options::OPT_fno_entity_proxy_reflection);
   // -freflection-latest is likewise off by default.
   Args.addOptInFlag(CmdArgs, options::OPT_freflection_latest,
                     options::OPT_fno_reflection_latest);

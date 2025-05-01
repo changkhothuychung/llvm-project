@@ -24,6 +24,9 @@
 #include <utility>
 #include <vector>
 
+
+constexpr auto ctx = std::meta::access_context::unchecked();
+
 template <int K>
 constexpr std::meta::info RVal = std::meta::reflect_value(K);
 
@@ -369,7 +372,8 @@ namespace with_reflection_of_declaration {
 template <int V> constexpr int Plus1 = V + 1;
 struct S { static constexpr int val = 4; };
 
-static_assert([:substitute(^^Plus1, {static_data_members_of(^^S)[0]}):] == 5);
+static_assert([:substitute(^^Plus1,
+                           {static_data_members_of(^^S, ctx)[0]}):] == 5);
 }  // namespace with_reflection_of_declaration
 
                          // ==========================
@@ -455,7 +459,7 @@ namespace non_type_ref_regression_test {
 class Cls { static constexpr int priv = 11; };
 template <auto &V> static constexpr auto &Value = V;
 
-static_assert([:substitute(^^Value, {members_of(^^Cls)[0]}):] == 11);
+static_assert([:substitute(^^Value, {members_of(^^Cls, ctx)[0]}):] == 11);
 }  // namespace non_type_ref_regression_test
 
 int main() { }

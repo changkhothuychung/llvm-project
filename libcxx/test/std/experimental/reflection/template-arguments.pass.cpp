@@ -18,6 +18,8 @@
 #include <experimental/meta>
 
 
+constexpr auto ctx = std::meta::access_context::unchecked();
+
 template <typename P1, auto P2, template <typename...> class P3>
 struct TCls {
   template <typename> struct TInnerCls {};
@@ -327,9 +329,9 @@ template <auto R> void fn() { }
 
 void fn() {
     class S { S(); ~S(); };
-    fn<(members_of(^^S) |
+    fn<(members_of(^^S, ctx) |
             std::views::filter(std::meta::is_constructor)).front()>();
-    fn<(members_of(^^S) |
+    fn<(members_of(^^S, ctx) |
             std::views::filter(std::meta::is_destructor)).front()>();
 }
 }  // namespace bb_clang_p2996_issue_54_regression_test

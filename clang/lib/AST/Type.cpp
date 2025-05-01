@@ -5328,10 +5328,10 @@ QualType::DestructionKind QualType::isDestructedTypeImpl(QualType type) {
 bool MemberPointerType::isSugared() const {
   CXXRecordDecl *D1 = getMostRecentCXXRecordDecl(),
                 *D2 = getQualifier()->getAsRecordDecl();
-  if (getQualifier()->getKind() == NestedNameSpecifier::Splice)
+  if (getQualifier()->getKind() == NestedNameSpecifier::Splice ||
+      getQualifier()->getKind() == NestedNameSpecifier::SpliceWithTemplate)
     return true;
 
-  assert(!D1 == !D2);
   return D1 != D2 && D1->getCanonicalDecl() != D2->getCanonicalDecl();
 }
 

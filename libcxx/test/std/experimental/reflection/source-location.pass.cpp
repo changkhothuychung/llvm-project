@@ -39,8 +39,9 @@ void foo(int param) {
     static_assert(source_location_of(^^S).function_name() == FnName);
 
     struct C : S {};
-    static_assert(source_location_of(bases_of(^^C)[0]).line() ==
-                  std::source_location::current().line() - 2);
+    constexpr auto ctx = std::meta::access_context::current();
+    static_assert(source_location_of(bases_of(^^C, ctx)[0]).line() ==
+                  std::source_location::current().line() - 3);
 
     // Check that it works with aliases.
     using intAlias = int;

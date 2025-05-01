@@ -18,6 +18,8 @@
 #include <experimental/meta>
 
 
+constexpr auto ctx = std::meta::access_context::current();
+
                                 // ============
                                 // find_type_of
                                 // ============
@@ -104,7 +106,7 @@ static_assert(parent_of(^^Cls::mem) == ^^Cls);
 static_assert(parent_of(^^Cls::memfn) == ^^Cls);
 static_assert(parent_of(^^Cls::sfn) == ^^Cls);
 static_assert(parent_of(^^Cls::Alias) == ^^Cls);
-static_assert(parent_of(bases_of(^^Cls)[0]) == ^^Cls);
+static_assert(parent_of(bases_of(^^Cls, ctx)[0]) == ^^Cls);
 
 static_assert(parent_of(^^Cls::TSMem) == ^^Cls);
 static_assert(parent_of(^^Cls::TSMem<int>) == ^^Cls);

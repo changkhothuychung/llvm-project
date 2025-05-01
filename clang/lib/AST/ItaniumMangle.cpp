@@ -4959,6 +4959,12 @@ void CXXNameMangler::mangleReflection(const APValue &R) {
     Out << '$';
     break;
   }
+  case ReflectionKind::EntityProxy: {
+    Out << 'a';
+    mangleNameWithAbiTags(R.getReflectedEntityProxy(), nullptr);
+    Out << '$';
+    break;
+  }
   case ReflectionKind::BaseSpecifier: {
     Out << 'b';
     Context.mangleCanonicalTypeName(R.getReflectedBaseSpecifier()->getType(),

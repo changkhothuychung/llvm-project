@@ -9123,6 +9123,15 @@ TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
                                           E->getOperandRange().getBegin(),
                                           Template));
   }
+  case ReflectionKind::EntityProxy: {
+    Decl *Transformed =
+        getDerived().TransformDecl(E->getExprLoc(),
+                                   RV.getReflectedEntityProxy());
+    return RecordConstevalOnly.RecordAndReturn(
+            getSema().BuildCXXReflectExpr(E->getOperatorLoc(),
+                                          E->getOperandRange().getBegin(),
+                                          cast<UsingShadowDecl>(Transformed)));
+  }
   case ReflectionKind::Namespace: {
     Decl *Transformed =
           getDerived().TransformDecl(E->getExprLoc(),
