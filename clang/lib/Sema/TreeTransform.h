@@ -9089,7 +9089,7 @@ TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
     return RecordConstevalOnly.RecordAndReturn(
             getSema().BuildCXXReflectExpr(E->getOperatorLoc(),
                                           E->getOperandRange().getBegin(),
-                                          cast<ValueDecl>(Transformed)));
+                                          Transformed));
   }
   case ReflectionKind::Template: {
     TemplateName TName = RV.getReflectedTemplate();

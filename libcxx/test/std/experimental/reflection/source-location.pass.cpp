@@ -27,12 +27,12 @@ static_assert(std::string_view(reflected_loc.file_name()) == loc.file_name());
 static_assert(reflected_loc.line() == loc.line());
 static_assert(reflected_loc.column() == 32);
 
-void foo(int param) {
+void foo([[maybe_unused]] int param) {
     constexpr std::string_view FnName = __PRETTY_FUNCTION__;
 
     static_assert(source_location_of(^^param).function_name() == FnName);
 
-    int var;
+    [[maybe_unused]] int var;
     static_assert(source_location_of(^^var).function_name() == FnName);
 
     struct S { std::source_location mem; };

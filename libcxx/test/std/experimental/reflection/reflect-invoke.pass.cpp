@@ -64,7 +64,7 @@ static_assert([:reflect_invoke(^^Cls::fn,
                                {std::meta::reflect_value(4)}):] == 16);
 
 // With reflection of constexpr variable as an argument.
-static constexpr int five = 5;
+[[maybe_unused]] static constexpr int five = 5;
 
 static_assert([:reflect_invoke(^^fn1, {^^five}):] == 47);
 
@@ -287,7 +287,7 @@ static_assert(std::meta::reflect_value(42) ==
                              {^^num}));
 
 // member function called with object reference
-constexpr auto num_ref = &num;
+[[maybe_unused]] constexpr auto num_ref = &num;
 static_assert(std::meta::reflect_value(42) ==
               reflect_invoke(^^Number::get_value,
                              {^^num_ref}));
@@ -318,7 +318,7 @@ struct FloatNumber : public Number, IsReal{
   consteval FloatNumber(int v) : Number(v), IsReal(true) {}
 };
 
-constexpr FloatNumber childNumber{42};
+[[maybe_unused]] constexpr FloatNumber childNumber{42};
 static_assert(std::meta::reflect_value(42) ==
               reflect_invoke(^^Number::get_value,
                              {^^childNumber}));
@@ -374,7 +374,7 @@ static_assert(reflect_invoke(^^fn_pointer, {std::meta::reflect_value(2)})
               == std::meta::reflect_value(4));
 
 // pointer to non-static method
-constexpr Cls data(42);
+[[maybe_unused]] constexpr Cls data(42);
 constexpr int (Cls::*get_pointer)() const = &Cls::get;
 static_assert(reflect_invoke(^^get_pointer, {^^data}) == std::meta::reflect_value(42));
 

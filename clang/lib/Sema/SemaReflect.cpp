@@ -935,17 +935,9 @@ ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OpLoc,
       VD && CheckReflectVar(*this, VD, Id.getSourceRange()))
     return ExprError();
 
-  // TODO(P2996): Try addressing this.
-  //
-  // Why do we have to build an expression here? Just stash in an APValue?
   if (isa<VarDecl, BindingDecl, FunctionDecl, FieldDecl, EnumConstantDecl,
-          NonTypeTemplateParmDecl>(ND)) {
-    ExprResult Result = BuildDeclarationNameExpr(SS, Found, false, false);
-    if (Result.isInvalid())
-      return ExprError();
-
-    return BuildCXXReflectExpr(OpLoc, Result.get());
-  }
+          NonTypeTemplateParmDecl, UnresolvedUsingValueDecl>(ND))
+    return BuildCXXReflectExpr(OpLoc, NameInfo.getBeginLoc(), ND);
 
   if (auto *TD = dyn_cast<TemplateDecl>(ND))
     return BuildCXXReflectExpr(OpLoc, NameInfo.getBeginLoc(),
@@ -1203,6 +1195,9 @@ Sema::ActOnSpliceTemplateArgument(SpliceSpecifier *Splice) {
   case ReflectionKind::Annotation:
     Diag(Splice->getBeginLoc(), diag::err_unsupported_splice_kind)
       << "annotations" << 0 << 0;
+    break;
+  case ReflectionKind::EntityProxy:
+    llvm_unreachable("proxies should already have been unwrapped");
   }
   return ParsedTemplateArgument();
 }
@@ -1228,6 +1223,13 @@ Decl *Sema::ActOnConstevalBlockDeclaration(SourceLocation ConstevalLoc,
 
 ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
                                      SourceLocation OperandLoc, QualType T) {
+  if (auto *UT = dyn_cast<UsingType>(T)) {
+    if (Context.getLangOpts().EntityProxyReflection)
+      return BuildCXXReflectExpr(OperatorLoc, OperandLoc, UT->getFoundDecl());
+    else
+      T = UT->getUnderlyingType();
+  }
+
   APValue RV(ReflectionKind::Type, T.getAsOpaquePtr());
   return CXXReflectExpr::Create(Context, OperatorLoc, OperandLoc, RV);
 }
@@ -1235,6 +1237,16 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
 // TODO(P2996): Capture whole SourceRange of declaration naming.
 ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
                                      SourceLocation OperandLoc, Decl *D) {
+  // This case can happen after transforming a dependent reflection naming a
+  // using-declarator.
+  if (auto *UD = dyn_cast<UsingDecl>(D)) {
+    if (UD->shadow_size() > 1) {
+      Diag(OperandLoc, diag::err_reflect_overload_set);
+      return ExprError();
+    }
+    D = *UD->shadow_begin();
+  }
+
   D = D->getCanonicalDecl();
 
   ReflectionKind RK = ReflectionKind::Declaration;
@@ -1244,6 +1256,8 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
     RK = ReflectionKind::EntityProxy;
 
   APValue RV(RK, D);
+  if (!getLangOpts().EntityProxyReflection)
+    RV = MaybeUnproxy(Context, RV);
   return CXXReflectExpr::Create(Context, OperatorLoc,
                                 SourceRange(OperandLoc, OperandLoc), RV);
 }
@@ -1274,8 +1288,13 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc, Expr *E) {
   }
 
   // Check if this is a reference to a declared entity.
-  if (auto *DRE = dyn_cast<DeclRefExpr>(E))
-    return BuildCXXReflectExpr(OperatorLoc, DRE->getExprLoc(), DRE->getDecl());
+  if (auto *DRE = dyn_cast<DeclRefExpr>(E)) {
+    Decl *D = DRE->getDecl();
+    if (auto *F = DRE->getFoundDecl(); isa<UsingShadowDecl>(F))
+      D = F;
+
+    return BuildCXXReflectExpr(OperatorLoc, DRE->getExprLoc(), D);
+  }
 
   // Special case for '^[:splice:]'.
   if (auto *SE = dyn_cast<CXXSpliceExpr>(E))
@@ -1766,6 +1785,8 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation TemplateKWLoc,
            diag::err_unexpected_reflection_kind_in_splice)
           << 1 << Splice->getSourceRange();
       return ExprError();
+    case ReflectionKind::EntityProxy:
+      llvm_unreachable("proxies should already have been unwrapped");
     }
     return Result;
   }
@@ -1931,6 +1952,8 @@ DeclContext *Sema::TryFindDeclContextOf(SpliceSpecifier *Splice) {
     Diag(Splice->getBeginLoc(), diag::err_expected_class_or_namespace)
         << "spliced entity" << getLangOpts().CPlusPlus;
     return nullptr;
+  case ReflectionKind::EntityProxy:
+    llvm_unreachable("proxies should already have been unwrapped");
   }
   llvm_unreachable("unknown reflection kind");
 }

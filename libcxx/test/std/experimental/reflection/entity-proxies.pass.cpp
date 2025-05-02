@@ -85,4 +85,52 @@ static_assert(is_access_specified(^^G::n));
 
 static_assert(dealias(^^H::n) == ^^F::n);
 
+                              // =================
+                              // dependent_proxies
+                              // =================
+
+namespace dependent_proxies {
+template <typename T>
+struct S : T {
+  using T::fn;
+  using typename T::Inner;
+
+  static constexpr auto r = ^^S::fn;
+  static constexpr auto s = ^^fn;
+  static constexpr auto t = ^^typename S::Inner;
+  static constexpr auto u = ^^Inner;
+};
+
+struct A { void fn(); struct Inner {}; };
+static_assert(is_entity_proxy(S<A>::r));
+static_assert(is_entity_proxy(S<A>::s));
+static_assert(parent_of(S<A>::r) == ^^S<A>);
+static_assert(S<A>::r == S<A>::s);
+static_assert(dealias(S<A>::r) == ^^A::fn);
+static_assert(&[:S<A>::r:] == &A::fn);
+
+static_assert(is_entity_proxy(S<A>::t));
+static_assert(is_entity_proxy(S<A>::u));
+static_assert(parent_of(S<A>::t) == ^^S<A>);
+static_assert(S<A>::t == S<A>::u);
+static_assert(dealias(S<A>::t) == ^^A::Inner);
+
+                                 // ===========
+                                 // using_enums
+                                 // ===========
+
+namespace using_enums {
+enum class Color { Red, Green, Blue };
+struct S { using enum Color; };
+
+static_assert(^^S::Red != ^^S::Green);
+static_assert(^^S::Red != ^^Color::Red);
+static_assert(dealias(^^S::Red) == ^^Color::Red);
+static_assert(is_entity_proxy(^^S::Red));
+static_assert([:^^S::Red:] == Color::Red);
+
+}  // namespace using_enums
+
+}  // namespace dependent_proxies
+
 int main() { }

@@ -136,7 +136,7 @@ static_assert(CheckValueIs<&fn>(^^fn));
 static_assert(CheckValueIs<&Cls::k>(^^Cls::k));
 static_assert(CheckValueIs<&Cls::fn>(^^Cls::fn));
 static_assert(CheckValueIs<42>([]() {
-  constexpr int x = 42;
+  [[maybe_unused]] constexpr int x = 42;
   return ^^x;
 }()));
 
@@ -186,7 +186,7 @@ namespace extract_ref_semantics {
   // within an immediate function context. It isn't legal as spec'd by P2996R3,
   // but we may want to make it work. Not going to sink more time into making
   // the commented line below work, until we have a decision.
-  consteval int myfn(int arg) {
+  consteval int myfn([[maybe_unused]] int arg) {
     int val = 3;
     int &ref = extract<int &>(^^val);
 
@@ -219,7 +219,7 @@ static_assert(type_of(^^a1) == ^^const int);
 static_assert(type_of(value_of(^^a1)) == ^^int);
 
 using Alias2 = S;
-constexpr Alias2 a2 {};
+[[maybe_unused]] constexpr Alias2 a2 {};
 static_assert(type_of(^^a2) == ^^const S);
 static_assert(type_of(value_of(^^a2)) == ^^const S);
 
@@ -232,7 +232,7 @@ static_assert(type_of(value_of(std::meta::reflect_object(p.first))) ==
 
 constexpr int g = 3;
 consteval std::meta::info fn() {
-    const int &r = g;
+    [[maybe_unused]] const int &r = g;
     static_assert([:value_of(^^r):] == 3);
     return value_of(^^r);
 }
@@ -284,10 +284,10 @@ static_assert(value_of(^^constGlobal) == value_of(rref));
 static_assert(value_of(^^constGlobal) == std::meta::reflect_value(11));
 
 enum Enum { A };
-static constexpr Enum e = A;
+[[maybe_unused]] static constexpr Enum e = A;
 
 enum EnumCls { CA };
-static constexpr EnumCls ce = CA;
+[[maybe_unused]] static constexpr EnumCls ce = CA;
 
 static_assert(value_of(^^A) != value_of(^^CA));
 

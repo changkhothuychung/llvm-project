@@ -426,11 +426,13 @@ struct S {
 };
 
 // non generic lambdas
-constexpr auto noexcept_lambda = []() noexcept {};
-constexpr auto not_noexcept_lambda = []{};
+[[maybe_unused]] constexpr auto noexcept_lambda = []() noexcept {};
+[[maybe_unused]] constexpr auto not_noexcept_lambda = []{};
 
 // generic lambdas
+[[maybe_unused]]
 constexpr auto noexcept_generic_lambda = []<typename T>() noexcept {};
+[[maybe_unused]]
 constexpr auto not_noexcept_generic_lambda = []<typename T>() {};
 
 // functions
@@ -890,7 +892,7 @@ struct S {
 
 int v1;
 
-const int v2 = 0;
+[[maybe_unused]] const int v2 = 0;
 const int arr1[] = {1, 2};
 
 volatile int v3;
