@@ -329,6 +329,7 @@ struct B1 {};
 struct B2 {};
 struct B3 {};
 struct D1 : public B1, virtual protected B2, private B3 {};
+using Alias = D1;
 static_assert(bases_of(^^B1, access_context::unchecked()).size() == 0);
 static_assert(type_of(bases_of(^^D1, access_context::unchecked())[0]) == ^^B1);
 static_assert(type_of(bases_of(^^D1, access_context::unchecked())[1]) == ^^B2);
@@ -345,6 +346,9 @@ static_assert(!is_public(bases_of(^^D1, access_context::unchecked())[2]));
 static_assert(!is_protected(bases_of(^^D1, access_context::unchecked())[2]));
 static_assert(is_private(bases_of(^^D1, access_context::unchecked())[2]));
 static_assert(!is_virtual(bases_of(^^D1, access_context::unchecked())[2]));
+
+static_assert(type_of(bases_of(^^Alias,
+              access_context::unchecked())[0]) == ^^B1);
 
 template <typename... Bases> struct D2 : Bases... {};
 static_assert(type_of(bases_of(^^D2<B1, B3>, access_context::unchecked())[0]) ==

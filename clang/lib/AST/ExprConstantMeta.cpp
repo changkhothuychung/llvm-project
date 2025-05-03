@@ -1767,7 +1767,11 @@ bool get_ith_base_of(APValue &Result, ASTContext &C, MetaActions &Meta,
 
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Type: {
-    Decl *typeDecl = findTypeDecl(RV.getReflectedType());
+    QualType QT = RV.getReflectedType();
+    QT = desugarType(QT, /*UnwrapAliases=*/true, /*DropCV=*/false,
+                     /*DropRefs=*/false);
+
+    Decl *typeDecl = findTypeDecl(QT);
 
     if (auto cxxRecordDecl = dyn_cast_or_null<CXXRecordDecl>(typeDecl)) {
       Meta.EnsureInstantiated(typeDecl, Range);
