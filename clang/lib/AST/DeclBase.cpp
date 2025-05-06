@@ -1434,7 +1434,18 @@ bool DeclContext::Encloses(const DeclContext *DC) const {
     return getPrimaryContext()->Encloses(DC);
 
   for (; DC; DC = DC->getParent())
-    if (!isa<LinkageSpecDecl>(DC) && !isa<ExportDecl>(DC) &&
+    if (!isa<LinkageSpecDecl, ExportDecl>(DC) &&
+        DC->getPrimaryContext() == this)
+      return true;
+  return false;
+}
+
+bool DeclContext::LexicallyEncloses(const DeclContext *DC) const {
+  if (getPrimaryContext() != this)
+    return getPrimaryContext()->LexicallyEncloses(DC);
+
+  for (; DC; DC = DC->getLexicalParent())
+    if (!isa<LinkageSpecDecl, ExportDecl>(DC) &&
         DC->getPrimaryContext() == this)
       return true;
   return false;
@@ -1994,7 +2005,7 @@ void DeclContext::localUncachedLookup(DeclarationName Name,
   // the results.
   if (!hasExternalVisibleStorage() && !hasExternalLexicalStorage() && Name) {
     lookup_result LookupResults = lookup(Name);
-    Results.insert(Results.end(), LookupResults.begin(), LookupResults.end());
+    llvm::append_range(Results, LookupResults);
     if (!Results.empty())
       return;
   }

@@ -58,7 +58,7 @@ Expr *CreateRefToDecl(Sema &S, ValueDecl *D, SourceLocation ExprLoc) {
   if (const auto *RDC = dyn_cast<RecordDecl>(D->getDeclContext())) {
     QualType QT(RDC->getTypeForDecl(), 0);
     TypeSourceInfo *TSI = S.Context.CreateTypeSourceInfo(QT, 0);
-    SS.Extend(S.Context, SourceLocation(), TSI->getTypeLoc(), ExprLoc);
+    SS.Extend(S.Context, TSI->getTypeLoc(), ExprLoc);
   }
 
   ExprValueKind ValueKind = VK_LValue;
@@ -593,8 +593,8 @@ public:
                 DefinitionLoc, SS, IncompleteDecl->getIdentifier(),
                 IncompleteDecl->getBeginLoc(), ParsedAttributesView::none(),
                 AS_none, SourceLocation{}, MTP, OwnedDecl, IsDependent,
-                SourceLocation{}, false, TR, false, false, Sema::OOK_Outside,
-                nullptr);
+                SourceLocation{}, false, TR, false, false,
+                OffsetOfKind::Outside, nullptr);
 
         // The new tag -should- declare the same entity as the original tag.
         assert((NewDeclResult.isInvalid() ||
@@ -839,31 +839,6 @@ ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OpLoc,
   if (Id.getKind() == UnqualifiedIdKind::IK_TemplateId &&
       Id.TemplateId->Template.get().getKind() == TemplateName::Template) {
     Found.addDecl(Id.TemplateId->Template.get().getAsTemplateDecl());
-  } else if (Id.getKind() == UnqualifiedIdKind::IK_TemplateId &&
-             Id.TemplateId->Template.get().getKind() ==
-                    TemplateName::DependentTemplate &&
-             Id.TemplateId->Template.get().getAsDependentTemplateName()
-                                          ->isSpliceSpecifier()) {
-    auto *Splice = const_cast<SpliceSpecifier *>(
-        Id.TemplateId->Template.get().getAsDependentTemplateName()
-                                     ->getSpliceSpecifier());
-
-    ExprResult Result;
-    if (TArgs) {
-      const ASTTemplateArgumentListInfo *ASTTArgs =
-            ASTTemplateArgumentListInfo::Create(Context, *TArgs);
-      SpliceResult SR = BuildSpliceSpecifier(Splice->getLSpliceLoc(),
-                                             Splice->getOperand(),
-                                             Splice->getRSpliceLoc(),
-                                             ASTTArgs);
-      assert(!SR.isInvalid());
-      Result = BuildReflectionSpliceExpr(TemplateKWLoc, SR.get(), false);
-    } else {
-      Result = BuildReflectionSpliceExpr(TemplateKWLoc, Splice, false);
-    }
-    assert(!Result.isInvalid());  // Should never fail for dependent operands.
-
-    return BuildCXXReflectExpr(OpLoc, Result.get());
   } else if (TemplateKWLoc.isValid() && !TArgs) {
     TemplateTy Template;
     TemplateNameKind TNK = ActOnTemplateName(getCurScope(), SS, TemplateKWLoc,
@@ -1714,8 +1689,7 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation TemplateKWLoc,
       if (auto *RD = dyn_cast<CXXRecordDecl>(TDecl->getDeclContext())) {
         TypeSourceInfo *TSI = Context.getTrivialTypeSourceInfo(
                 QualType(RD->getTypeForDecl(), 0), Splice->getBeginLoc());
-        ScopeSpec.Extend(Context, SourceLocation(), TSI->getTypeLoc(),
-                         Splice->getBeginLoc());
+        ScopeSpec.Extend(Context, TSI->getTypeLoc(), Splice->getBeginLoc());
       }
 
       // TODO(P2996): Would be nice not to have to copy these here.

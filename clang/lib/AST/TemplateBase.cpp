@@ -39,7 +39,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <optional>
 
 using namespace clang;
 
@@ -200,20 +199,17 @@ void TemplateArgument::initFromIntegral(const ASTContext &Ctx,
 TemplateArgument::TemplateArgument(SpliceSpecifier *SS, bool IsDefaulted) {
   SpliceArg.Kind = Splice;
   SpliceArg.IsDefaulted = IsDefaulted;
-  SpliceArg.NumExpansions = 0;
+  SpliceArg.NumExpansions = std::nullopt;
   SpliceArg.SS = SS;
 }
 
 TemplateArgument::TemplateArgument(SpliceSpecifier *SS,
-                                   std::optional<unsigned> NumExpansions,
+                                   UnsignedOrNone NumExpansions,
                                    bool IsDefaulted) {
   SpliceArg.Kind = SpliceExpansion;
   SpliceArg.IsDefaulted = IsDefaulted;
   SpliceArg.SS = SS;
-  if (NumExpansions)
-    SpliceArg.NumExpansions = *NumExpansions + 1;
-  else
-    SpliceArg.NumExpansions = 0;
+  SpliceArg.NumExpansions = NumExpansions;
 }
 
 void TemplateArgument::initFromStructural(const ASTContext &Ctx, QualType Type,
@@ -385,20 +381,14 @@ bool TemplateArgument::containsUnexpandedParameterPack() const {
   return getDependence() & TemplateArgumentDependence::UnexpandedPack;
 }
 
-std::optional<unsigned> TemplateArgument::getNumTemplateExpansions() const {
+UnsignedOrNone TemplateArgument::getNumTemplateExpansions() const {
   assert(getKind() == TemplateExpansion);
-  if (TemplateArg.NumExpansions)
-    return TemplateArg.NumExpansions - 1;
-
-  return std::nullopt;
+  return TemplateArg.NumExpansions;
 }
 
-std::optional<unsigned> TemplateArgument::getNumSpliceExpansions() const {
+UnsignedOrNone TemplateArgument::getNumSpliceExpansions() const {
   assert(getKind() == SpliceExpansion);
-  if (SpliceArg.NumExpansions)
-    return SpliceArg.NumExpansions - 1;
-
-  return std::nullopt;
+  return SpliceArg.NumExpansions;
 }
 
 QualType TemplateArgument::getNonTypeTemplateArgumentType() const {
@@ -452,7 +442,7 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
     break;
 
   case TemplateExpansion:
-    ID.AddInteger(TemplateArg.NumExpansions);
+    ID.AddInteger(TemplateArg.NumExpansions.toInternalRepresentation());
     [[fallthrough]];
   case Template:
     ID.AddPointer(TemplateArg.Name);
@@ -469,16 +459,23 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
     break;
 
   case SpliceExpansion:
-    ID.AddInteger(SpliceArg.NumExpansions);
+    ID.AddInteger(SpliceArg.NumExpansions.toInternalRepresentation());
     [[fallthrough]];
   case Splice:
     // TODO(P2996): Revisit this.
     getAsSpliceSpecifier()->getOperand()->Profile(ID, Context, true);
     break;
 
-  case Expression:
-    getAsExpr()->Profile(ID, Context, true);
+  case Expression: {
+    const Expr *E = getAsExpr();
+    bool IsCanonical = isCanonicalExpr();
+    ID.AddBoolean(IsCanonical);
+    if (IsCanonical)
+      E->Profile(ID, Context, true);
+    else
+      ID.AddPointer(E);
     break;
+  }
 
   case Pack:
     ID.AddInteger(Args.NumArgs);
@@ -493,9 +490,11 @@ bool TemplateArgument::structurallyEquals(const TemplateArgument &Other) const {
   switch (getKind()) {
   case Null:
   case Type:
-  case Expression:
   case NullPtr:
     return TypeOrValue.V == Other.TypeOrValue.V;
+  case Expression:
+    return TypeOrValue.V == Other.TypeOrValue.V &&
+           TypeOrValue.IsCanonicalExpr == Other.TypeOrValue.IsCanonicalExpr;
 
   case Template:
   case TemplateExpansion:
@@ -544,7 +543,8 @@ TemplateArgument TemplateArgument::getPackExpansionPattern() const {
     return getAsType()->castAs<PackExpansionType>()->getPattern();
 
   case Expression:
-    return cast<PackExpansionExpr>(getAsExpr())->getPattern();
+    return TemplateArgument(cast<PackExpansionExpr>(getAsExpr())->getPattern(),
+                            isCanonicalExpr());
 
   case TemplateExpansion:
     return TemplateArgument(getAsTemplateOrTemplatePattern());
@@ -626,9 +626,12 @@ void TemplateArgument::print(const PrintingPolicy &Policy, raw_ostream &Out,
     Out << ":]";
     break;
 
-  case Expression:
-    getAsExpr()->printPretty(Out, nullptr, Policy);
+  case Expression: {
+    PrintingPolicy ExprPolicy = Policy;
+    ExprPolicy.PrintAsCanonical = isCanonicalExpr();
+    getAsExpr()->printPretty(Out, nullptr, ExprPolicy);
     break;
+  }
 
   case Pack:
     Out << "<";
@@ -747,18 +750,9 @@ static const T &DiagTemplateArg(const T &DB, const TemplateArgument &Arg) {
   case TemplateArgument::TemplateExpansion:
     return DB << Arg.getAsTemplateOrTemplatePattern() << "...";
 
-  case TemplateArgument::Expression: {
-    // This shouldn't actually ever happen, so it's okay that we're
-    // regurgitating an expression here.
-    // FIXME: We're guessing at LangOptions!
-    SmallString<32> Str;
-    llvm::raw_svector_ostream OS(Str);
-    LangOptions LangOpts;
-    LangOpts.CPlusPlus = true;
-    PrintingPolicy Policy(LangOpts);
-    Arg.getAsExpr()->printPretty(OS, nullptr, Policy);
-    return DB << OS.str();
-  }
+  case TemplateArgument::Expression:
+    // FIXME: Support printing expressions as canonical
+    return DB << Arg.getAsExpr();
 
   case TemplateArgument::Pack: {
     // FIXME: We're guessing at LangOptions!

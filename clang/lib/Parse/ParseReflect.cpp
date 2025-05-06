@@ -90,7 +90,7 @@ ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
   }
 
   // Anything else must be a type-id (e.g., 'const int', 'Cls(*)(int)'.
-  if (isCXXTypeId(TypeIdAsReflectionOperand)) {
+  if (isCXXTypeId(TentativeCXXTypeIdContext::AsReflectionOperand)) {
     TypeResult TR = ParseTypeName(nullptr, DeclaratorContext::ReflectOperator);
     if (TR.isInvalid())
       return ExprError();

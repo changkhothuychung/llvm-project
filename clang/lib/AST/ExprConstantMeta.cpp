@@ -2748,7 +2748,7 @@ static TemplateArgument TArgFromReflection(ASTContext &C, EvalFn Evaluator,
         DeclRefExpr::Create(C, NestedNameSpecifierLoc(), SourceLocation(), Decl,
                             false, Loc, QT, VK_LValue, Decl, nullptr);
 
-    return TemplateArgument(Synthesized);
+    return TemplateArgument(Synthesized, true);
   }
   case ReflectionKind::Template:
     return TemplateArgument(RV.getReflectedTemplate());
@@ -3088,8 +3088,7 @@ bool extract(APValue &Result, ASTContext &C, MetaActions &Meta,
                 Decl->getDeclContext())) {
           TypeSourceInfo *TSI = C.CreateTypeSourceInfo(
                   QualType(ParentClsDecl->getTypeForDecl(), 0), 0);
-          NNSLocBuilder.Extend(C, Range.getBegin(), TSI->getTypeLoc(),
-                               Range.getBegin());
+          NNSLocBuilder.Extend(C, TSI->getTypeLoc(), Range.getBegin());
         }
         Synthesized = DeclRefExpr::Create(C, NNSLocBuilder.getTemporary(),
                                           SourceLocation(), Decl, false,

@@ -317,7 +317,7 @@ constexpr auto type_nested = requires { typename [:^^T:]::Nested; };
 
 template <typename T>
 constexpr auto type_class_is_float =
-  requires { typename RequiresFloat<[:^^T:]>; };
+  requires { typename RequiresFloat<typename [:^^T:]>; };
 
 template <typename T>
 constexpr auto type_class_is_float2 =
