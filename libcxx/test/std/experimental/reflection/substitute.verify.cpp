@@ -10,7 +10,6 @@
 
 // UNSUPPORTED: c++03 || c++11 || c++14 || c++17 || c++20
 // ADDITIONAL_COMPILE_FLAGS: -freflection
-// ADDITIONAL_COMPILE_FLAGS: -Wno-unneeded-internal-declaration
 
 // <experimental/reflection>
 //
@@ -348,7 +347,7 @@ template <template <typename...> class... Cs>
 using Alias = [:substitute(^^std::tuple, {substitute(^^Cs, {^^int})...}):];
 static_assert(dealias(^^Alias<std::queue, std::vector>) ==
               ^^std::tuple<std::queue<int>, std::vector<int>>);
-}  // namespace equality_respects_default_template_arguments 
+}  // namespace equality_respects_default_template_arguments
 
                          // ==========================
                          // with_template_arguments_of
@@ -461,5 +460,28 @@ template <auto &V> static constexpr auto &Value = V;
 
 static_assert([:substitute(^^Value, {members_of(^^Cls, ctx)[0]}):] == 11);
 }  // namespace non_type_ref_regression_test
+
+                               // ===============
+                               // wording_example
+                               // ===============
+
+namespace wording_example {
+template <typename T>
+auto fn1();
+
+static_assert(!can_substitute(^^fn1, {^^int}));
+constexpr auto r1 = substitute(^^fn1, {^^int});
+  // expected-error@-1 {{must be initialized by a constant expression}} \
+  // expected-note@-1 {{undeduced placeholder}}
+
+template <typename T>
+auto fn2() {
+  static_assert(^^T != ^^int); // expected-error {{static assertion failed}}
+  return 0;
+}
+
+constexpr auto r2 = substitute(^^fn2, {^^int});
+  // expected-note@-1 {{requested here}}
+}  // namespace wording_example
 
 int main() { }

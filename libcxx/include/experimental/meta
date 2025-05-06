@@ -446,7 +446,6 @@ enum : unsigned {
   __metafn_object_of,
   __metafn_value_of,
   __metafn_template_of,
-  __metafn_can_substitute,
   __metafn_substitute,
   __metafn_extract,
   __metafn_is_public,
@@ -907,14 +906,16 @@ consteval auto is_data_member_spec(info r) -> bool {
 // Returns whether 'templ' substituted with 'args' forms a valid template-id.
 template <reflection_range R = initializer_list<info>>
 consteval auto can_substitute(info templ, R &&args) -> bool {
+  info sub;
   if constexpr (ranges::contiguous_range<R>) {
-    return __metafunction(detail::__metafn_can_substitute, templ,
-                          ranges::data(args), ranges::size(args));
+    sub = __metafunction(detail::__metafn_substitute, templ,
+                         ranges::data(args), ranges::size(args), false);
   } else {
     vector vargs = args | ranges::to<vector>();
-    return __metafunction(detail::__metafn_can_substitute, templ,
-                          vargs.data(), vargs.size());
+    sub = __metafunction(detail::__metafn_substitute, templ,
+                         vargs.data(), vargs.size(), false);
   }
+  return sub != info{};
 }
 
 // Returns a reflection representing the template instantiation of the entity
@@ -923,11 +924,11 @@ template <reflection_range R = initializer_list<info>>
 consteval auto substitute(info templ, R &&args) -> info {
   if constexpr (ranges::contiguous_range<R>) {
     return __metafunction(detail::__metafn_substitute, templ,
-                          ranges::data(args), ranges::size(args));
+                          ranges::data(args), ranges::size(args), true);
   } else {
     vector vargs = args | ranges::to<vector>();
     return __metafunction(detail::__metafn_substitute, templ, vargs.data(),
-                          vargs.size());
+                          vargs.size(), true);
   }
 }
 
