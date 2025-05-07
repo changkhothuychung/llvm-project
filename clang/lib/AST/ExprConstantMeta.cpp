@@ -126,10 +126,17 @@ static bool parent_of(APValue &Result, ASTContext &C, MetaActions &Meta,
                       QualType ResultTy, SourceRange Range,
                       ArrayRef<Expr *> Args, Decl *ContainingDecl);
 
-static bool dealias(APValue &Result, ASTContext &C, MetaActions &Meta,
-                    EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
-                    QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args, Decl *ContainingDecl);
+static bool underlying_entity_of(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
+                                 DiagFn Diagnoser, bool AllowInjection,
+                                 QualType ResultTy, SourceRange Range,
+                                 ArrayRef<Expr *> Args, Decl *ContainingDecl);
+
+static bool proxied_entity_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                              EvalFn Evaluator, DiagFn Diagnoser,
+                              bool AllowInjection, QualType ResultTy,
+                              SourceRange Range, ArrayRef<Expr *> Args,
+                              Decl *ContainingDecl);
 
 static bool value_of(APValue &Result, ASTContext &C, MetaActions &Meta,
                      EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
@@ -734,7 +741,8 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_sourceLoc, 1, 1, source_location_of },
   { Metafunction::MFRK_metaInfo, 1, 1, type_of },
   { Metafunction::MFRK_metaInfo, 1, 1, parent_of },
-  { Metafunction::MFRK_metaInfo, 1, 1, dealias },
+  { Metafunction::MFRK_metaInfo, 1, 1, underlying_entity_of },
+  { Metafunction::MFRK_metaInfo, 1, 1, proxied_entity_of },
   { Metafunction::MFRK_metaInfo, 1, 1, object_of },
   { Metafunction::MFRK_metaInfo, 1, 1, value_of },
   { Metafunction::MFRK_metaInfo, 1, 1, template_of },
@@ -2457,10 +2465,11 @@ bool parent_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool dealias(APValue &Result, ASTContext &C, MetaActions &Meta,
-             EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
-             QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args,
-             Decl *ContainingDecl) {
+bool underlying_entity_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser,
+                          bool AllowInjection, QualType ResultTy,
+                          SourceRange Range, ArrayRef<Expr *> Args,
+                          Decl *ContainingDecl) {
   assert(Args[0]->getType()->isReflectionType());
   assert(ResultTy == C.MetaInfoTy);
 
@@ -2492,6 +2501,35 @@ bool dealias(APValue &Result, ASTContext &C, MetaActions &Meta,
   }
   case ReflectionKind::EntityProxy:
     return SetAndSucceed(Result, MaybeUnproxy(C, RV));
+  }
+  llvm_unreachable("unknown reflection kind");
+}
+
+bool proxied_entity_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                       EvalFn Evaluator, DiagFn Diagnoser,bool AllowInjection,
+                       QualType ResultTy, SourceRange Range,
+                       ArrayRef<Expr *> Args, Decl *ContainingDecl) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == C.MetaInfoTy);
+
+  APValue RV;
+  if (!Evaluator(RV, Args[0], true))
+    return true;
+
+  switch (RV.getReflectionKind()) {
+  case ReflectionKind::Null:
+  case ReflectionKind::Type:
+  case ReflectionKind::Object:
+  case ReflectionKind::Value:
+  case ReflectionKind::Declaration:
+  case ReflectionKind::Namespace:
+  case ReflectionKind::Template:
+  case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
+    return DiagnoseReflectionKind(Diagnoser, Range, "an entity proxy");
+  case ReflectionKind::EntityProxy:
+    return SetAndSucceed(Result, MaybeUnproxy(C, RV, false));
   }
   llvm_unreachable("unknown reflection kind");
 }
