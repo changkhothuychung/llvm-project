@@ -4748,23 +4748,41 @@ bool reflect_result(APValue &Result, ASTContext &C, MetaActions &Meta,
   if (!Evaluator(Arg, Args[1], !IsLValue))
     return true;
 
+  // Construct an expression whose result is 'Arg', and evaluate it to check if
+  // it's an allowed result of a constant template argument.
+  //
+  // This is just a hack to get 'CheckConstantExpression' in ExprConstant.cpp
+  // called on 'Arg', to diagnose cases like string literals and temporaries
+  // that aren't allowed in template arguments.
+  //
+  // The expression is constructed in three layers:
+  // - A ConstantExpr to hold 'Arg'
+  // - An OpaqueValueExpr to act as the ConstantExpr's subexpression (we can
+  //   otherwise ICE when e.g., checking source location of the ConstantExpr)
+  // - An OpaqueValueExpr wrapper around the ConstantExpr to prevent
+  //   EvaluateAsConstantExpr from grabbing 'Arg' and short-circuiting the
+  //   evaluation (and, more imporantly, the result validation).
   Expr *OVE = new (C) OpaqueValueExpr(Range.getBegin(), Args[1]->getType(),
                                       IsLValue ? VK_LValue : VK_PRValue);
-  Expr *CE = ConstantExpr::Create(C, OVE, Arg);
+  {
+    Expr *CE = ConstantExpr::Create(C, OVE, Arg);
+    OVE = new (C) OpaqueValueExpr(Range.getBegin(), Args[1]->getType(),
+                                  CE->getValueKind(), OK_Ordinary, CE);
+  }
   {
     Expr::EvalResult Discarded;
 
-    ConstantExprKind CEKind = (CE->getType()->isClassType() && !IsLValue) ?
+    ConstantExprKind CEKind = (OVE->getType()->isClassType() && !IsLValue) ?
                               ConstantExprKind::ClassTemplateArgument :
                               ConstantExprKind::NonClassTemplateArgument;
-    if (!CE->EvaluateAsConstantExpr(Discarded, C, CEKind))
+    if (!OVE->EvaluateAsConstantExpr(Discarded, C, CEKind))
       return Diagnoser(Range.getBegin(), diag::metafn_result_not_representable)
           << (IsLValue ? 1 : 0) << Range;
   }
 
   // If this is an lvalue to a function, promote the result to reflect
   // the declaration.
-  if (CE->getType()->isFunctionType() && Arg.isLValue() &&
+  if (OVE->getType()->isFunctionType() && Arg.isLValue() &&
       Arg.getLValueOffset().isZero())
     if (!Arg.hasLValuePath() || Arg.getLValuePath().size() == 0)
       if (APValue::LValueBase LVBase = Arg.getLValueBase();
