@@ -70,6 +70,7 @@ static_assert((annotations_of(^^TCls<int>) |
                            std::meta::reflect_value(5),
                            std::meta::reflect_value(6),
                            std::meta::reflect_value(3.0f)});
+
 static_assert((annotations_of(^^TFn<int>) |
                   std::views::transform(std::meta::value_of) |
                   std::ranges::to<std::vector>()) ==
@@ -250,5 +251,20 @@ static_assert(c2 == 1);
 static_assert(c3 == -1);
 static_assert(c4 == 4);
 }  // namespace ledger_based_consteval_variable
+
+                         // ===========================
+                         // templated_class_annotations
+                         // ===========================
+
+namespace templated_class_annotations {
+template <class T>
+struct X {
+    struct [[=1]] C;
+    struct [[=2]] D { };
+};
+
+static_assert(annotations_of(^^X<int>::C).size() == 1);
+static_assert(annotations_of(^^X<int>::D).size() == 1);
+}  // namespace templated_class_annotations
 
 int main() { }

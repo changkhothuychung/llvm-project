@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// RUN: %clang_cc1 %s -std=c++26 -freflection -fentity-proxy-reflection
+// RUN: %clang_cc1 %s -std=c++26 -freflection -fentity-proxy-reflection -verify
 
 using info = decltype(^^int);
 
@@ -282,6 +282,21 @@ static_assert(rB != rClsB);
 static_assert(int([:rB:]) == int([:rClsB:]));
 static_assert(static_cast<Enum>([:rClsB:]) == B);
 }  // namespace with_enums
+
+                            // ====================
+                            // address_of_bit_field
+                            // ====================
+
+namespace address_of_bit_field {
+struct S {
+  int x : 4, y : 4;
+};
+
+constexpr auto f() {
+  constexpr auto r = ^^S::y;
+  return &[:r:];  // expected-error {{address of bit-field requested}}
+}
+}  // namespace address_of_bit_field
 
                                 // =============
                                 // colon_parsing

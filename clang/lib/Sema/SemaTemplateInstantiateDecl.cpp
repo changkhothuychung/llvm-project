@@ -737,8 +737,14 @@ void Sema::InstantiateAttrsForDecl(
     // FIXME: This function is called multiple times for the same template
     // specialization. We should only instantiate attributes that were added
     // since the previous instantiation.
+    bool AddAnnotations = New->attrs().empty();
     for (const auto *TmplAttr : Tmpl->attrs()) {
       if (!isRelevantAttr(*this, New, TmplAttr))
+        continue;
+
+      if (isa<CXX26AnnotationAttr>(TmplAttr) && !AddAnnotations)
+        // See https://github.com/llvm/llvm-project/issues/138596
+        // Just skip here to avoid duplication of the attribute.
         continue;
 
       // FIXME: If any of the special case versions from InstantiateAttrs become
@@ -778,6 +784,7 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
                             const Decl *Tmpl, Decl *New,
                             LateInstantiatedAttrVec *LateAttrs,
                             LocalInstantiationScope *OuterMostScope) {
+  bool AddAnnotations = New->attrs().empty();
   for (const auto *TmplAttr : Tmpl->attrs()) {
     if (!isRelevantAttr(*this, New, TmplAttr))
       continue;
@@ -878,6 +885,11 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
                                                  RoutineAttr, Tmpl, New);
       continue;
     }
+
+    if (isa<CXX26AnnotationAttr>(TmplAttr) && !AddAnnotations)
+      // See https://github.com/llvm/llvm-project/issues/138596
+      // Just skip here to avoid duplication of the attribute.
+      continue;
 
     // Existing DLL attribute on the instantiation takes precedence.
     if (TmplAttr->getKind() == attr::DLLExport ||

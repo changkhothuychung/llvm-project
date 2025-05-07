@@ -126,10 +126,17 @@ static bool parent_of(APValue &Result, ASTContext &C, MetaActions &Meta,
                       QualType ResultTy, SourceRange Range,
                       ArrayRef<Expr *> Args, Decl *ContainingDecl);
 
-static bool dealias(APValue &Result, ASTContext &C, MetaActions &Meta,
-                    EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
-                    QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args, Decl *ContainingDecl);
+static bool underlying_entity_of(APValue &Result, ASTContext &C,
+                                 MetaActions &Meta, EvalFn Evaluator,
+                                 DiagFn Diagnoser, bool AllowInjection,
+                                 QualType ResultTy, SourceRange Range,
+                                 ArrayRef<Expr *> Args, Decl *ContainingDecl);
+
+static bool proxied_entity_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                              EvalFn Evaluator, DiagFn Diagnoser,
+                              bool AllowInjection, QualType ResultTy,
+                              SourceRange Range, ArrayRef<Expr *> Args,
+                              Decl *ContainingDecl);
 
 static bool value_of(APValue &Result, ASTContext &C, MetaActions &Meta,
                      EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
@@ -145,12 +152,6 @@ static bool template_of(APValue &Result, ASTContext &C, MetaActions &Meta,
                         EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
                         QualType ResultTy, SourceRange Range,
                         ArrayRef<Expr *> Args, Decl *ContainingDecl);
-
-static bool can_substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
-                           EvalFn Evaluator, DiagFn Diagnoser,
-                           bool AllowInjection, QualType ResultTy,
-                           SourceRange Range, ArrayRef<Expr *> Args,
-                           Decl *ContainingDecl);
 
 static bool substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
                        EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
@@ -740,12 +741,12 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_sourceLoc, 1, 1, source_location_of },
   { Metafunction::MFRK_metaInfo, 1, 1, type_of },
   { Metafunction::MFRK_metaInfo, 1, 1, parent_of },
-  { Metafunction::MFRK_metaInfo, 1, 1, dealias },
+  { Metafunction::MFRK_metaInfo, 1, 1, underlying_entity_of },
+  { Metafunction::MFRK_metaInfo, 1, 1, proxied_entity_of },
   { Metafunction::MFRK_metaInfo, 1, 1, object_of },
   { Metafunction::MFRK_metaInfo, 1, 1, value_of },
   { Metafunction::MFRK_metaInfo, 1, 1, template_of },
-  { Metafunction::MFRK_bool, 3, 3, can_substitute },
-  { Metafunction::MFRK_metaInfo, 3, 3, substitute },
+  { Metafunction::MFRK_metaInfo, 4, 4, substitute },
   { Metafunction::MFRK_spliceFromArg, 2, 2, extract },
   { Metafunction::MFRK_bool, 1, 1, is_public },
   { Metafunction::MFRK_bool, 1, 1, is_protected },
@@ -878,6 +879,10 @@ bool Metafunction::Lookup(unsigned ID, const Metafunction *&result) {
 
 static APValue makeBool(ASTContext &C, bool B) {
   return APValue(C.MakeIntValue(B, C.BoolTy));
+}
+
+static APValue makeReflection(std::nullptr_t) {
+  return APValue(ReflectionKind::Null, nullptr);
 }
 
 static APValue makeReflection(QualType QT) {
@@ -1767,7 +1772,11 @@ bool get_ith_base_of(APValue &Result, ASTContext &C, MetaActions &Meta,
 
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Type: {
-    Decl *typeDecl = findTypeDecl(RV.getReflectedType());
+    QualType QT = RV.getReflectedType();
+    QT = desugarType(QT, /*UnwrapAliases=*/true, /*DropCV=*/false,
+                     /*DropRefs=*/false);
+
+    Decl *typeDecl = findTypeDecl(QT);
 
     if (auto cxxRecordDecl = dyn_cast_or_null<CXXRecordDecl>(typeDecl)) {
       Meta.EnsureInstantiated(typeDecl, Range);
@@ -2456,10 +2465,11 @@ bool parent_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   llvm_unreachable("unknown reflection kind");
 }
 
-bool dealias(APValue &Result, ASTContext &C, MetaActions &Meta,
-             EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
-             QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args,
-             Decl *ContainingDecl) {
+bool underlying_entity_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                          EvalFn Evaluator, DiagFn Diagnoser,
+                          bool AllowInjection, QualType ResultTy,
+                          SourceRange Range, ArrayRef<Expr *> Args,
+                          Decl *ContainingDecl) {
   assert(Args[0]->getType()->isReflectionType());
   assert(ResultTy == C.MetaInfoTy);
 
@@ -2491,6 +2501,35 @@ bool dealias(APValue &Result, ASTContext &C, MetaActions &Meta,
   }
   case ReflectionKind::EntityProxy:
     return SetAndSucceed(Result, MaybeUnproxy(C, RV));
+  }
+  llvm_unreachable("unknown reflection kind");
+}
+
+bool proxied_entity_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                       EvalFn Evaluator, DiagFn Diagnoser,bool AllowInjection,
+                       QualType ResultTy, SourceRange Range,
+                       ArrayRef<Expr *> Args, Decl *ContainingDecl) {
+  assert(Args[0]->getType()->isReflectionType());
+  assert(ResultTy == C.MetaInfoTy);
+
+  APValue RV;
+  if (!Evaluator(RV, Args[0], true))
+    return true;
+
+  switch (RV.getReflectionKind()) {
+  case ReflectionKind::Null:
+  case ReflectionKind::Type:
+  case ReflectionKind::Object:
+  case ReflectionKind::Value:
+  case ReflectionKind::Declaration:
+  case ReflectionKind::Namespace:
+  case ReflectionKind::Template:
+  case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::DataMemberSpec:
+  case ReflectionKind::Annotation:
+    return DiagnoseReflectionKind(Diagnoser, Range, "an entity proxy");
+  case ReflectionKind::EntityProxy:
+    return SetAndSucceed(Result, MaybeUnproxy(C, RV, false));
   }
   llvm_unreachable("unknown reflection kind");
 }
@@ -2761,71 +2800,6 @@ static TemplateArgument TArgFromReflection(ASTContext &C, EvalFn Evaluator,
   return TemplateArgument();
 }
 
-// TODO(P2996): Abstract this out, and use as an implementation detail of
-// 'substitute'.
-bool can_substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
-                    EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
-                    QualType ResultTy, SourceRange Range,
-                    ArrayRef<Expr *> Args, Decl *ContainingDecl) {
-  assert(Args[0]->getType()->isReflectionType());
-  assert(
-      Args[1]->getType()->getPointeeOrArrayElementType()->isReflectionType());
-  assert(Args[2]->getType()->isIntegerType());
-
-  APValue Template;
-  if (!Evaluator(Template, Args[0], true))
-    return true;
-
-  if (!Template.isReflectedTemplate())
-    return DiagnoseReflectionKind(Diagnoser, Range, "a template",
-                                  DescriptionOf(Template));
-  TemplateDecl *TDecl = Template.getReflectedTemplate().getAsTemplateDecl();
-  if (TDecl->isInvalidDecl())
-    return true;
-
-  SmallVector<TemplateArgument, 4> TArgs;
-  {
-    // Evaluate how many template arguments were provided.
-    APValue NumArgs;
-    if (!Evaluator(NumArgs, Args[2], true))
-      return true;
-    size_t nArgs = NumArgs.getInt().getExtValue();
-    TArgs.reserve(nArgs);
-
-    for (uint64_t k = 0; k < nArgs; ++k) {
-      llvm::APInt Idx(C.getTypeSize(C.getSizeType()), k, false);
-      Expr *Synthesized = IntegerLiteral::Create(C, Idx, C.getSizeType(),
-                                                 Args[1]->getExprLoc());
-
-      Synthesized = new (C) ArraySubscriptExpr(Args[1], Synthesized,
-                                               C.MetaInfoTy, VK_LValue,
-                                               OK_Ordinary, Range.getBegin());
-      if (Synthesized->isValueDependent() || Synthesized->isTypeDependent())
-        return true;
-
-      APValue Unwrapped;
-      if (!Evaluator(Unwrapped, Synthesized, true) ||
-          !Unwrapped.isReflection())
-        return true;
-      Unwrapped = MaybeUnproxy(C, Unwrapped);
-      if (!CanActAsTemplateArg(Unwrapped))
-        return SetAndSucceed(Result, makeBool(C, false));
-
-      TemplateArgument TArg = TArgFromReflection(C, Evaluator, Unwrapped,
-                                                 Range.getBegin());
-      if (TArg.isNull())
-        return true;
-      TArgs.push_back(TArg);
-    }
-  }
-  SmallVector<TemplateArgument, 4> ExpandedTArgs;
-  expandTemplateArgPacks(TArgs, ExpandedTArgs);
-
-  bool CanSub = Meta.CheckTemplateArgumentList(TDecl, ExpandedTArgs, true,
-                                               Args[0]->getExprLoc());
-  return SetAndSucceed(Result, makeBool(C, CanSub));
-}
-
 bool substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
                 EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
                 QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args,
@@ -2847,6 +2821,14 @@ bool substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
   if (TDecl->isInvalidDecl())
     return true;
 
+  APValue DiagnoseAPV;
+  if (!Evaluator(DiagnoseAPV, Args[3], true))
+    return true;
+  bool NoDiagnose = !DiagnoseAPV.getInt().getBoolValue();
+  auto ElideDiagnosis = [&] {
+    return SetAndSucceed(Result, makeReflection(nullptr));
+  };
+
   SmallVector<TemplateArgument, 4> TArgs;
   {
     // Evaluate how many template arguments were provided.
@@ -2873,8 +2855,9 @@ bool substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
         return true;
       Unwrapped = MaybeUnproxy(C, Unwrapped);
       if (!CanActAsTemplateArg(Unwrapped))
-        return Diagnoser(Range.getBegin(), diag::metafn_cannot_be_arg)
-            << DescriptionOf(Unwrapped) << 1 << Range;
+        return NoDiagnose ? ElideDiagnosis() :
+               Diagnoser(Range.getBegin(), diag::metafn_cannot_be_arg)
+                 << DescriptionOf(Unwrapped) << 1 << Range;
 
       TemplateArgument TArg = TArgFromReflection(C, Evaluator, Unwrapped,
                                                  Range.getBegin());
@@ -2898,9 +2881,9 @@ bool substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
   if (C.checkCachedSubstitution(SubstitutionHash, &Result))
     return false;
 
-  if (!Meta.CheckTemplateArgumentList(TDecl, ExpandedTArgs, false,
+  if (!Meta.CheckTemplateArgumentList(TDecl, ExpandedTArgs, NoDiagnose,
                                       Args[0]->getExprLoc()))
-    return true;
+    return NoDiagnose ? ElideDiagnosis() : true;
   for (const auto &TArg : ExpandedTArgs)
     if (TArg.getKind() == TemplateArgument::Expression &&
         TArg.getAsExpr()->containsErrors())
@@ -2937,6 +2920,11 @@ bool substitute(APValue &Result, ASTContext &C, MetaActions &Meta,
   } else if (auto *FTD = dyn_cast<FunctionTemplateDecl>(TDecl)) {
     FunctionDecl *Spec = Meta.Substitute(FTD, ExpandedTArgs, Range.getBegin());
     assert(Spec && "substitution failed after validating arguments?");
+
+    if (Spec->getReturnType()->isUndeducedType())
+      return NoDiagnose ? ElideDiagnosis() :
+             Diagnoser(Range.getBegin(), diag::metafn_undeduced_placeholder)
+               << Spec << Spec->getType() << Range;
 
     APValue RV = makeReflection(Spec);
     //C.recordCachedSubstitution(SubstitutionHash, RV);
@@ -4797,23 +4785,41 @@ bool reflect_result(APValue &Result, ASTContext &C, MetaActions &Meta,
   if (!Evaluator(Arg, Args[1], !IsLValue))
     return true;
 
+  // Construct an expression whose result is 'Arg', and evaluate it to check if
+  // it's an allowed result of a constant template argument.
+  //
+  // This is just a hack to get 'CheckConstantExpression' in ExprConstant.cpp
+  // called on 'Arg', to diagnose cases like string literals and temporaries
+  // that aren't allowed in template arguments.
+  //
+  // The expression is constructed in three layers:
+  // - A ConstantExpr to hold 'Arg'
+  // - An OpaqueValueExpr to act as the ConstantExpr's subexpression (we can
+  //   otherwise ICE when e.g., checking source location of the ConstantExpr)
+  // - An OpaqueValueExpr wrapper around the ConstantExpr to prevent
+  //   EvaluateAsConstantExpr from grabbing 'Arg' and short-circuiting the
+  //   evaluation (and, more imporantly, the result validation).
   Expr *OVE = new (C) OpaqueValueExpr(Range.getBegin(), Args[1]->getType(),
                                       IsLValue ? VK_LValue : VK_PRValue);
-  Expr *CE = ConstantExpr::Create(C, OVE, Arg);
+  {
+    Expr *CE = ConstantExpr::Create(C, OVE, Arg);
+    OVE = new (C) OpaqueValueExpr(Range.getBegin(), Args[1]->getType(),
+                                  CE->getValueKind(), OK_Ordinary, CE);
+  }
   {
     Expr::EvalResult Discarded;
 
-    ConstantExprKind CEKind = (CE->getType()->isClassType() && !IsLValue) ?
+    ConstantExprKind CEKind = (OVE->getType()->isClassType() && !IsLValue) ?
                               ConstantExprKind::ClassTemplateArgument :
                               ConstantExprKind::NonClassTemplateArgument;
-    if (!CE->EvaluateAsConstantExpr(Discarded, C, CEKind))
+    if (!OVE->EvaluateAsConstantExpr(Discarded, C, CEKind))
       return Diagnoser(Range.getBegin(), diag::metafn_result_not_representable)
           << (IsLValue ? 1 : 0) << Range;
   }
 
   // If this is an lvalue to a function, promote the result to reflect
   // the declaration.
-  if (CE->getType()->isFunctionType() && Arg.isLValue() &&
+  if (OVE->getType()->isFunctionType() && Arg.isLValue() &&
       Arg.getLValueOffset().isZero())
     if (!Arg.hasLValuePath() || Arg.getLValuePath().size() == 0)
       if (APValue::LValueBase LVBase = Arg.getLValueBase();

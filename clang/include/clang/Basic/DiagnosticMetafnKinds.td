@@ -51,6 +51,9 @@ def metafn_parent_of_extern_c : Note<
 // Substitution and invocation.
 def metafn_cannot_be_arg : Note<
   "a reflection of %0 cannot represent a %select{function|template}1 argument">;
+def metafn_undeduced_placeholder : Note<
+  "cannot form a reflection of function %0 whose type %1 contains an undeduced "
+  "placeholder">;
 def metafn_cannot_invoke : Note<"cannot invoke %0">;
 def metafn_no_specialization_found : Note<
   "no specialization of the function template %0 matched the provided "

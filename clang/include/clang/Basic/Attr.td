@@ -1026,6 +1026,7 @@ public:
 
   let HasCustomParsing = 1;
   let TemplateDependent = 1;
+  let MeaningfulToClassTemplateDefinition = 1;
   let Documentation = [InternalOnly];
 }
 

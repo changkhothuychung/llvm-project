@@ -442,11 +442,11 @@ enum : unsigned {
   __metafn_source_location_of,
   __metafn_type_of,
   __metafn_parent_of,
-  __metafn_dealias,
+  __metafn_underlying_entity_of,
+  __metafn_proxied_entity_of,
   __metafn_object_of,
   __metafn_value_of,
   __metafn_template_of,
-  __metafn_can_substitute,
   __metafn_substitute,
   __metafn_extract,
   __metafn_is_public,
@@ -550,6 +550,10 @@ enum : unsigned {
 };
 
 consteval auto __workaround_expand_compiler_builtins(info type) -> info;
+
+consteval auto __underlying_entity_of(info r) -> info {
+  return __metafunction(detail::__metafn_underlying_entity_of, r);
+}
 
 }  // namespace detail
 
@@ -764,9 +768,22 @@ struct front_annotation_of {
 // -----------------------------------------------------------------------------
 
 // Returns a reflection of the canonical type for the reflected type.
+#if __has_feature(entity_proxy_reflection)
+[[deprecated("renamed to 'underlying_entity_of' in PXYZ")]]
+#endif
 consteval auto dealias(info r) -> info {
-  return __metafunction(detail::__metafn_dealias, r);
+  return __metafunction(detail::__metafn_underlying_entity_of, r);
 }
+
+#if __has_feature(entity_proxy_reflection)
+consteval auto underlying_entity_of(info r) -> info {
+  return __metafunction(detail::__metafn_underlying_entity_of, r);
+}
+
+consteval auto proxied_entity_of(info r) -> info {
+  return __metafunction(detail::__metafn_proxied_entity_of, r);
+}
+#endif
 
 // Returns the identifier for the represented entity. If the entity is a
 // literal operator or literal operator template, then this is the identifier
@@ -907,14 +924,16 @@ consteval auto is_data_member_spec(info r) -> bool {
 // Returns whether 'templ' substituted with 'args' forms a valid template-id.
 template <reflection_range R = initializer_list<info>>
 consteval auto can_substitute(info templ, R &&args) -> bool {
+  info sub;
   if constexpr (ranges::contiguous_range<R>) {
-    return __metafunction(detail::__metafn_can_substitute, templ,
-                          ranges::data(args), ranges::size(args));
+    sub = __metafunction(detail::__metafn_substitute, templ,
+                         ranges::data(args), ranges::size(args), false);
   } else {
     vector vargs = args | ranges::to<vector>();
-    return __metafunction(detail::__metafn_can_substitute, templ,
-                          vargs.data(), vargs.size());
+    sub = __metafunction(detail::__metafn_substitute, templ,
+                         vargs.data(), vargs.size(), false);
   }
+  return sub != info{};
 }
 
 // Returns a reflection representing the template instantiation of the entity
@@ -923,11 +942,11 @@ template <reflection_range R = initializer_list<info>>
 consteval auto substitute(info templ, R &&args) -> info {
   if constexpr (ranges::contiguous_range<R>) {
     return __metafunction(detail::__metafn_substitute, templ,
-                          ranges::data(args), ranges::size(args));
+                          ranges::data(args), ranges::size(args), true);
   } else {
     vector vargs = args | ranges::to<vector>();
     return __metafunction(detail::__metafn_substitute, templ, vargs.data(),
-                          vargs.size());
+                          vargs.size(), true);
   }
 }
 
@@ -1906,100 +1925,103 @@ consteval auto is_nothrow_invocable_r_type(info result, info type,
 
 consteval auto remove_const(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^remove_const_t, {type})));
+      detail::__underlying_entity_of(substitute(^^remove_const_t, {type})));
 }
 
 consteval auto remove_volatile(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^remove_volatile_t, {type})));
+      detail::__underlying_entity_of(substitute(^^remove_volatile_t, {type})));
 }
 
 consteval auto remove_cv(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^remove_cv_t, {type})));
+      detail::__underlying_entity_of(substitute(^^remove_cv_t, {type})));
 }
 
 consteval auto add_const(info type) -> info {
-  return dealias(substitute(^^add_const_t, {type}));
+  return detail::__underlying_entity_of(substitute(^^add_const_t, {type}));
 }
 
 consteval auto add_volatile(info type) -> info {
-  return dealias(substitute(^^add_volatile_t, {type}));
+  return detail::__underlying_entity_of(substitute(^^add_volatile_t, {type}));
 }
 
 consteval auto add_cv(info type) -> info {
-  return dealias(substitute(^^add_cv_t, {type}));
+  return detail::__underlying_entity_of(substitute(^^add_cv_t, {type}));
 }
 
 consteval auto remove_reference(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^remove_reference_t, {type})));
+      detail::__underlying_entity_of(substitute(^^remove_reference_t, {type})));
 }
 
 consteval auto add_lvalue_reference(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^add_lvalue_reference_t, {type})));
+      detail::__underlying_entity_of(substitute(^^add_lvalue_reference_t,
+                                                {type})));
 }
 
 consteval auto add_rvalue_reference(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^add_rvalue_reference_t, {type})));
+      detail::__underlying_entity_of(substitute(^^add_rvalue_reference_t,
+                                                {type})));
 }
 
 consteval auto make_signed(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^make_signed_t, {type})));
+      detail::__underlying_entity_of(substitute(^^make_signed_t, {type})));
 }
 
 consteval auto make_unsigned(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^make_unsigned_t, {type})));
+      detail::__underlying_entity_of(substitute(^^make_unsigned_t, {type})));
 }
 
 consteval auto remove_extent(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^remove_extent_t, {type})));
+      detail::__underlying_entity_of(substitute(^^remove_extent_t, {type})));
 }
 
 consteval auto remove_all_extents(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^remove_all_extents_t, {type})));
+      detail::__underlying_entity_of(substitute(^^remove_all_extents_t,
+                                                {type})));
 }
 
 consteval auto remove_pointer(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^remove_pointer_t, {type})));
+      detail::__underlying_entity_of(substitute(^^remove_pointer_t, {type})));
 }
 
 consteval auto add_pointer(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^add_pointer_t, {type})));
+      detail::__underlying_entity_of(substitute(^^add_pointer_t, {type})));
 }
 
 consteval auto remove_cvref(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^remove_cvref_t, {type})));
+      detail::__underlying_entity_of(substitute(^^remove_cvref_t, {type})));
 }
 
 consteval auto decay(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^decay_t, {type})));
+      detail::__underlying_entity_of(substitute(^^decay_t, {type})));
 }
 
 template <reflection_range R = initializer_list<info>>
 consteval auto common_type(R &&args) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^common_type_t, args)));
+      detail::__underlying_entity_of(substitute(^^common_type_t, args)));
 }
 
 template <reflection_range R = initializer_list<info>>
 consteval auto common_reference(R &&args) -> info {
-  return dealias(substitute(^^common_reference_t, args));
+  return detail::__underlying_entity_of(substitute(^^common_reference_t, args));
 }
 
 consteval auto underlying_type(info type) -> info {
   return detail::__workaround_expand_compiler_builtins(
-      dealias(substitute(^^underlying_type_t, {type})));
+      detail::__underlying_entity_of(substitute(^^underlying_type_t, {type})));
 }
 
 template <reflection_range R = initializer_list<info>>
@@ -2007,15 +2029,17 @@ consteval auto invoke_result(info type, R &&args) -> info {
   vector<info> targs(from_range, args);
   targs.insert(targs.begin(), type);
 
-  return dealias(substitute(^^invoke_result_t, targs));
+  return detail::__underlying_entity_of(substitute(^^invoke_result_t, targs));
 }
 
 consteval auto unwrap_reference(info type) -> info {
-  return dealias(substitute(^^unwrap_reference_t, {type}));
+  return detail::__underlying_entity_of(substitute(^^unwrap_reference_t,
+                                                   {type}));
 }
 
 consteval auto unwrap_ref_decay(info type) -> info {
-  return dealias(substitute(^^unwrap_ref_decay_t, {type}));
+  return detail::__underlying_entity_of(substitute(^^unwrap_ref_decay_t,
+                                                   {type}));
 }
 
 consteval auto tuple_size(info type) -> size_t {
@@ -2023,7 +2047,7 @@ consteval auto tuple_size(info type) -> size_t {
 }
 
 consteval auto tuple_element(size_t index, info type) -> info {
-  return dealias(substitute(^^tuple_element_t,
+  return detail::__underlying_entity_of(substitute(^^tuple_element_t,
                             {reflect_value(index), type}));
 }
 
@@ -2032,7 +2056,7 @@ consteval auto variant_size(info type) -> size_t {
 }
 
 consteval auto variant_alternative(size_t index, info type) -> info {
-  return dealias(substitute(^^variant_alternative_t,
+  return detail::__underlying_entity_of(substitute(^^variant_alternative_t,
                  {reflect_value(index), type}));
 }
 
@@ -2041,7 +2065,8 @@ namespace detail {
 template <class T> struct __wrap_workaround { using type = T; };
 consteval auto __workaround_expand_compiler_builtins(info type) -> info {
   auto r = substitute(^^__wrap_workaround, {type});
-  return dealias(members_of(r, access_context::unchecked())[0]);
+  r = members_of(r, access_context::unchecked())[0];
+  return detail::__underlying_entity_of(r);
 }
 
 }  // namespace detail
@@ -2216,11 +2241,12 @@ template <typename Ty>
 [[deprecated("separated into 'reflect_value', 'reflect_result', and "
              "'reflect_function' in P2996R4")]]
 consteval auto reflect_result(Ty r) -> info {
-  constexpr auto DTy = dealias(^^Ty);
+  constexpr auto DTy = detail::__underlying_entity_of(^^Ty);
   constexpr auto RTy = is_class_v<[:DTy:]> || is_reference_v<[:DTy:]> ?
                        DTy : ^^remove_cv_t<[:DTy:]>;
 
-  return __metafunction(detail::__metafn_reflect_result, dealias(RTy),
+  return __metafunction(detail::__metafn_reflect_result,
+                        detail::__underlying_entity_of(RTy),
                         static_cast<typename [:DTy:]>(r));
 }
 
@@ -2357,8 +2383,8 @@ namespace detail {
 
 template <typename CharT>
 struct pretty_printer {
-  static_assert(dealias(^^CharT) == ^^char ||
-                dealias(^^CharT) == ^^char8_t);
+  static_assert(detail::__underlying_entity_of(^^CharT) == ^^char ||
+                detail::__underlying_entity_of(^^CharT) == ^^char8_t);
   static constexpr bool IsUtf8 = is_same_type(^^CharT, ^^char8_t);
 
   using string_t = basic_string<CharT>;
@@ -2588,7 +2614,7 @@ template <info R>  // Values of fundamental type.
     requires(is_value(R) && is_fundamental_type(type_of(R)))
 consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
   string_t result;
-  constexpr info Ty = dealias(type_of(R));
+  constexpr info Ty = detail::__underlying_entity_of(type_of(R));
 
   if constexpr (Ty == ^^nullptr_t)
     result = string_constant("nullptr");
@@ -2606,7 +2632,8 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
     result += string_constant("'");
   }
 
-  else if constexpr (is_integral_type(Ty) && dealias(^^CharT) == ^^char) {
+  else if constexpr (is_integral_type(Ty) &&
+                     detail::__underlying_entity_of(^^CharT) == ^^char) {
     CharT buffer[32] = {};
     if (!to_chars(begin(buffer), end(buffer), [:R:]))
       throw "'to_chars' failed to format integeral value";
@@ -2760,7 +2787,7 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
 
     if (R == ^^decltype(nullptr) || R == ^^nullptr_t)
       return string_constant("std::nullptr_t");
-    if (R == ^^info || R == dealias(^^info))
+    if (R == ^^info || R == detail::__underlying_entity_of(^^info))
       return string_constant("std::meta::info");
 
     if (R == ^^bool) return string_constant("bool");
