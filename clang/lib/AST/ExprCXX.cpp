@@ -2019,7 +2019,8 @@ CXXSpliceExpr::CXXSpliceExpr(QualType ResultTy, ExprValueKind ValueKind,
                              SourceLocation TemplateKWLoc,
                              SpliceSpecifier *Splice, Expr *Model,
                              bool AllowMemberReference)
-  : Expr(CXXSpliceExprClass, ResultTy, ValueKind, OK_Ordinary),
+  : Expr(CXXSpliceExprClass, ResultTy, ValueKind,
+         Model ? Model->getObjectKind() : OK_Ordinary),
     TemplateKWLoc(TemplateKWLoc), Splice(Splice), Model(Model),
     AllowMemberReference(AllowMemberReference) {
   setDependence(computeDependence(this));
@@ -2074,7 +2075,7 @@ ExplDependentCallExpr::ExplDependentCallExpr(CallExpr *SubExpr,
                                              unsigned TemplateDepth)
     : Expr(ExplDependentCallExprClass, SubExpr->getType(),
            SubExpr->getValueKind(), OK_Ordinary),
-      SubExpr(SubExpr), TemplateDepth(TemplateDepth) {
+      TemplateDepth(TemplateDepth), SubExpr(SubExpr) {
   setDependence(computeDependence(this));
 }
 
