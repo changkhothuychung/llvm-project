@@ -1000,7 +1000,6 @@ static bool getParameterName(ParmVarDecl *PVD, std::string &Out) {
       STTPT && STTPT->getPackIndex())
     return true;
 
-  StringRef FirstNameSeen = PVD->getName();
   unsigned ParamIdx = PVD->getFunctionScopeIndex();
 
   // TODO(P2996): This will crash if we're in the trailing requires-clause of
@@ -1008,10 +1007,11 @@ static bool getParameterName(ParmVarDecl *PVD, std::string &Out) {
   // TranslationUnitDecl.
   FunctionDecl *FD = cast<FunctionDecl>(PVD->getDeclContext());
   FD = FD->getMostRecentDecl();
+  PVD = FD->getParamDecl(ParamIdx);
 
   bool Consistent = true;
+  StringRef FirstNameSeen = PVD->getName();
 
-  PVD = FD->getParamDecl(ParamIdx);
   while (PVD) {
     FD = cast<FunctionDecl>(PVD->getDeclContext());
     FD = FD->getPreviousDecl();
