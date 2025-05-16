@@ -50,41 +50,41 @@ template <typename> [[maybe_unused, =5, =5, =6, =3.0f]] void TFn();
 namespace [[maybe_unused, =7, =7, =8, =4.0f]] NS {}
 
 static_assert((annotations_of(^^fn) |
-                  std::views::transform(std::meta::value_of) |
+                  std::views::transform(std::meta::constant_of) |
                   std::ranges::to<std::vector>()) ==
-              std::vector {std::meta::reflect_value(1),
-                           std::meta::reflect_value(1),
-                           std::meta::reflect_value(2),
-                           std::meta::reflect_value(1.0f)});
+              std::vector {std::meta::reflect_constant(1),
+                           std::meta::reflect_constant(1),
+                           std::meta::reflect_constant(2),
+                           std::meta::reflect_constant(1.0f)});
 static_assert((annotations_of(^^S) |
-                  std::views::transform(std::meta::value_of) |
+                  std::views::transform(std::meta::constant_of) |
                   std::ranges::to<std::vector>()) ==
-              std::vector {std::meta::reflect_value(3),
-                           std::meta::reflect_value(3),
-                           std::meta::reflect_value(4),
-                           std::meta::reflect_value(2.0f)});
+              std::vector {std::meta::reflect_constant(3),
+                           std::meta::reflect_constant(3),
+                           std::meta::reflect_constant(4),
+                           std::meta::reflect_constant(2.0f)});
 static_assert((annotations_of(^^TCls<int>) |
-                  std::views::transform(std::meta::value_of) |
+                  std::views::transform(std::meta::constant_of) |
                   std::ranges::to<std::vector>()) ==
-              std::vector {std::meta::reflect_value(5),
-                           std::meta::reflect_value(5),
-                           std::meta::reflect_value(6),
-                           std::meta::reflect_value(3.0f)});
+              std::vector {std::meta::reflect_constant(5),
+                           std::meta::reflect_constant(5),
+                           std::meta::reflect_constant(6),
+                           std::meta::reflect_constant(3.0f)});
 
 static_assert((annotations_of(^^TFn<int>) |
-                  std::views::transform(std::meta::value_of) |
+                  std::views::transform(std::meta::constant_of) |
                   std::ranges::to<std::vector>()) ==
-              std::vector {std::meta::reflect_value(5),
-                           std::meta::reflect_value(5),
-                           std::meta::reflect_value(6),
-                           std::meta::reflect_value(3.0f)});
+              std::vector {std::meta::reflect_constant(5),
+                           std::meta::reflect_constant(5),
+                           std::meta::reflect_constant(6),
+                           std::meta::reflect_constant(3.0f)});
 static_assert((annotations_of(^^NS) |
-                  std::views::transform(std::meta::value_of) |
+                  std::views::transform(std::meta::constant_of) |
                   std::ranges::to<std::vector>()) ==
-              std::vector {std::meta::reflect_value(7),
-                           std::meta::reflect_value(7),
-                           std::meta::reflect_value(8),
-                           std::meta::reflect_value(4.0f)});
+              std::vector {std::meta::reflect_constant(7),
+                           std::meta::reflect_constant(7),
+                           std::meta::reflect_constant(8),
+                           std::meta::reflect_constant(4.0f)});
 
 static_assert(is_annotation(annotations_of(^^fn)[0]));
 static_assert(is_annotation(annotations_of(^^S)[0]));
@@ -106,7 +106,7 @@ constexpr struct S {} s;
 
 [[=s]] void fnWithS();
 static_assert(type_of(annotations_of(^^fnWithS)[0]) == ^^S);
-static_assert(type_of(value_of(annotations_of(^^fnWithS)[0])) == ^^S);
+static_assert(type_of(constant_of(annotations_of(^^fnWithS)[0])) == ^^S);
 }  // namespace non_dependent
 
                                   // =========
@@ -115,9 +115,9 @@ static_assert(type_of(value_of(annotations_of(^^fnWithS)[0])) == ^^S);
 
 namespace dependent {
 template <std::meta::info R>
-  [[=[:value_of(annotations_of(R)[0]):]]] void TFn();
+  [[=[:constant_of(annotations_of(R)[0]):]]] void TFn();
 template <std::meta::info R>
-  struct [[=[:value_of(annotations_of(R)[0]):]]] TCls {};
+  struct [[=[:constant_of(annotations_of(R)[0]):]]] TCls {};
 
 static_assert(extract<int>(annotations_of(^^TFn<^^non_dependent::fn>)[0]) == 1);
 static_assert(extract<int>(annotations_of(^^TCls<^^non_dependent::S>)[0]) == 3);
@@ -135,9 +135,10 @@ static_assert(annotations_of(^^S1)[0] == annotations_of(^^S1)[0]);
 static_assert(annotations_of(^^S1)[0] != annotations_of(^^S2)[0]);
 static_assert(annotations_of(^^S1)[0] != annotations_of(^^S1)[1]);
 
-static_assert(value_of(annotations_of(^^S1)[0]) == std::meta::reflect_value(42));
-static_assert(value_of(annotations_of(^^S1)[0]) ==
-              value_of(annotations_of(^^S2)[0]));
+static_assert(constant_of(annotations_of(^^S1)[0]) ==
+              std::meta::reflect_constant(42));
+static_assert(constant_of(annotations_of(^^S1)[0]) ==
+              constant_of(annotations_of(^^S2)[0]));
 }  // namespace comparison
 
                            // =======================
@@ -171,12 +172,12 @@ template <std::meta::info R>
 static_assert(annotations_of(^^fn).size() == 0);
 
 consteval {
-  annotate(^^fn, std::meta::reflect_value(1));
+  annotate(^^fn, std::meta::reflect_constant(1));
 }
 static_assert(annotations_of(^^fn).size() == 1);
 static_assert(extract<int>(annotations_of(^^fn)[0]) == 1);
 
-consteval { tfn<^^fn>(std::meta::reflect_value(2.0f)); }
+consteval { tfn<^^fn>(std::meta::reflect_constant(2.0f)); }
 static_assert(annotations_of(^^fn).size() == 2);
 static_assert(annotation_of_type<float>(^^fn) == 2.0f);
 }  // namespace annotation_injection
@@ -190,11 +191,11 @@ void fn();
 static_assert(annotations_of(^^fn).size() == 0);
 [[=1, =2]] void fn();
 static_assert(annotations_of(^^fn).size() == 2);
-consteval { annotate(^^fn, std::meta::reflect_value(3)); }
+consteval { annotate(^^fn, std::meta::reflect_constant(3)); }
 static_assert(annotations_of(^^fn).size() == 3);
 [[=4, =5]] void fn();
 static_assert(annotations_of(^^fn).size() == 5);
-consteval { annotate(^^fn, std::meta::reflect_value(6)); }
+consteval { annotate(^^fn, std::meta::reflect_constant(6)); }
 static_assert(annotations_of(^^fn).size() == 6);
 void fn();
 static_assert(annotations_of(^^fn).size() == 6);
@@ -234,7 +235,7 @@ public:
 
   static consteval int increment(int i = 1) {
     int value = current() + i;
-    annotate(^^Counter, std::meta::reflect_value(value));
+    annotate(^^Counter, std::meta::reflect_constant(value));
     return value;
   }
 };

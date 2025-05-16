@@ -37,31 +37,32 @@ template <int K> struct TCls {
 };
 
                             // =====================
-                            // reflect_value_results
+                            // reflect_constant_results
                             // =====================
 
-namespace reflect_value_results {
-static_assert([:std::meta::reflect_value(42):] == 42);
-static_assert(type_of(std::meta::reflect_value(42)) == ^^int);
+namespace reflect_constant_results {
+static_assert([:std::meta::reflect_constant(42):] == 42);
+static_assert(type_of(std::meta::reflect_constant(42)) == ^^int);
 
-static_assert([:std::meta::reflect_value(EnumCls::A):] == EnumCls::A);
-static_assert(type_of(std::meta::reflect_value(EnumCls::A)) == ^^EnumCls);
+static_assert([:std::meta::reflect_constant(EnumCls::A):] == EnumCls::A);
+static_assert(type_of(std::meta::reflect_constant(EnumCls::A)) == ^^EnumCls);
 
-static_assert([:std::meta::reflect_value(ConstVar):] == ConstVar);
-static_assert(type_of(std::meta::reflect_value(ConstVar)) == ^^int);
+static_assert([:std::meta::reflect_constant(ConstVar):] == ConstVar);
+static_assert(type_of(std::meta::reflect_constant(ConstVar)) == ^^int);
 
-static_assert([:std::meta::reflect_value(ConstexprVar):] == ConstexprVar);
-static_assert(type_of(std::meta::reflect_value(ConstexprVar)) == ^^int);
+static_assert([:std::meta::reflect_constant(ConstexprVar):] == ConstexprVar);
+static_assert(type_of(std::meta::reflect_constant(ConstexprVar)) == ^^int);
 
-static_assert([:std::meta::reflect_value(&fn):] == &fn);
-static_assert(type_of(std::meta::reflect_value(&fn)) == ^^void(*)());
+static_assert([:std::meta::reflect_constant(&fn):] == &fn);
+static_assert(type_of(std::meta::reflect_constant(&fn)) == ^^void(*)());
 
-static_assert([:std::meta::reflect_value(&Cls::k):] == &Cls::k);
-static_assert(type_of(std::meta::reflect_value(&Cls::k)) == ^^int (Cls::*));
+static_assert([:std::meta::reflect_constant(&Cls::k):] == &Cls::k);
+static_assert(type_of(std::meta::reflect_constant(&Cls::k)) == ^^int (Cls::*));
 
-static_assert([:std::meta::reflect_value(&Cls::fn):] == &Cls::fn);
-static_assert(type_of(std::meta::reflect_value(&Cls::fn)) == ^^void (Cls::*)());
-}  // namespace reflect_value_results
+static_assert([:std::meta::reflect_constant(&Cls::fn):] == &Cls::fn);
+static_assert(type_of(std::meta::reflect_constant(&Cls::fn)) ==
+              ^^void (Cls::*)());
+}  // namespace reflect_constant_results
 
                            // ======================
                            // reflect_object_results
@@ -126,7 +127,7 @@ template <auto Expected>
 consteval bool CheckValueIs(std::meta::info R) {
   return extract<decltype(Expected)>(R) == Expected;
 }
-static_assert(CheckValueIs<42>(std::meta::reflect_value(42)));
+static_assert(CheckValueIs<42>(std::meta::reflect_constant(42)));
 static_assert(CheckValueIs<EnumCls::A>(^^EnumCls::A));
 static_assert(CheckValueIs<Enum::A>(^^Enum::A));
 static_assert(CheckValueIs<42>(^^ConstVar));
@@ -143,7 +144,7 @@ static_assert(CheckValueIs<42>([]() {
 static_assert(
     CheckValueIs<3>(
         static_data_members_of(substitute(^^TCls,
-                                          {std::meta::reflect_value(3)}),
+                                          {std::meta::reflect_constant(3)}),
                                std::meta::access_context::unchecked())[0]));
 }  // namespace extract_results
 
@@ -154,7 +155,7 @@ static_assert(
 namespace roundtrip {
 template <typename T>
 consteval bool Roundtrip(T value) {
-  return extract<T>(std::meta::reflect_value(value)) == value;
+  return extract<T>(std::meta::reflect_constant(value)) == value;
 }
 static_assert(Roundtrip(42));
 static_assert(Roundtrip(EnumCls::A));
@@ -216,37 +217,37 @@ static_assert(extract<const int *>(^^arr)[2] == 3);
 }  // namespace extract_array_as_ptr
 
                                // ==============
-                               // value_of_types
+                               // constant_of_types
                                // ==============
 
-namespace value_of_types {
+namespace constant_of_types {
 struct S{};
 
 using Alias1 = int;
 constexpr Alias1 a1 = 3;
 static_assert(type_of(^^a1) == ^^const int);
-static_assert(type_of(value_of(^^a1)) == ^^int);
+static_assert(type_of(constant_of(^^a1)) == ^^int);
 
 using Alias2 = S;
 [[maybe_unused]] constexpr Alias2 a2 {};
 static_assert(type_of(^^a2) == ^^const S);
-static_assert(type_of(value_of(^^a2)) == ^^const S);
+static_assert(type_of(constant_of(^^a2)) == ^^const S);
 
 constexpr const int &ref = a1;
-static_assert(type_of(value_of(^^ref)) == ^^int);
+static_assert(type_of(constant_of(^^ref)) == ^^int);
 
 constexpr std::pair<std::pair<int, bool>, int> p = {{1, true}, 2};
-static_assert(type_of(value_of(std::meta::reflect_object(p.first))) ==
+static_assert(type_of(constant_of(std::meta::reflect_object(p.first))) ==
               ^^const std::pair<int, bool>);
 
 constexpr int g = 3;
 consteval std::meta::info fn() {
     [[maybe_unused]] const int &r = g;
-    static_assert([:value_of(^^r):] == 3);
-    return value_of(^^r);
+    static_assert([:constant_of(^^r):] == 3);
+    return constant_of(^^r);
 }
 static_assert([:fn():] == 3);
-}  // namespace value_of_types
+}  // namespace constant_of_types
 
                            // ======================
                            // objects_from_variables
@@ -256,7 +257,7 @@ namespace objects_from_variables {
 
 constexpr int i = 1;
 static_assert(object_of(^^i) == std::meta::reflect_object(i));
-static_assert(value_of(^^i) == value_of(object_of(^^i)));
+static_assert(constant_of(^^i) == constant_of(object_of(^^i)));
 
 struct A { const int ci = 0; int nci; };
 struct B : A { mutable int i; };
@@ -286,11 +287,11 @@ namespace values_from_objects {
 const int constGlobal = 11;
 constexpr auto rref = std::meta::reflect_object(constGlobal);
 
-static_assert(value_of(^^constGlobal) != ^^constGlobal);
-static_assert([:value_of(^^constGlobal):] == 11);
-static_assert([:value_of(rref):] == 11);
-static_assert(value_of(^^constGlobal) == value_of(rref));
-static_assert(value_of(^^constGlobal) == std::meta::reflect_value(11));
+static_assert(constant_of(^^constGlobal) != ^^constGlobal);
+static_assert([:constant_of(^^constGlobal):] == 11);
+static_assert([:constant_of(rref):] == 11);
+static_assert(constant_of(^^constGlobal) == constant_of(rref));
+static_assert(constant_of(^^constGlobal) == std::meta::reflect_constant(11));
 
 enum Enum { A };
 [[maybe_unused]] static constexpr Enum e = A;
@@ -298,40 +299,40 @@ enum Enum { A };
 enum EnumCls { CA };
 [[maybe_unused]] static constexpr EnumCls ce = CA;
 
-static_assert(value_of(^^A) != value_of(^^CA));
+static_assert(constant_of(^^A) != constant_of(^^CA));
 
-static_assert(value_of(^^A) != std::meta::reflect_value(0));
-static_assert(value_of(^^A) == std::meta::reflect_value(Enum(0)));
-static_assert(value_of(^^A) != std::meta::reflect_value(EnumCls(0)));
-static_assert(value_of(^^e) != std::meta::reflect_value(0));
-static_assert(value_of(^^e) == std::meta::reflect_value(Enum(0)));
-static_assert(value_of(^^e) != std::meta::reflect_value(EnumCls(0)));
-static_assert(value_of(^^ce) != std::meta::reflect_value(0));
-static_assert(value_of(^^ce) != std::meta::reflect_value(Enum(0)));
-static_assert(value_of(^^ce) == std::meta::reflect_value(EnumCls(0)));
+static_assert(constant_of(^^A) != std::meta::reflect_constant(0));
+static_assert(constant_of(^^A) == std::meta::reflect_constant(Enum(0)));
+static_assert(constant_of(^^A) != std::meta::reflect_constant(EnumCls(0)));
+static_assert(constant_of(^^e) != std::meta::reflect_constant(0));
+static_assert(constant_of(^^e) == std::meta::reflect_constant(Enum(0)));
+static_assert(constant_of(^^e) != std::meta::reflect_constant(EnumCls(0)));
+static_assert(constant_of(^^ce) != std::meta::reflect_constant(0));
+static_assert(constant_of(^^ce) != std::meta::reflect_constant(Enum(0)));
+static_assert(constant_of(^^ce) == std::meta::reflect_constant(EnumCls(0)));
 
 constexpr std::pair<std::pair<int, bool>, int> p = {{1, true}, 2};
 constexpr std::meta::info rfirst = std::meta::reflect_object(p.first);
 static_assert(is_object(rfirst) && !is_value(rfirst));
 static_assert(type_of(rfirst) == ^^const std::pair<int, bool>);
-static_assert(rfirst != std::meta::reflect_value(std::make_pair(1, true)));
+static_assert(rfirst != std::meta::reflect_constant(std::make_pair(1, true)));
 
-constexpr std::meta::info rvfirst = value_of(rfirst);
-static_assert(!is_object(rvfirst) && is_value(rvfirst));
+constexpr std::meta::info rvfirst = constant_of(rfirst);
+static_assert(is_object(rvfirst) && !is_value(rvfirst));
 static_assert(type_of(rvfirst) == ^^const std::pair<int, bool>);
-static_assert(rvfirst == std::meta::reflect_value(std::make_pair(1, true)));
+static_assert(rvfirst == std::meta::reflect_constant(std::make_pair(1, true)));
 static_assert([:rvfirst:].first == 1);
 }  // namespace values_from_objects
 
                            // ======================
-                           // reflect_value_callable
+                           // reflect_constant_callable
                            // ======================
 
-namespace reflect_value_callable {
+namespace reflect_constant_callable {
 
 template<typename T>
 constexpr auto reflectValueCallable = 
-  requires { std::meta::reflect_value<T>(std::declval<T>()); };
+  requires { std::meta::reflect_constant<T>(std::declval<T>()); };
 
 enum class E {};
 
@@ -371,7 +372,7 @@ static_assert(!reflectValueCallable<const int&&>);
 // non structural class types
 static_assert(!reflectValueCallable<NonStructuralTypeClass>);
 static_assert(!reflectValueCallable<NonStructuralTypeClass2>);
-}  // namespace reflect_value_callable
+}  // namespace reflect_constant_callable
 
                           // ========================
                           // pointer_object_ambiguity
@@ -392,18 +393,40 @@ static_assert(!is_variable(ro));
 static_assert(is_object(ro));
 static_assert(!is_value(ro));
 static_assert(ro == std::meta::reflect_object(p));
-static_assert(ro != std::meta::reflect_value(&k));
+static_assert(ro != std::meta::reflect_constant(&k));
 
-constexpr auto rv = value_of(ro);
+constexpr auto rv = constant_of(ro);
 static_assert(!is_variable(rv));
 static_assert(!is_object(rv));
 static_assert(is_value(rv));
-static_assert(rv == std::meta::reflect_value(&k));
+static_assert(rv == std::meta::reflect_constant(&k));
 
 static_assert(rp != ro);
 static_assert(rp != rv);
 static_assert(ro != rv);
 }  // namespace pointer_object_ambiguity
+
+                      // ================================
+                      // reflect_constants_of_class_types
+                      // ================================
+
+namespace reflect_constants_of_class_types {
+struct S { int m; };
+constexpr S s{42};
+
+constexpr auto r1 = std::meta::reflect_constant(s);
+constexpr auto r2 = std::meta::reflect_object(s);
+static_assert(is_object(r1) && is_object(r2));
+static_assert(r1 != r2);
+static_assert(r1 == constant_of(r2));
+
+template <auto V> requires (is_class_type(^^decltype(V)))
+consteval bool fn() {
+  return std::meta::reflect_constant(V) == std::meta::reflect_object(V);
+}
+
+static_assert(fn<s>());
+}  // namespace reflect_constants_of_class_types
 
                         // ============================
                         // library_based_implementation
@@ -421,7 +444,7 @@ template <auto &O> auto &object_helper() {
 }
 }  // namespace detail
 
-consteval std::meta::info value_of(std::meta::info R) {
+consteval std::meta::info constant_of(std::meta::info R) {
   return template_arguments_of(substitute(^^detail::value_helper, {R}))[0];
 }
 
@@ -435,7 +458,7 @@ consteval std::meta::info object_of(std::meta::info R) {
 constexpr int i = 3;
 const int &r = i;
 
-static_assert(for_test::value_of(^^i) == std::meta::reflect_value(3));
+static_assert(for_test::constant_of(^^i) == std::meta::reflect_constant(3));
 static_assert(for_test::object_of(^^r) == std::meta::object_of(^^i));
 
 }  // namespace library_based_implementation
@@ -460,7 +483,7 @@ struct Cls
 
 void odr_use()
 {
-    Cls<1, std::meta::reflect_value(0)>::fn();
+    Cls<1, std::meta::reflect_constant(0)>::fn();
 }
 }  // namespace bb_clang_p2996_issue_67_regression_test
 
@@ -468,7 +491,7 @@ void odr_use()
 int main() {
   // RUN: grep "call-lambda-value: 1" %t.stdout
   extract<void(*)(int)>(
-        std::meta::reflect_value(
+        std::meta::reflect_constant(
             [](int id) {
               std::println("call-lambda-value: {}", id);
             }))(1);
@@ -507,7 +530,7 @@ int main() {
 
   // RUN: grep "splice-value-reflection: 1" %t.stdout
   static constexpr std::pair<std::pair<int, bool>, int> p = {{1, true}, 2};
-  constexpr auto rvfirst = value_of(std::meta::reflect_object(p.first));
+  constexpr auto rvfirst = constant_of(std::meta::reflect_object(p.first));
   int v = [:rvfirst:].first;
   std::println("splice-value-reflection: {}", v);
 }

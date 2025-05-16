@@ -36,7 +36,7 @@ struct struct_of_arrays_impl {
     for (std::meta::info member : old_members) {
         auto array_type = substitute(^^std::array, {
             type_of(member),
-            std::meta::reflect_value(N),
+            std::meta::reflect_constant(N),
         });
         auto mem_descr = data_member_spec(array_type, {.name = identifier_of(member)});
         new_members.push_back(mem_descr);

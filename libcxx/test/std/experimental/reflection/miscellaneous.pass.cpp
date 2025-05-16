@@ -61,7 +61,7 @@ consteval auto get_struct_to_tuple_helper() {
   std::vector args = {^^To, ^^From};
   for (auto mem : nonstatic_data_members_of(^^From,
                                             access_context::unchecked())) {
-    args.push_back(reflect_value(mem));
+    args.push_back(reflect_constant(mem));
   }
 
   return extract<To(*)(From const&)>(substitute(^^struct_to_tuple_helper,
@@ -215,7 +215,7 @@ consteval auto fn() {
                            // ======================
 
 namespace compatible_with_blocks {
-constexpr auto block = std::meta::reflect_value(^int() { return 4; });
+constexpr auto block = std::meta::reflect_constant(^int() { return 4; });
 static_assert(type_of(block) == ^^int(^)());
 
 void run_test() {

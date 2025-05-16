@@ -27,7 +27,7 @@
 constexpr auto ctx = std::meta::access_context::unchecked();
 
 template <int K>
-constexpr std::meta::info RVal = std::meta::reflect_value(K);
+constexpr std::meta::info RVal = std::meta::reflect_constant(K);
 
                                // ===============
                                // class_templates
@@ -389,7 +389,8 @@ static_assert(
                           return (c >= 'A' && c <= 'Z') ||
                                  (c >= 'a' && c <= 'z') || c == ' ';
                         }) |
-                        std::views::transform(std::meta::reflect_value<char>))
+                        std::views::transform(
+                            std::meta::reflect_constant<char>))
     :]() == "Hello world");
 
 static_assert(!can_substitute(^^join,

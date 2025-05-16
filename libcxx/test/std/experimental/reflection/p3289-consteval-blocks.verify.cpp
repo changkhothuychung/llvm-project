@@ -44,7 +44,7 @@ namespace consteval_block_annotations {
 
 struct S {
   consteval {
-    annotate(^^S, std::meta::reflect_value(42));
+    annotate(^^S, std::meta::reflect_constant(42));
   }
 };
 

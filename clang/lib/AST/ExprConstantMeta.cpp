@@ -138,10 +138,10 @@ static bool proxied_entity_of(APValue &Result, ASTContext &C, MetaActions &Meta,
                               SourceRange Range, ArrayRef<Expr *> Args,
                               Decl *ContainingDecl);
 
-static bool value_of(APValue &Result, ASTContext &C, MetaActions &Meta,
-                     EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
-                     QualType ResultTy, SourceRange Range,
-                     ArrayRef<Expr *> Args, Decl *ContainingDecl);
+static bool constant_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                        EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
+                        QualType ResultTy, SourceRange Range,
+                        ArrayRef<Expr *> Args, Decl *ContainingDecl);
 
 static bool object_of(APValue &Result, ASTContext &C, MetaActions &Meta,
                       EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
@@ -744,7 +744,7 @@ static constexpr Metafunction Metafunctions[] = {
   { Metafunction::MFRK_metaInfo, 1, 1, underlying_entity_of },
   { Metafunction::MFRK_metaInfo, 1, 1, proxied_entity_of },
   { Metafunction::MFRK_metaInfo, 1, 1, object_of },
-  { Metafunction::MFRK_metaInfo, 1, 1, value_of },
+  { Metafunction::MFRK_metaInfo, 1, 1, constant_of },
   { Metafunction::MFRK_metaInfo, 1, 1, template_of },
   { Metafunction::MFRK_metaInfo, 4, 4, substitute },
   { Metafunction::MFRK_spliceFromArg, 2, 2, extract },
@@ -2202,7 +2202,7 @@ bool has_identifier(APValue &Result, ASTContext &C, MetaActions &Meta,
     } else if (auto *FD = dyn_cast<FunctionDecl>(D);
                FD && FD->getTemplateSpecializationArgs())
       break;
-    else if (auto *VTSD = dyn_cast<VarTemplateSpecializationDecl>(D))
+    else if (isa<VarTemplateSpecializationDecl>(D))
       break;
     else if (auto *ND = dyn_cast<NamedDecl>(D))
       HasIdentifier = (ND->getIdentifier() != nullptr);
@@ -2589,10 +2589,10 @@ bool object_of(APValue &Result, ASTContext &C, MetaActions &Meta,
 }
 
 
-bool value_of(APValue &Result, ASTContext &C, MetaActions &Meta,
-              EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
-              QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args,
-              Decl *ContainingDecl) {
+bool constant_of(APValue &Result, ASTContext &C, MetaActions &Meta,
+                 EvalFn Evaluator, DiagFn Diagnoser, bool AllowInjection,
+                 QualType ResultTy, SourceRange Range, ArrayRef<Expr *> Args,
+                 Decl *ContainingDecl) {
   assert(Args[0]->getType()->isReflectionType());
   assert(ResultTy == C.MetaInfoTy);
 
@@ -2617,14 +2617,21 @@ bool value_of(APValue &Result, ASTContext &C, MetaActions &Meta,
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
           << 2 << "an object not usable in constant expressions" << Range;
 
-    QualType ValueTy = ComputeResultType(RV.getTypeOfReflectedResult(C),
-                                         ER.Val);
-    return SetAndSucceed(Result, ER.Val.Lift(ValueTy));
+    APValue Constant = ER.Val;
+    QualType ConstantTy = ComputeResultType(RV.getTypeOfReflectedResult(C),
+                                            Constant);
+    if (ConstantTy->isRecordType()) {
+      auto *TPO = C.getTemplateParamObjectDecl(ConstantTy, Constant);
+      Constant = APValue(APValue::LValueBase{TPO}, CharUnits::Zero(), {}, false,
+                    false);
+      ConstantTy = QualType{};
+    }
+    return SetAndSucceed(Result, Constant.Lift(ConstantTy));
   }
   case ReflectionKind::Declaration: {
     ValueDecl *Decl = RV.getReflectedDecl();
 
-    APValue Value;
+    APValue Constant;
     QualType QT;
     if (auto *VD = dyn_cast<VarDecl>(Decl)) {
       if (!VD->isUsableInConstantExpressions(C))
@@ -2639,7 +2646,7 @@ bool value_of(APValue &Result, ASTContext &C, MetaActions &Meta,
                                               SourceLocation(), VD, false,
                                               Range.getBegin(), QT,
                                               VK_LValue, Decl, nullptr);
-      if (!Evaluator(Value, Synthesized, true))
+      if (!Evaluator(Constant, Synthesized, true))
         llvm_unreachable("failed to evaluate variable usable in constant "
                          "expressions");
     } else if (isa<EnumConstantDecl>(Decl)) {
@@ -2652,17 +2659,24 @@ bool value_of(APValue &Result, ASTContext &C, MetaActions &Meta,
       Expr::EvalResult ER;
       if (!Synthesized->EvaluateAsConstantExpr(ER, C))
         llvm_unreachable("failed to evaluate enumerator constant");
-      Value = ER.Val;
+      Constant = ER.Val;
     } else if (auto *TPOD = dyn_cast<TemplateParamObjectDecl>(Decl)) {
-      Value = TPOD->getValue();
+      Constant = TPOD->getValue();
       QT = TPOD->getType();
     } else {
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
           << 2 << DescriptionOf(RV) << Range;
     }
 
-    QualType ValueTy = ComputeResultType(QT, Value);
-    return SetAndSucceed(Result, Value.Lift(ValueTy));
+    QualType ConstantTy = ComputeResultType(QT, Constant);
+    if (ConstantTy->isRecordType()) {
+      auto *TPO = C.getTemplateParamObjectDecl(ConstantTy, Constant);
+      Constant = APValue(APValue::LValueBase{TPO}, CharUnits::Zero(), {}, false,
+                    false);
+      ConstantTy = QualType{};
+    }
+
+    return SetAndSucceed(Result, Constant.Lift(ConstantTy));
   }
   case ReflectionKind::Annotation: {
     CXX26AnnotationAttr *A = RV.getReflectedAnnotation();
@@ -2973,9 +2987,8 @@ bool extract(APValue &Result, ASTContext &C, MetaActions &Meta,
   }
 
   auto extractLambda = [&](APValue &Out, CXXRecordDecl *RD) -> bool {
-    // Lambdas with captures are not structural types; should not be possible
-    // to get a reflection to a value of such a type.
-    assert(RD->isCapturelessLambda());
+    if (!RD->isCapturelessLambda())
+      return true;
 
     CXXMethodDecl *CallOp = RD->getLambdaStaticInvoker();
     QualType LambdaPtrTy = C.getPointerType(CallOp->getType());
@@ -3004,6 +3017,11 @@ bool extract(APValue &Result, ASTContext &C, MetaActions &Meta,
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Object: {
     QualType ObjectTy = RV.getTypeOfReflectedResult(C);
+
+    if (auto *RD = ObjectTy->getAsCXXRecordDecl();
+        RD && RD->isLambda() && ResultTy->isPointerType())
+      return extractLambda(Result, RD);
+
     if (ObjectTy.getCanonicalType().getTypePtr() !=
         ResultTy.getCanonicalType().getTypePtr())
       return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
@@ -3018,14 +3036,10 @@ bool extract(APValue &Result, ASTContext &C, MetaActions &Meta,
     return SetAndSucceed(Result, RV);
   }
   case ReflectionKind::Value: {
+    QualType ValueTy = RV.getTypeOfReflectedResult(C);
     if (ReturnsLValue)
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_extract)
           << 1 << DescriptionOf(RV) << Range;
-
-    QualType ValueTy = RV.getTypeOfReflectedResult(C);
-    if (auto *RD = ValueTy->getAsCXXRecordDecl();
-        RD && RD->isLambda() && ResultTy->isPointerType())
-      return extractLambda(Result, RD);
 
     if (ValueTy.getCanonicalType().getTypePtr() !=
         ResultTy.getCanonicalType().getTypePtr())
@@ -4829,7 +4843,7 @@ bool reflect_result(APValue &Result, ASTContext &C, MetaActions &Meta,
   {
     Expr::EvalResult Discarded;
 
-    ConstantExprKind CEKind = (OVE->getType()->isClassType() && !IsLValue) ?
+    ConstantExprKind CEKind = (OVE->getType()->isRecordType() && !IsLValue) ?
                               ConstantExprKind::ClassTemplateArgument :
                               ConstantExprKind::NonClassTemplateArgument;
     if (!OVE->EvaluateAsConstantExpr(Discarded, C, CEKind))
@@ -4849,7 +4863,15 @@ bool reflect_result(APValue &Result, ASTContext &C, MetaActions &Meta,
             makeReflection(
                 const_cast<ValueDecl *>(LVBase.get<const ValueDecl *>())));
 
-  return SetAndSucceed(Result, Arg.Lift(ArgTy.getReflectedType()));
+  QualType ReflTy = ArgTy.getReflectedType();
+  if (!IsLValue && ReflTy->isRecordType()) {
+    auto *TPO = C.getTemplateParamObjectDecl(ReflTy, Arg);
+    Arg = APValue(APValue::LValueBase{TPO}, CharUnits::Zero(), {}, false,
+                  false);
+    ReflTy = QualType{};
+  }
+
+  return SetAndSucceed(Result, Arg.Lift(ReflTy));
 }
 
 bool data_member_spec(APValue &Result, ASTContext &C, MetaActions &Meta,
@@ -5970,7 +5992,7 @@ bool is_nonstatic_member_function(ValueDecl *FD) {
     if (const MemberPointerType *MPT = QT->getAs<MemberPointerType>()) {
       QualType PT = MPT->getPointeeType();
       // check if the pointee type is a function type
-      if (const FunctionProtoType *FPT = PT->getAs<FunctionProtoType>()) {
+      if (PT->getAs<FunctionProtoType>()) {
         return true;
       }
     }

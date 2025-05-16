@@ -52,7 +52,7 @@ consteval auto dealias(info) -> info;
 
 // object and value queries
 consteval auto object_of(info) -> info;
-consteval auto value_of(info) -> info;
+consteval auto constant_of(info) -> info;
 
 // template queries
 consteval auto template_of(info r) -> info;
@@ -75,7 +75,7 @@ template <reflection_range R = initializer_list<info>>
 
 // reflect expression results
 template <typename T>
-  consteval auto reflect_value(const T&) -> info;
+  consteval auto reflect_constant(const T&) -> info;
 template <typename T>
   consteval auto reflect_object(T &) -> info;
 template <typename T>
@@ -445,7 +445,7 @@ enum : unsigned {
   __metafn_underlying_entity_of,
   __metafn_proxied_entity_of,
   __metafn_object_of,
-  __metafn_value_of,
+  __metafn_constant_of,
   __metafn_template_of,
   __metafn_substitute,
   __metafn_extract,
@@ -873,8 +873,8 @@ consteval auto object_of(info r) -> info {
 }
 
 // Returns a reflection of the value evaluated from the reflected entity.
-consteval auto value_of(info r) -> info {
-  return __metafunction(detail::__metafn_value_of, r);
+consteval auto constant_of(info r) -> info {
+  return __metafunction(detail::__metafn_constant_of, r);
 }
 
 // Returns a reflection of the template from which the reflected entity was
@@ -1405,7 +1405,7 @@ consteval auto is_user_declared(info r) -> bool {
 template <typename T> 
   requires (!is_reference_v<T> && 
             __metafunction(detail::__metafn_is_structural_type, ^^T))
-consteval auto reflect_value(const T &r) -> info {
+consteval auto reflect_constant(const T &r) -> info {
   return __metafunction(detail::__metafn_reflect_result, ^^T,
                         static_cast<T>(r));
 }
@@ -1857,7 +1857,7 @@ consteval auto rank(info r) -> size_t {
 }
 
 consteval auto extent(info r, unsigned i = 0) -> size_t {
-  return extract<size_t>(substitute(^^extent_v, {r, reflect_value(i)}));
+  return extract<size_t>(substitute(^^extent_v, {r, reflect_constant(i)}));
 }
 
 consteval auto is_same_type(info r, info s) -> bool {
@@ -2048,7 +2048,7 @@ consteval auto tuple_size(info type) -> size_t {
 
 consteval auto tuple_element(size_t index, info type) -> info {
   return detail::__underlying_entity_of(substitute(^^tuple_element_t,
-                            {reflect_value(index), type}));
+                            {reflect_constant(index), type}));
 }
 
 consteval auto variant_size(info type) -> size_t {
@@ -2057,7 +2057,7 @@ consteval auto variant_size(info type) -> size_t {
 
 consteval auto variant_alternative(size_t index, info type) -> info {
   return detail::__underlying_entity_of(substitute(^^variant_alternative_t,
-                 {reflect_value(index), type}));
+                 {reflect_constant(index), type}));
 }
 
 
@@ -2250,6 +2250,17 @@ consteval auto reflect_result(Ty r) -> info {
                         static_cast<typename [:DTy:]>(r));
 }
 
+template <typename T>
+[[deprecated("renamed to 'reflect_constant' in P2996R12")]]
+consteval auto reflect_value(const T &r) -> info {
+  return reflect_constant(r);
+}
+
+[[deprecated("renamed to 'constant_of' in P2996R12")]]
+consteval auto value_of(info r) -> info {
+  return constant_of(r);
+}
+
 template <reflection_range R = initializer_list<info>>
 [[deprecated("removed 'test_type' and 'test_types' in P2996R4")]]
 consteval auto test_types(info templ, R &&args) -> bool {
@@ -2328,7 +2339,7 @@ consteval span<const ValTy> impl(const span<const ValTy> &in) {
 
   vector Args = {^^ValTy};
   for (const auto &V : in)
-    Args.push_back(meta::reflect_value(V));
+    Args.push_back(meta::reflect_constant(V));
 
   return meta::extract<span<const ValTy>>(
     meta::substitute(^^StaticSpan, { meta::substitute(^^FixedArray, Args) }));
@@ -2442,7 +2453,7 @@ struct pretty_printer {
   static consteval auto expand(R range) {
     vector<info> args;
     for (auto r : range) {
-      args.push_back(reflect_value(r));
+      args.push_back(reflect_constant(r));
     }
     return substitute(^^replicator, args);
   }
@@ -2563,7 +2574,7 @@ template <typename CharT>
 consteval auto pretty_printer<CharT>::print(info R)
       -> const CharT * {
   return extract<const CharT *>(reflect_invoke(^^tprint,
-                                               {reflect_value(R)}, {}));
+                                               {reflect_constant(R)}, {}));
 }
 
 template <typename CharT>
@@ -2664,7 +2675,7 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
                                      access_context::unchecked())):] >>
       [&]<auto Mem> {
         if (Idx++ > 0) result += string_constant(", ");
-          result += tprint_impl::render<reflect_value([:R:].[:Mem:])>();
+          result += tprint_impl::render<reflect_constant([:R:].[:Mem:])>();
       };
   result += string_constant("}");
 

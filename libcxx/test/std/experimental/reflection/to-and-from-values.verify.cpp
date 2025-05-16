@@ -23,7 +23,7 @@
                              // ==================
 
 namespace disallowed_results {
-constexpr auto v1 = std::meta::reflect_value((const char *)"fails");
+constexpr auto v1 = std::meta::reflect_constant((const char *)"fails");
   // expected-error@-1 {{must be initialized by a constant expression}} \
   // expected-note@-1 {{provided value cannot be represented}}
 
@@ -31,7 +31,7 @@ struct HoldsTemporary {
   const int &tmp;
 };
 constexpr HoldsTemporary htmp{42};
-constexpr auto v2 = std::meta::reflect_value(htmp);
+constexpr auto v2 = std::meta::reflect_constant(htmp);
   // expected-error@-1 {{must be initialized by a constant expression}} \
   // expected-note@-1 {{provided value cannot be represented}}
 

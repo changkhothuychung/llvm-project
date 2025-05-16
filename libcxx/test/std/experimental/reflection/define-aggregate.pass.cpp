@@ -152,7 +152,7 @@ template <> struct S<2> {};
 
 consteval int nextIncompleteIdx() {
   for (int Idx = 0;; ++Idx)
-    if (!is_complete_type(substitute(^^S, {std::meta::reflect_value(Idx)})))
+    if (!is_complete_type(substitute(^^S, {std::meta::reflect_constant(Idx)})))
       return Idx;
 }
 consteval {
@@ -298,7 +298,8 @@ static_assert(data_member_spec(^^int, {.name=u8"i"}) ==
               data_member_spec(^^int, {.name="i"}));
 static_assert(data_member_spec(^^int, {.name="i", .alignment=4}) !=
               data_member_spec(^^int, {.name="i"}));
-static_assert(data_member_spec(^^int, {.name=""}) == data_member_spec(^^int, {}));
+static_assert(data_member_spec(^^int, {.name=""}) ==
+              data_member_spec(^^int, {}));
 
 using Alias = int;
 static_assert(data_member_spec(^^Alias, {}) != data_member_spec(^^int, {}));
