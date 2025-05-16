@@ -3081,10 +3081,29 @@ bool extract(APValue &Result, ASTContext &C, MetaActions &Meta,
         }
         Synthesized = DeclRefExpr::Create(C, NNSLocBuilder.getTemporary(),
                                           SourceLocation(), Decl, false,
-                                          Range.getBegin(), ResultTy,
-                                          ReturnsLValue ? VK_LValue :
-                                                          VK_PRValue,
+                                          Range.getBegin(), ResultTy, VK_LValue,
                                           Decl, nullptr);
+      } else if (auto *ArrTy = dyn_cast<ArrayType>(Decl->getType())) {
+        QualType PtrTy = C.getPointerType(ArrTy->getElementType());
+
+        ReturnsLValue = true;
+        if (RawResultTy.getCanonicalType().getTypePtr() !=
+            PtrTy.getCanonicalType().getTypePtr())
+          return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
+              << 1 << PtrTy << 1 << ResultTy << Range;
+
+        NestedNameSpecifierLocBuilder NNSLocBuilder;
+        if (auto *ParentClsDecl = dyn_cast_or_null<CXXRecordDecl>(
+                Decl->getDeclContext())) {
+          TypeSourceInfo *TSI = C.CreateTypeSourceInfo(
+                  QualType(ParentClsDecl->getTypeForDecl(), 0), 0);
+          NNSLocBuilder.Extend(C, Range.getBegin(), TSI->getTypeLoc(),
+                               Range.getBegin());
+        }
+
+        APValue::LValuePathEntry Path[1] = {APValue::LValuePathEntry::ArrayIndex(0)};
+        return SetAndSucceed(Result,
+                             APValue(Decl, CharUnits::Zero(), Path, false));
       } else {
         // We have a reflection of a (possibly local) non-reference variable.
         // Synthesize an lvalue by reaching up the call stack.

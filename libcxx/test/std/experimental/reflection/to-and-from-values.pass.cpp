@@ -205,6 +205,16 @@ namespace extract_ref_semantics {
   }
 }  // namespace extract_ref_semantics
 
+                            // ====================
+                            // extract_array_as_ptr
+                            // ====================
+
+namespace extract_array_as_ptr {
+constexpr int arr[] = {1, 2, 3};
+static_assert(extract<const int *>(^^arr)[2] == 3);
+
+}  // namespace extract_array_as_ptr
+
                                // ==============
                                // value_of_types
                                // ==============
