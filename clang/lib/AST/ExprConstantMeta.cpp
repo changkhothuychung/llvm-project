@@ -3098,13 +3098,17 @@ bool extract(APValue &Result, ASTContext &C, MetaActions &Meta,
                                           Range.getBegin(), ResultTy, VK_LValue,
                                           Decl, nullptr);
       } else if (auto *ArrTy = dyn_cast<ArrayType>(Decl->getType())) {
-        QualType PtrTy = C.getPointerType(ArrTy->getElementType());
+        QualType Elt = ArrTy->getElementType();
+        if (auto *VD = dyn_cast<VarDecl>(Decl)) {
+          if (VD->isConstexpr()) {
+            Elt.addConst();
+          }
+        }
 
         ReturnsLValue = true;
-        if (RawResultTy.getCanonicalType().getTypePtr() !=
-            PtrTy.getCanonicalType().getTypePtr())
+        if (!RawResultTy->isPointerType() || !RawResultTy->getPointeeType().isAtLeastAsQualifiedAs(Elt, C))
           return Diagnoser(Range.getBegin(), diag::metafn_extract_type_mismatch)
-              << 1 << PtrTy << 1 << ResultTy << Range;
+              << 1 << C.getPointerType(Elt) << 1 << ResultTy << Range;
 
         NestedNameSpecifierLocBuilder NNSLocBuilder;
         if (auto *ParentClsDecl = dyn_cast_or_null<CXXRecordDecl>(
