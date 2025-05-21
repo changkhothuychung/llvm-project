@@ -9758,6 +9758,7 @@ def err_base_class_has_flexible_array_member : Error<
 def err_incomplete_base_class : Error<"base class has incomplete type">;
 def err_duplicate_base_class : Error<
   "base class %0 specified more than once as a direct base class">;
+def err_class_not_derived_from_base : Error<"class %0 not derived from %1">;
 def warn_inaccessible_base_class : Warning<
   "direct base %0 is inaccessible due to ambiguity:%1">,
   InGroup<DiagGroup<"inaccessible-base">>;

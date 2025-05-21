@@ -3179,8 +3179,11 @@ Sema::CheckDerivedToBaseConversion(QualType Derived, QualType Base,
   CXXBasePaths Paths(/*FindAmbiguities=*/true, /*RecordPaths=*/true,
                      /*DetectVirtual=*/false);
   bool DerivationOkay = IsDerivedFrom(Loc, Derived, Base, Paths);
-  if (!DerivationOkay)
+  if (!DerivationOkay) {
+    Diag(Loc,
+         diag::err_class_not_derived_from_base) << Derived << Base << Range;
     return true;
+  }
 
   const CXXBasePath *Path = nullptr;
   if (!Paths.isAmbiguous(Context.getCanonicalType(Base).getUnqualifiedType()))

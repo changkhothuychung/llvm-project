@@ -1291,9 +1291,6 @@ Sema::BuildMemberReferenceExpr(Expr *BaseExpr, QualType BaseExprType,
 ExprResult
 Sema::BuildMemberReferenceExpr(Scope *S, Expr *Base, SourceLocation OpLoc,
                                tok::TokenKind OpKind, CXXSpliceExpr *RHS) {
-  // Disable access control for the duration of the splice expression
-  AccessControlScopeGuard guard {*this, true};
-
   bool IsRHSDependent = (RHS->isValueDependent() || RHS->isTypeDependent());
   bool IsArrow = (OpKind == tok::arrow);
   if (Base) {

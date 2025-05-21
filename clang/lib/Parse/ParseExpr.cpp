@@ -2474,16 +2474,20 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
       } else if (Tok.is(tok::annot_splice)) {
         ExprResult Res = ParseCXXSpliceAsExpr(TemplateKWLoc,
                                               /*AllowMemberReference=*/true);
-        if (!Res.isInvalid() && !Diags.hasErrorOccurred()) {
+        if (!Res.isInvalid()) {
           LHS = Actions.ActOnMemberAccessExpr(getCurScope(), LHS.get(), OpLoc,
                                               OpKind,
                                               cast<CXXSpliceExpr>(Res.get()));
-          if (!LHS.isInvalid() && Tok.is(tok::less))
+          if (LHS.isInvalid())
+            // Preserve the LHS if the RHS is an invalid member.
+            LHS = Actions.CreateRecoveryExpr(OrigLHS->getBeginLoc(),
+                                             Name.getEndLoc(), {OrigLHS});
+          else if (Tok.is(tok::less))
             checkPotentialAngleBracket(LHS);
-          break;
         } else {
           LHS = ExprError();
         }
+        break;
       } else if (ParseUnqualifiedId(
                      SS, ObjectType, LHS.get() && LHS.get()->containsErrors(),
                      /*EnteringContext=*/false,
