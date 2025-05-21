@@ -8628,6 +8628,9 @@ def warn_no_typeid_with_rtti_disabled: Warning<
 
 def err_cannot_form_pointer_to_member_of_reference_type : Error<
   "cannot form a pointer-to-member to member %0 of reference type %1">;
+def err_cannot_form_pointer_to_member_anon_union : Error<
+  "cannot form a pointer-to-member to member %0 of %1 that is not a member of "
+  "a named class">;
 def err_incomplete_object_call : Error<
   "incomplete type in call to object of type %0">;
 
