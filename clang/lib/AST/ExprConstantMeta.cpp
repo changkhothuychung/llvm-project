@@ -2683,11 +2683,18 @@ bool constant_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   }
   case ReflectionKind::Annotation: {
     CXX26AnnotationAttr *A = RV.getReflectedAnnotation();
-    APValue Value = RV.getReflectedAnnotation()->getValue();
+    APValue Constant = RV.getReflectedAnnotation()->getValue();
 
-    QualType Ty = desugarType(A->getArg()->getType(), /*UnwrapAliases=*/true,
-                              /*DropCV=*/true, /*DropRefs=*/false);
-    return SetAndSucceed(Result, A->getValue().Lift(Ty));
+    QualType ConstantTy = desugarType(A->getArg()->getType(),
+                                      /*UnwrapAliases=*/true, /*DropCV=*/true,
+                                      /*DropRefs=*/false);
+    if (ConstantTy->isRecordType()) {
+      auto *TPO = C.getTemplateParamObjectDecl(ConstantTy, Constant);
+      Constant = APValue(APValue::LValueBase{TPO}, CharUnits::Zero(), {}, false,
+                    false);
+      ConstantTy = QualType{};
+    }
+    return SetAndSucceed(Result, Constant.Lift(ConstantTy));
   }
   case ReflectionKind::Null:
   case ReflectionKind::Type:
