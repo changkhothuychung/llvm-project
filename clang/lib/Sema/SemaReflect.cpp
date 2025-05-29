@@ -345,6 +345,11 @@ public:
     S.ForceDeclarationOfImplicitMembers(RD);
   }
 
+  void EnsureInstantiationOfExceptionSpec(SourceLocation Loc,
+                                          FunctionDecl *FD) override {
+    S.InstantiateExceptionSpec(Loc, FD);
+  }
+
   QualType Substitute(TypeAliasTemplateDecl *TD,
                       ArrayRef<TemplateArgument> TArgs,
                       SourceLocation InstantiateLoc) override {

@@ -2369,6 +2369,9 @@ bool type_of(APValue &Result, ASTContext &C, MetaActions &Meta,
       return Diagnoser(Range.getBegin(), diag::metafn_cannot_query_property)
           << 0 << DescriptionOf(RV) << Range;
 
+    if (auto *FD = dyn_cast<FunctionDecl>(VD))
+      Meta.EnsureInstantiationOfExceptionSpec(Range.getBegin(), FD);
+
     bool DropCV = isa<ParmVarDecl>(VD);
     QualType QT = desugarType(VD->getType(),
                               /*UnwrapAliases=*/ true, DropCV,
@@ -3420,8 +3423,12 @@ bool is_noexcept(APValue &Result, ASTContext &C, MetaActions &Meta,
   bool IsNoexcept = false;
   if (RV.isReflectedType())
     IsNoexcept = isFunctionOrMethodNoexcept(RV.getReflectedType());
-  else if (RV.isReflectedDecl())
+  else if (RV.isReflectedDecl()) {
+    if (auto *FD = dyn_cast<FunctionDecl>(RV.getReflectedDecl()))
+      Meta.EnsureInstantiationOfExceptionSpec(Range.getBegin(), FD);
+
     IsNoexcept = isFunctionOrMethodNoexcept(RV.getReflectedDecl()->getType());
+  }
 
   return SetAndSucceed(Result, makeBool(C, IsNoexcept));
 }
