@@ -543,6 +543,12 @@ public:
             ParsedTArgs.emplace_back(SS, P, SourceLocation());
             break;
           }
+          case TemplateArgument::Declaration: {
+            Expr *E = CreateRefToDecl(S, TArg.getAsDecl(), SourceLocation());
+            ParsedTArgs.emplace_back(ParsedTemplateArgument::NonType, E,
+                                     SourceLocation());
+            break;
+          }
           // TODO(P2996): Handle other kinds of TemplateArgument
           // (e.g., structural).
           default:
