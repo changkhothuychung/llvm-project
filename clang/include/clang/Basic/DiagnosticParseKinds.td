@@ -1774,7 +1774,7 @@ def err_expansion_statements_disabled : Error<
 def err_annotation_with_using : Error<
   "annotations are not permitted following an attribute-using-prefix">;
 def warn_meant_parenthesize_reflection : Warning<
-  "'%0' binds to reflection operand">;
+  "'%0' binds to reflection operand">, InGroup<ReflexingParse>;
 }
 
 let CategoryName = "Generics Issue" in {
