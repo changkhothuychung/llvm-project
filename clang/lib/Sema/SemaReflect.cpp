@@ -251,9 +251,11 @@ public:
     DeclContext *PreviousDC = S.CurContext;
     {
       S.CurContext = Ctx;
+      auto Undelayed = S.DelayedDiagnostics.pushUndelayed();
       Result = S.CheckBaseClassAccess(AccessLoc, BaseTy, DerivedTy, Path, 0,
                                       /*ForceCheck=*/true,
                                       /*ForceUnprivileged=*/false);
+      S.DelayedDiagnostics.popUndelayed(Undelayed);
       S.CurContext = PreviousDC;
     }
     return (Result == Sema::AR_accessible);
