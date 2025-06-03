@@ -3165,9 +3165,23 @@ bool extract(APValue &Result, ASTContext &C, MetaActions &Meta,
         return Diagnoser(Range.getBegin(), diag::metafn_cannot_extract) << 2
             << DescriptionOf(RV) << Range;
 
-      QualType MemPtrTy = C.getMemberPointerType(
-              Decl->getType(), nullptr,
-              cast<CXXRecordDecl>(Decl->getDeclContext()));
+      DeclContext *ObjDC = Decl->getDeclContext();
+      while (ObjDC &&
+             [](DeclContext *DC) {
+               if (auto *RD = dyn_cast<CXXRecordDecl>(DC))
+                 return RD->isAnonymousStructOrUnion();
+               else return DC->isTransparentContext();
+             }(ObjDC))
+      if (isa<TranslationUnitDecl>(ObjDC))
+        // Can happen if Target was a member of a static anonymous union at
+        // namespace scope.
+        return Diagnoser(Range.getBegin(), diag::metafn_cannot_extract) << 2
+            << "a field that is not a member of a class";
+      else
+        ObjDC = ObjDC->getParent();
+
+      QualType MemPtrTy = C.getMemberPointerType(Decl->getType(), nullptr,
+                                                 cast<CXXRecordDecl>(ObjDC));
       if (MemPtrTy.getCanonicalType().getTypePtr() !=
           ResultTy.getCanonicalType().getTypePtr())
         return Diagnoser(Range.getBegin(),

@@ -7061,6 +7061,8 @@ def err_illegal_decl_mempointer_to_reference : Error<
   "'%0' declared as a member pointer to a reference of type %1">;
 def err_illegal_decl_mempointer_to_void : Error<
   "'%0' declared as a member pointer to void">;
+def err_illegal_decl_mempointer_into_anon_union : Error<
+  "'%0' declared as a member pointer into an anonymous union">;
 def err_illegal_decl_mempointer_in_nonclass
     : Error<"%0 does not point into a class">;
 def err_reference_to_void : Error<"cannot form a reference to 'void'">;
