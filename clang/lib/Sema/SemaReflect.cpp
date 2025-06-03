@@ -1242,6 +1242,9 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
       T = UT->getUnderlyingType();
   }
 
+  if (auto *STTPTy = T->getAs<SubstTemplateTypeParmType>())
+    T = STTPTy->getReplacementType().getCanonicalType();
+
   APValue RV(ReflectionKind::Type, T.getAsOpaquePtr());
   return CXXReflectExpr::Create(Context, OperatorLoc, OperandLoc, RV);
 }

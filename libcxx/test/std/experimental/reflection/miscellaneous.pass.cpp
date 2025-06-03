@@ -249,6 +249,43 @@ void run_tests() {
   (..., [:Tests:]::run_test());
 }
 
+                               // ===============
+                               // barry_alias_bug
+                               // ===============
+
+namespace barry_alias_bug {
+template <std::meta::info R>
+struct Reflection {
+    static constexpr auto value = R;
+};
+
+template <class... R>
+struct Sequence { };
+
+template <size_t I, typename Seq>
+using get_element_t = [: template_arguments_of(^^Seq)[I] :];
+
+template <class T>
+using get_base_classes_t = [: [] {
+    std::vector<std::meta::info> args;
+    for (std::meta::info b : bases_of(T::value,
+                                      std::meta::access_context::unchecked())) {
+        args.push_back(substitute(^^Reflection,
+                                  {std::meta::reflect_constant(b)}));
+    }
+    return substitute(^^Sequence, args);
+}() :];
+
+
+struct B { };
+struct D : B { };
+
+constexpr auto b = bases_of(^^D, std::meta::access_context::unchecked())[0];
+static_assert(std::same_as<
+    get_element_t<0, get_base_classes_t<Reflection<^^D>>>,
+    Reflection<b>>);
+}  // namespace barry_alias_bug
+
 int main() {
   run_tests<
       ^^alexandrescu_lambda_to_tuple,

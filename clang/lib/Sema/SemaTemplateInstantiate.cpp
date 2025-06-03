@@ -2643,7 +2643,7 @@ QualType TemplateInstantiator::BuildSubstTemplateTypeParmType(
         SemaRef.Context.getQualifiedType(Replacement.getUnqualifiedType(), RQs);
   }
 
-  if (Final) {
+  if (Final && Replacement->getAs<SubstTemplateTypeParmType>()) {
     TLB.pushTrivial(SemaRef.Context, Replacement, NameLoc);
     return Replacement;
   }
