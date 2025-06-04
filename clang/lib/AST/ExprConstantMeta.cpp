@@ -1334,6 +1334,9 @@ static bool ensureDeclared(ASTContext &C, QualType QT, SourceLocation SpecLoc) {
 static bool isReflectableDecl(MetaActions &Meta, ASTContext &C, Decl *D) {
   assert(D && "null declaration");
 
+  if (D != D->getCanonicalDecl())
+    return false;
+
   if (isa<NamespaceAliasDecl>(D))
     return true;
 
@@ -1539,6 +1542,8 @@ static APValue MaybeUnproxy(ASTContext &C, APValue RV, bool Dealias = true) {
     return RV;
 
   NamedDecl *ND = RV.getReflectedEntityProxy()->getTargetDecl();
+  ND = cast<NamedDecl>(ND->getCanonicalDecl());
+
   if (auto *T = dyn_cast<TypeDecl>(ND)) {
     QualType QT = C.getTypeDeclType(T);
     if (Dealias)
