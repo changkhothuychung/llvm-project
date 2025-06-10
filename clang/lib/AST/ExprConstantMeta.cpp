@@ -1334,7 +1334,16 @@ static bool ensureDeclared(ASTContext &C, QualType QT, SourceLocation SpecLoc) {
 static bool isReflectableDecl(MetaActions &Meta, ASTContext &C, Decl *D) {
   assert(D && "null declaration");
 
-  if (D != D->getCanonicalDecl())
+  if (D != D->getCanonicalDecl()) {
+    Decl *First = nullptr;
+    for (Decl *I = D->getMostRecentDecl(); I; I = I->getPreviousDecl())
+      if (I->getLexicalDeclContext() == D->getLexicalDeclContext())
+        First = I;
+    if (D != First)
+      return false;
+  }
+
+  if (D->isLocalExternDecl())
     return false;
 
   if (isa<NamespaceAliasDecl>(D))
@@ -1355,7 +1364,6 @@ static bool isReflectableDecl(MetaActions &Meta, ASTContext &C, Decl *D) {
   if (auto *FD = dyn_cast<FunctionDecl>(D)) {
     for (auto *R = FD->getMostRecentDecl(); R; R = R->getPreviousDecl()) {
       if (!R->getDeclaredReturnType()->isUndeducedType() &&
-          R->getDeclContext() == R->getLexicalDeclContext() &&
           Meta.HasSatisfiedConstraints(R))
         return true;
     }
@@ -1386,26 +1394,35 @@ static Decl *findIterableMember(MetaActions &Meta, ASTContext &C, Decl *D,
   }
 
   do {
-    DeclContext *DC = D->getDeclContext();
+    DeclContext *DC = D->getDeclContext();  // note: SemanticDC
 
-    // Get the next declaration in the DeclContext.
-    //
-    // Explicit specializations of templates are created with the DeclContext of
-    // the template from which they're instantiated, but they end up in the
-    // DeclContext within which they're declared. We therefore skip over any
-    // declarations whose DeclContext is different from the previous Decl;
-    // otherwise, we may inadvertently break the chain of redeclarations in
-    // difficult to predit ways.
-    do {
-      D = D->getNextDeclInContext();
-    } while (D && D->getDeclContext() != DC);
+    if (D->getLexicalDeclContext() == DC) {
+      // Get the next declaration in the DeclContext.
+      //
+      // Explicit specializations of templates are created with the DeclContext
+      // of the template from which they're instantiated, but they end up in the
+      // DeclContext within which they're declared. We therefore skip over any
+      // declarations whose DeclContext is different from the previous Decl;
+      // otherwise, we may inadvertently break the chain of redeclarations in
+      // difficult to predit ways.
+      do {
+        D = D->getNextDeclInContext();
+      } while (D && D->getDeclContext() != DC);
 
-    // In the case of namespaces, walk the redeclaration chain.
-    if (auto *NSDecl = dyn_cast<NamespaceDecl>(DC)) {
-      while (!D && NSDecl) {
-        NSDecl = NSDecl->getPreviousDecl();
-        D = NSDecl ? *NSDecl->decls_begin() : nullptr;
+      // In the case of namespaces, walk the redeclaration chain.
+      if (auto *NSDecl = dyn_cast<NamespaceDecl>(DC)) {
+        while (!D && NSDecl) {
+          NSDecl = NSDecl->getPreviousDecl();
+          D = NSDecl ? *NSDecl->decls_begin() : nullptr;
+        }
+
+        if (!D) {
+          auto *Canonical = cast<NamespaceDecl>(DC->getPrimaryContext());
+          D = Canonical->getLastMultDCSemaDecl();
+        }
       }
+    } else {
+      D = D->getPrevMultDCDeclInSemaContext();
     }
 
     // We need to recursively descend into LinkageSpecDecls to iterate over the

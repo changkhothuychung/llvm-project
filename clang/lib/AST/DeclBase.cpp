@@ -403,6 +403,7 @@ void Decl::setDeclContextsImpl(DeclContext *SemaDC, DeclContext *LexicalDC,
     auto *MDC = new (Ctx) Decl::MultipleDC();
     MDC->SemanticDC = SemaDC;
     MDC->LexicalDC = LexicalDC;
+    MDC->PrevMultDCSemaDecl = nullptr;
     DeclCtx = MDC;
   }
 }
@@ -1237,6 +1238,11 @@ bool Decl::isFunctionPointerType() const {
   return Ty.getCanonicalType()->isFunctionPointerType();
 }
 
+Decl *Decl::getPrevMultDCDeclInSemaContext() {
+  assert(!isInSemaDC());
+  return getMultipleDC()->PrevMultDCSemaDecl;
+}
+
 DeclContext *Decl::getNonTransparentDeclContext() {
   assert(getDeclContext());
   return getDeclContext()->getNonTransparentContext();
@@ -1780,6 +1786,14 @@ void DeclContext::addHiddenDecl(Decl *D) {
     LastDecl = D;
   } else {
     FirstDecl = LastDecl = D;
+  }
+
+  if (auto *NS = dyn_cast<NamespaceDecl>(D->getDeclContext());
+      NS && !D->isInSemaDC()) {
+    NS = NS->getCanonicalDecl();
+
+    D->getMultipleDC()->PrevMultDCSemaDecl = NS->getLastMultDCSemaDecl();
+    NS->setLastMultDCSemaDecl(D);
   }
 
   // Notify a C++ record declaration that we've added a member, so it can
