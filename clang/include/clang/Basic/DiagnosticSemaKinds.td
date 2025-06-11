@@ -3136,6 +3136,8 @@ def err_reflect_overload_set : Error<
   "cannot take the reflection of an overload set">;
 def err_reflect_nttp : Error<
   "cannot take the reflection of a non-type template parameter">;
+def err_reflect_using_declarator : Error<
+  "cannot take the reflection of a using-declarator">;
 def err_reflect_init_capture : Error<
   "cannot take the reflection of a local entity declared by init-capture">;
 def err_reflect_local_requires_param : Error<

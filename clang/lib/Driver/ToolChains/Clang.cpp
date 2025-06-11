@@ -7196,7 +7196,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-freflection");
     CmdArgs.push_back("-fparameter-reflection");
     CmdArgs.push_back("-fannotation-attributes");
-    CmdArgs.push_back("-fentity-proxy-reflection");
     CmdArgs.push_back("-fexpansion-statements");
   }
 

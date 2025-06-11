@@ -893,9 +893,10 @@ ExprResult Sema::ActOnCXXReflectExpr(SourceLocation OpLoc,
   if (auto *USD = dyn_cast<UsingShadowDecl>(ND)) {
     if (getLangOpts().EntityProxyReflection)
       return BuildCXXReflectExpr(OpLoc, NameInfo.getBeginLoc(), USD);
-    else do
-      ND = cast<UsingShadowDecl>(ND)->getTargetDecl();
-    while (isa<UsingShadowDecl>(ND));
+    else {
+      Diag(SS.getBeginLoc(), diag::err_reflect_using_declarator);
+      return ExprError();
+    }
   }
 
   if (auto *TD = dyn_cast<TypeDecl>(ND)) {
@@ -1134,8 +1135,10 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
   if (auto *UT = dyn_cast<UsingType>(T)) {
     if (Context.getLangOpts().EntityProxyReflection)
       return BuildCXXReflectExpr(OperatorLoc, OperandLoc, UT->getFoundDecl());
-    else
-      T = UT->getUnderlyingType();
+    else {
+      Diag(OperandLoc, diag::err_reflect_using_declarator);
+      return ExprError();
+    }
   }
 
   if (auto *STTPTy = T->getAs<SubstTemplateTypeParmType>())
@@ -1163,12 +1166,15 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
   ReflectionKind RK = ReflectionKind::Declaration;
   if (isa<TranslationUnitDecl, NamespaceDecl, NamespaceAliasDecl>(D))
     RK = ReflectionKind::Namespace;
-  else if (isa<UsingShadowDecl>(D))
+  else if (isa<UsingShadowDecl>(D)) {
+    if (!getLangOpts().EntityProxyReflection) {
+      Diag(OperandLoc, diag::err_reflect_using_declarator);
+      return ExprError();
+    }
     RK = ReflectionKind::EntityProxy;
+  }
 
   APValue RV(RK, D);
-  if (!getLangOpts().EntityProxyReflection)
-    RV = MaybeUnproxy(Context, RV);
   return CXXReflectExpr::Create(Context, OperatorLoc,
                                 SourceRange(OperandLoc, OperandLoc), RV);
 }
