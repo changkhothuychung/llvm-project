@@ -451,8 +451,8 @@ public:
     FunctionDecl *Spec;
     TemplateDeductionResult Result = S.DeduceTemplateArguments(
           TD, &TAListInfo, Args, Spec, DeductionInfo, false, true, false,
-          QualType{}, Expr::Classification(),
-          [](ArrayRef<QualType>) { return false; });
+          QualType{}, Expr::Classification(), false,
+          [](ArrayRef<QualType>, bool) { return false; });
     if (Result != TemplateDeductionResult::Success)
       return nullptr;
 
@@ -622,7 +622,8 @@ public:
     // Start the new definition.
     S.ActOnTagStartDefinition(&ClsScope, NewDecl);
     S.ActOnStartCXXMemberDeclarations(&ClsScope, NewDecl, SourceLocation{},
-                                      false, false, SourceLocation{});
+                                      false, false, SourceLocation{},
+                                      SourceLocation{}, SourceLocation{});
 
     // Derive member visibility.
     AccessSpecifier MemberAS = AS_public;
