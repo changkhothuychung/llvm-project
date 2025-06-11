@@ -577,6 +577,11 @@ class NamespaceDecl : public NamedDecl,
   /// The unnamed namespace that inhabits this namespace, if any.
   NamespaceDecl *AnonymousNamespace = nullptr;
 
+  /// The most recent Decl whose target scope is this namespace, but whose
+  /// lexical scope is another DeclContext. Used to traverse namespace members
+  /// (i.e., for reflection).
+  Decl *LastMultDCSemaDecl = nullptr;
+
 protected:
   NamespaceDecl(Kind K, ASTContext &C, DeclContext *DC, bool Inline,
                 SourceLocation StartLoc, SourceLocation IdLoc,
@@ -662,6 +667,9 @@ public:
   /// Retrieves the canonical declaration of this namespace.
   NamespaceDecl *getCanonicalDecl() override { return getFirstDecl(); }
   const NamespaceDecl *getCanonicalDecl() const { return getFirstDecl(); }
+
+  Decl *getLastMultDCSemaDecl() { return LastMultDCSemaDecl; }
+  void setLastMultDCSemaDecl(Decl *D) { LastMultDCSemaDecl = D; }
 
   SourceRange getSourceRange() const override LLVM_READONLY {
     return SourceRange(LocStart, RBraceLoc);

@@ -688,17 +688,6 @@ Sema::ActOnPackExpansion(const ParsedTemplateArgument &Arg,
     }
 
     return Arg.getTemplatePackExpansion(EllipsisLoc);
-
-  case ParsedTemplateArgument::Splice: {
-    SpliceSpecifier *SS = Arg.getAsSpliceSpecifier();
-    if (!SS->getOperand()->containsUnexpandedParameterPack()) {
-      Diag(EllipsisLoc, diag::err_pack_expansion_without_parameter_packs)
-        << SS->getSourceRange();
-      return ParsedTemplateArgument();
-    }
-
-    return Arg.getSplicePackExpansion(EllipsisLoc);
-  }
   }
 
   llvm_unreachable("Unhandled template argument kind?");
@@ -1327,15 +1316,6 @@ TemplateArgumentLoc Sema::getTemplateArgumentPackExpansionPattern(
         TemplateArgument(Pattern, Argument.isCanonicalExpr()), Pattern);
   }
 
-  case TemplateArgument::SpliceExpansion: {
-    TemplateArgument Pattern = Argument.getPackExpansionPattern();
-    Ellipsis = OrigLoc.getSpliceEllipsisLoc();
-    NumExpansions = Argument.getNumSpliceExpansions();
-
-    return TemplateArgumentLoc(Context, Pattern,
-                               Pattern.getAsSpliceSpecifier());
-  }
-
   case TemplateArgument::TemplateExpansion:
     Ellipsis = OrigLoc.getTemplateEllipsisLoc();
     NumExpansions = Argument.getNumTemplateExpansions();
@@ -1345,7 +1325,6 @@ TemplateArgumentLoc Sema::getTemplateArgumentPackExpansionPattern(
 
   case TemplateArgument::Declaration:
   case TemplateArgument::NullPtr:
-  case TemplateArgument::Splice:
   case TemplateArgument::Template:
   case TemplateArgument::Integral:
   case TemplateArgument::StructuralValue:

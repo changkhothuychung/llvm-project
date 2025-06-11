@@ -878,7 +878,7 @@ class Sema final : public SemaBase {
   // 33. Types (SemaType.cpp)
   // 34. FixIt Helpers (SemaFixItUtils.cpp)
   // 35. Function Effects (SemaFunctionEffects.cpp)
-  // 36. P2996 Reflection Constructs (SemaReflection.cpp)
+  // 36. P2996 Reflection Constructs (SemaReflect.cpp)
   // 37. P1306 Expansion Statement Constructs (SemaExpand.cpp)
 
   /// \name Semantic Analysis
@@ -15581,7 +15581,6 @@ public:
                                          SpliceSpecifier *Splice,
                                          bool Complain);
   DeclResult ActOnCXXSpliceExpectingNamespace(SpliceSpecifier *Splice);
-  ParsedTemplateArgument ActOnSpliceTemplateArgument(SpliceSpecifier *Splice);
 
   bool ActOnCXXSpliceScopeSpecifier(CXXScopeSpec &SS,
                                     SourceLocation TemplateKWLoc,
@@ -15621,8 +15620,7 @@ public:
                                       const CXXMetafunctionExpr::ImplFn &Impl,
                                       SmallVectorImpl<Expr *> &Args);
 
-  ExprResult BuildExplDependentCallExpr(CallExpr *SubExpr,
-                                        unsigned TemplateDepth);
+  ExprResult BuildExplDependentCallExpr(Expr *SubExpr, unsigned TemplateDepth);
 
   SpliceResult BuildSpliceSpecifier(
       SourceLocation LSpliceLoc, Expr *Operand, SourceLocation RSpliceLoc,

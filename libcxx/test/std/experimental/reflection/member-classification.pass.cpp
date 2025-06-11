@@ -74,8 +74,8 @@ static_assert(is_namespace_member(^^class_or_namespace_members));
 static_assert(!is_class_member(^^::));
 static_assert(!is_namespace_member(^^::));
 
-static_assert(!is_class_member(std::meta::reflect_value(4)));
-static_assert(!is_namespace_member(std::meta::reflect_value(4)));
+static_assert(!is_class_member(std::meta::reflect_constant(4)));
+static_assert(!is_namespace_member(std::meta::reflect_constant(4)));
 }  // namespace class_or_namespace_members
 
                         // ============================
@@ -108,14 +108,14 @@ void fn();
 namespace inner {}
 template <typename T> void TFn();
 
-static_assert(!is_nonstatic_data_member(std::meta::reflect_value(3)));
+static_assert(!is_nonstatic_data_member(std::meta::reflect_constant(3)));
 static_assert(!is_nonstatic_data_member(^^int));
 static_assert(!is_nonstatic_data_member(^^TFn));
 static_assert(!is_nonstatic_data_member(^^TFn<int>));
 static_assert(!is_nonstatic_data_member(^^::));
 static_assert(!is_nonstatic_data_member(^^inner));
 
-static_assert(!is_static_member(std::meta::reflect_value(3)));
+static_assert(!is_static_member(std::meta::reflect_constant(3)));
 static_assert(!is_static_member(^^int));
 static_assert(!is_static_member(^^TFn));
 static_assert(!is_static_member(^^TFn<int>));
@@ -158,7 +158,7 @@ static_assert(is_virtual(^^Derived::virt_no_override));
 static_assert(is_virtual(^^Derived::virt_implicit_override));
 static_assert(is_virtual(^^Derived::virt_explicit_override));
 static_assert(is_virtual(^^Derived::pure_virt));
-static_assert(!is_virtual(std::meta::reflect_value(3)));
+static_assert(!is_virtual(std::meta::reflect_constant(3)));
 static_assert(!is_virtual(^^int));
 static_assert(!is_virtual(^^TFn));
 static_assert(!is_virtual(^^TFn<int>));
@@ -175,7 +175,7 @@ static_assert(!is_override(^^Derived::virt_no_override));
 static_assert(is_override(^^Derived::virt_implicit_override));
 static_assert(is_override(^^Derived::virt_explicit_override));
 static_assert(is_override(^^Derived::pure_virt));
-static_assert(!is_pure_virtual(std::meta::reflect_value(3)));
+static_assert(!is_pure_virtual(std::meta::reflect_constant(3)));
 static_assert(!is_pure_virtual(^^int));
 static_assert(!is_pure_virtual(^^TFn));
 static_assert(!is_pure_virtual(^^TFn<int>));
@@ -194,7 +194,7 @@ static_assert(!is_override(^^Derived::virt_no_override));
 static_assert(is_override(^^Derived::virt_implicit_override));
 static_assert(is_override(^^Derived::virt_explicit_override));
 static_assert(is_override(^^Derived::pure_virt));
-static_assert(!is_override(std::meta::reflect_value(3)));
+static_assert(!is_override(std::meta::reflect_constant(3)));
 static_assert(!is_override(^^int));
 static_assert(!is_override(^^TFn));
 static_assert(!is_override(^^TFn<int>));
@@ -263,7 +263,7 @@ int x;
 void fn();
 namespace inner {}
 template <typename T> void TFn();
-static_assert(!is_special_member_function(std::meta::reflect_value(3)));
+static_assert(!is_special_member_function(std::meta::reflect_constant(3)));
 static_assert(!is_special_member_function(^^int));
 static_assert(!is_special_member_function(^^TFn));
 static_assert(!is_special_member_function(^^TFn<int>));
@@ -310,13 +310,13 @@ int x;
 void fn();
 namespace inner {}
 template <typename T> void TFn();
-static_assert(!is_deleted(std::meta::reflect_value(3)));
+static_assert(!is_deleted(std::meta::reflect_constant(3)));
 static_assert(!is_deleted(^^int));
 static_assert(!is_deleted(^^TFn));
 static_assert(!is_deleted(^^TFn<int>));
 static_assert(!is_deleted(^^::));
 static_assert(!is_deleted(^^inner));
-static_assert(!is_defaulted(std::meta::reflect_value(3)));
+static_assert(!is_defaulted(std::meta::reflect_constant(3)));
 static_assert(!is_defaulted(^^int));
 static_assert(!is_defaulted(^^TFn));
 static_assert(!is_defaulted(^^TFn<int>));
@@ -387,7 +387,7 @@ int x;
 void fn();
 namespace inner {}
 template <typename T> void TFn();
-static_assert(!is_explicit(std::meta::reflect_value(3)));
+static_assert(!is_explicit(std::meta::reflect_constant(3)));
 static_assert(!is_explicit(^^int));
 static_assert(!is_explicit(^^TFn));
 static_assert(!is_explicit(^^TFn<int>));
@@ -514,61 +514,70 @@ static_assert(!is_noexcept(type_of(^^not_noexcept_template_function<int>)));
 
 // The rest (should all be false regardless of noexcept specifier)
 // (no-)noexcept member function pointers
-static_assert(!is_noexcept(std::meta::reflect_value(&S::noexcept_method)));
-static_assert(!is_noexcept(std::meta::reflect_value(&S::noexcept_true_method)));
+static_assert(!is_noexcept(std::meta::reflect_constant(&S::noexcept_method)));
 static_assert(
-  !is_noexcept(std::meta::reflect_value(&S::noexcept_false_method)));
-static_assert(!is_noexcept(std::meta::reflect_value(&S::not_noexcept_method)));
+  !is_noexcept(std::meta::reflect_constant(&S::noexcept_true_method)));
+static_assert(
+  !is_noexcept(std::meta::reflect_constant(&S::noexcept_false_method)));
+static_assert(
+  !is_noexcept(std::meta::reflect_constant(&S::not_noexcept_method)));
 
 // (no-)noexcept member function pointer types
 static_assert(
-  !is_noexcept(type_of(std::meta::reflect_value(&S::noexcept_method))));
+  !is_noexcept(type_of(std::meta::reflect_constant(&S::noexcept_method))));
 static_assert(
-  !is_noexcept(type_of(std::meta::reflect_value(&S::noexcept_true_method))));
+  !is_noexcept(type_of(std::meta::reflect_constant(&S::noexcept_true_method))));
 static_assert(
-  !is_noexcept(type_of(std::meta::reflect_value(&S::noexcept_false_method))));
+  !is_noexcept(
+      type_of(std::meta::reflect_constant(&S::noexcept_false_method))));
 static_assert(
-  !is_noexcept(type_of(std::meta::reflect_value(&S::not_noexcept_method))));
+  !is_noexcept(type_of(std::meta::reflect_constant(&S::not_noexcept_method))));
 
 // (no-)noexcept virtual method pointers
 static_assert(
-  !is_noexcept(std::meta::reflect_value(&S::noexcept_virtual_method)));
+  !is_noexcept(std::meta::reflect_constant(&S::noexcept_virtual_method)));
 static_assert(
-  !is_noexcept(std::meta::reflect_value(&S::noexcept_true_virtual_method)));
+  !is_noexcept(std::meta::reflect_constant(&S::noexcept_true_virtual_method)));
 static_assert(
-  !is_noexcept(std::meta::reflect_value(&S::noexcept_false_virtual_method)));
+  !is_noexcept(std::meta::reflect_constant(&S::noexcept_false_virtual_method)));
 static_assert(
-  !is_noexcept(std::meta::reflect_value(&S::not_noexcept_virtual_method)));
+  !is_noexcept(std::meta::reflect_constant(&S::not_noexcept_virtual_method)));
 
 // (no-)noexcept virtual method pointer types
 static_assert(!is_noexcept(
-  type_of(std::meta::reflect_value(&S::noexcept_virtual_method))));
+  type_of(std::meta::reflect_constant(&S::noexcept_virtual_method))));
 static_assert(!is_noexcept(
-  type_of(std::meta::reflect_value(&S::noexcept_true_virtual_method))));
+  type_of(std::meta::reflect_constant(&S::noexcept_true_virtual_method))));
 static_assert(!is_noexcept(
-  type_of(std::meta::reflect_value(&S::noexcept_false_virtual_method))));
+  type_of(std::meta::reflect_constant(&S::noexcept_false_virtual_method))));
 static_assert(!is_noexcept(
-  type_of(std::meta::reflect_value(&S::not_noexcept_virtual_method))));
+  type_of(std::meta::reflect_constant(&S::not_noexcept_virtual_method))));
 
 // (no-)noexcept instantiated template method pointers
 static_assert(!is_noexcept(
-  std::meta::reflect_value(&S::noexcept_template_method<int>)));
+  std::meta::reflect_constant(&S::noexcept_template_method<int>)));
 static_assert(!is_noexcept(
-  std::meta::reflect_value(&S::noexcept_true_template_method<int>)));
+  std::meta::reflect_constant(&S::noexcept_true_template_method<int>)));
 static_assert(!is_noexcept(
-  std::meta::reflect_value(&S::noexcept_false_template_method<int>)));
+  std::meta::reflect_constant(&S::noexcept_false_template_method<int>)));
 static_assert(!is_noexcept(
-  std::meta::reflect_value(&S::not_noexcept_template_method<int>)));
+  std::meta::reflect_constant(&S::not_noexcept_template_method<int>)));
 
 // (no-)noexcept instantiated template method pointer types
 static_assert(!is_noexcept(
-  type_of(std::meta::reflect_value(&S::noexcept_template_method<int>))));
+  type_of(std::meta::reflect_constant(&S::noexcept_template_method<int>))));
+static_assert(
+  !is_noexcept(
+      type_of(
+          std::meta::reflect_constant(
+              &S::noexcept_true_template_method<int>))));
+static_assert(
+  !is_noexcept(
+      type_of(
+          std::meta::reflect_constant(
+              &S::noexcept_false_template_method<int>))));
 static_assert(!is_noexcept(
-  type_of(std::meta::reflect_value(&S::noexcept_true_template_method<int>))));
-static_assert(!is_noexcept(
-  type_of(std::meta::reflect_value(&S::noexcept_false_template_method<int>))));
-static_assert(!is_noexcept(
-  type_of(std::meta::reflect_value(&S::not_noexcept_template_method<int>))));
+  type_of(std::meta::reflect_constant(&S::not_noexcept_template_method<int>))));
 
 // (no-)noexcept lambdas
 static_assert(!is_noexcept(^^noexcept_lambda));
@@ -579,40 +588,47 @@ static_assert(!is_noexcept(type_of(^^noexcept_lambda)));
 static_assert(!is_noexcept(type_of(^^not_noexcept_lambda)));
 
 // (no-)noexcept function pointer
-static_assert(!is_noexcept(std::meta::reflect_value(&noexcept_function)));
-static_assert(!is_noexcept(std::meta::reflect_value(&noexcept_true_function)));
-static_assert(!is_noexcept(std::meta::reflect_value(&noexcept_false_function)));
-static_assert(!is_noexcept(std::meta::reflect_value(&not_noexcept_function)));
+static_assert(!is_noexcept(std::meta::reflect_constant(&noexcept_function)));
+static_assert(
+    !is_noexcept(std::meta::reflect_constant(&noexcept_true_function)));
+static_assert(
+    !is_noexcept(std::meta::reflect_constant(&noexcept_false_function)));
+static_assert(
+    !is_noexcept(std::meta::reflect_constant(&not_noexcept_function)));
 
 // (no-)noexcept function pointer type
 static_assert(
-  !is_noexcept(type_of(std::meta::reflect_value(&noexcept_function))));
+  !is_noexcept(type_of(std::meta::reflect_constant(&noexcept_function))));
 static_assert(
-  !is_noexcept(type_of(std::meta::reflect_value(&noexcept_true_function))));
+  !is_noexcept(type_of(std::meta::reflect_constant(&noexcept_true_function))));
 static_assert(
-  !is_noexcept(type_of(std::meta::reflect_value(&noexcept_false_function))));
+  !is_noexcept(type_of(std::meta::reflect_constant(&noexcept_false_function))));
 static_assert(
-  !is_noexcept(type_of(std::meta::reflect_value(&not_noexcept_function))));
+  !is_noexcept(type_of(std::meta::reflect_constant(&not_noexcept_function))));
 
 // (no-)noexcept instantiated template function pointers
 static_assert(
-  !is_noexcept(std::meta::reflect_value(&noexcept_template_function<int>)));
+  !is_noexcept(std::meta::reflect_constant(&noexcept_template_function<int>)));
 static_assert(!is_noexcept(
-  std::meta::reflect_value(&noexcept_true_template_function<int>)));
+  std::meta::reflect_constant(&noexcept_true_template_function<int>)));
 static_assert(!is_noexcept(
-  std::meta::reflect_value(&noexcept_false_template_function<int>)));
+  std::meta::reflect_constant(&noexcept_false_template_function<int>)));
 static_assert(
-  !is_noexcept(std::meta::reflect_value(&not_noexcept_template_function<int>)));
+  !is_noexcept(
+      std::meta::reflect_constant(&not_noexcept_template_function<int>)));
 
 // (no-)noexcept instantiated template function pointer types
 static_assert(!is_noexcept(
-  type_of(std::meta::reflect_value(&noexcept_template_function<int>))));
+  type_of(std::meta::reflect_constant(&noexcept_template_function<int>))));
 static_assert(!is_noexcept(
-  type_of(std::meta::reflect_value(&noexcept_true_template_function<int>))));
+  type_of(std::meta::reflect_constant(&noexcept_true_template_function<int>))));
+static_assert(
+  !is_noexcept(
+      type_of(
+          std::meta::reflect_constant(
+              &noexcept_false_template_function<int>))));
 static_assert(!is_noexcept(
-  type_of(std::meta::reflect_value(&noexcept_false_template_function<int>))));
-static_assert(!is_noexcept(
-  type_of(std::meta::reflect_value(&not_noexcept_template_function<int>))));
+  type_of(std::meta::reflect_constant(&not_noexcept_template_function<int>))));
 
 // (no-)noexcept non-instantiated template methods
 static_assert(!is_noexcept(^^S::noexcept_template_method));
@@ -706,7 +722,7 @@ static_assert(!is_bit_field(^^S::k));
 
 static_assert(!is_bit_field(^^S));
 static_assert(!is_bit_field(^^int));
-static_assert(!is_bit_field(std::meta::reflect_value(4)));
+static_assert(!is_bit_field(std::meta::reflect_constant(4)));
 static_assert(!is_bit_field(^^std::meta::extract));
 
 static_assert(!is_bit_field(data_member_spec(^^int, {})));

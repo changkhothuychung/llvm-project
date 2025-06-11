@@ -254,6 +254,8 @@ private:
   struct MultipleDC {
     DeclContext *SemanticDC;
     DeclContext *LexicalDC;
+
+    Decl *PrevMultDCSemaDecl;
   };
 
   /// DeclCtx - Holds either a DeclContext* or a MultipleDC*.
@@ -447,6 +449,11 @@ public:
 
   Decl *getNextDeclInContext() { return NextInContextAndBits.getPointer(); }
   const Decl *getNextDeclInContext() const {return NextInContextAndBits.getPointer();}
+
+  Decl *getPrevMultDCDeclInSemaContext();
+  const Decl *getPrevMultDCDeclInSemaContext() const {
+    return const_cast<Decl*>(this)->getPrevMultDCDeclInSemaContext();
+  }
 
   DeclContext *getDeclContext() {
     if (isInSemaDC())

@@ -196,22 +196,6 @@ void TemplateArgument::initFromIntegral(const ASTContext &Ctx,
   Integer.Type = Type.getAsOpaquePtr();
 }
 
-TemplateArgument::TemplateArgument(SpliceSpecifier *SS, bool IsDefaulted) {
-  SpliceArg.Kind = Splice;
-  SpliceArg.IsDefaulted = IsDefaulted;
-  SpliceArg.NumExpansions = std::nullopt;
-  SpliceArg.SS = SS;
-}
-
-TemplateArgument::TemplateArgument(SpliceSpecifier *SS,
-                                   UnsignedOrNone NumExpansions,
-                                   bool IsDefaulted) {
-  SpliceArg.Kind = SpliceExpansion;
-  SpliceArg.IsDefaulted = IsDefaulted;
-  SpliceArg.SS = SS;
-  SpliceArg.NumExpansions = NumExpansions;
-}
-
 void TemplateArgument::initFromStructural(const ASTContext &Ctx, QualType Type,
                                           const APValue &V, bool IsDefaulted) {
   Value.Kind = StructuralValue;
@@ -319,19 +303,6 @@ TemplateArgumentDependence TemplateArgument::getDependence() const {
   case StructuralValue:
     return TemplateArgumentDependence::None;
 
-  case Splice: {
-    auto *SS = getAsSpliceSpecifier();
-    return toTemplateArgumentDependence(SS->getOperand()->getDependence());
-  }
-
-  case SpliceExpansion: {
-    auto *SS = getAsSpliceSpecifier();
-    auto Deps = toTemplateArgumentDependence(SS->getOperand()->getDependence());
-    Deps &= ~TemplateArgumentDependence::UnexpandedPack;
-
-    return Deps;
-  }
-
   case Expression:
     return computeFromExpr(getAsExpr());
 
@@ -360,11 +331,9 @@ bool TemplateArgument::isPackExpansion() const {
   case Pack:
   case Template:
   case NullPtr:
-  case Splice:
     return false;
 
   case TemplateExpansion:
-  case SpliceExpansion:
     return true;
 
   case Type:
@@ -386,19 +355,12 @@ UnsignedOrNone TemplateArgument::getNumTemplateExpansions() const {
   return TemplateArg.NumExpansions;
 }
 
-UnsignedOrNone TemplateArgument::getNumSpliceExpansions() const {
-  assert(getKind() == SpliceExpansion);
-  return SpliceArg.NumExpansions;
-}
-
 QualType TemplateArgument::getNonTypeTemplateArgumentType() const {
   switch (getKind()) {
   case TemplateArgument::Null:
   case TemplateArgument::Type:
   case TemplateArgument::Template:
   case TemplateArgument::TemplateExpansion:
-  case TemplateArgument::Splice:
-  case TemplateArgument::SpliceExpansion:
   case TemplateArgument::Pack:
     return QualType();
 
@@ -458,14 +420,6 @@ void TemplateArgument::Profile(llvm::FoldingSetNodeID &ID,
     getAsStructuralValue().Profile(ID);
     break;
 
-  case SpliceExpansion:
-    ID.AddInteger(SpliceArg.NumExpansions.toInternalRepresentation());
-    [[fallthrough]];
-  case Splice:
-    // TODO(P2996): Revisit this.
-    getAsSpliceSpecifier()->getOperand()->Profile(ID, Context, true);
-    break;
-
   case Expression: {
     const Expr *E = getAsExpr();
     bool IsCanonical = isCanonicalExpr();
@@ -509,10 +463,6 @@ bool TemplateArgument::structurallyEquals(const TemplateArgument &Other) const {
     return getIntegralType() == Other.getIntegralType() &&
            getAsIntegral() == Other.getAsIntegral();
 
-  case Splice:
-  case SpliceExpansion:
-    return false;  // TODO(P2996): Revisit this.
-
   case StructuralValue: {
     if (getStructuralValueType().getCanonicalType() !=
         Other.getStructuralValueType().getCanonicalType())
@@ -549,12 +499,8 @@ TemplateArgument TemplateArgument::getPackExpansionPattern() const {
   case TemplateExpansion:
     return TemplateArgument(getAsTemplateOrTemplatePattern());
 
-  case SpliceExpansion:
-    return TemplateArgument(getAsSpliceSpecifier(), getIsDefaulted());
-
   case Declaration:
   case Integral:
-  case Splice:
   case StructuralValue:
   case Pack:
   case Null:
@@ -619,13 +565,6 @@ void TemplateArgument::print(const PrintingPolicy &Policy, raw_ostream &Out,
     printIntegral(*this, Out, Policy, IncludeType);
     break;
 
-  case Splice:
-  case SpliceExpansion:
-    Out << "[:";
-    getAsSpliceSpecifier()->getOperand()->printPretty(Out, nullptr, Policy);
-    Out << ":]";
-    break;
-
   case Expression: {
     PrintingPolicy ExprPolicy = Policy;
     ExprPolicy.PrintAsCanonical = isCanonicalExpr();
@@ -685,14 +624,6 @@ SourceRange TemplateArgumentLoc::getSourceRange() const {
   case TemplateArgument::Integral:
     return getSourceIntegralExpression()->getSourceRange();
 
-  case TemplateArgument::Splice: {
-    return getSpliceSpecifier()->getSourceRange();
-  }
-
-  case TemplateArgument::SpliceExpansion:
-    return SourceRange(getSpliceSpecifier()->getBeginLoc(),
-                       getSpliceEllipsisLoc());
-
   case TemplateArgument::StructuralValue:
     return getSourceStructuralValueExpression()->getSourceRange();
 
@@ -723,14 +654,6 @@ static const T &DiagTemplateArg(const T &DB, const TemplateArgument &Arg) {
 
   case TemplateArgument::Integral:
     return DB << toString(Arg.getAsIntegral(), 10);
-
-  case TemplateArgument::Splice:
-    // TODO(P2996): Implement this.
-    return DB << "[:splice-specifier:]";
-
-  case TemplateArgument::SpliceExpansion:
-    // TODO(P2996): Implement this.
-    return DB << "[:splice-specifier:]...";
 
   case TemplateArgument::StructuralValue: {
     // FIXME: We're guessing at LangOptions!
@@ -783,14 +706,6 @@ clang::TemplateArgumentLocInfo::TemplateArgumentLocInfo(
   Template->TemplateNameLoc = TemplateNameLoc;
   Template->EllipsisLoc = EllipsisLoc;
   Pointer = Template;
-}
-
-clang::TemplateArgumentLocInfo::TemplateArgumentLocInfo(
-    ASTContext &Ctx, SpliceSpecifier *SS, SourceLocation EllipsisLoc) {
-  SpliceTemplateArgLocInfo *Splice = new (Ctx) SpliceTemplateArgLocInfo;
-  Splice->SS = SS;
-  Splice->EllipsisLoc = EllipsisLoc;
-  Pointer = Splice;
 }
 
 const ASTTemplateArgumentListInfo *

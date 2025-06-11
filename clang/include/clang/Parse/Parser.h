@@ -4040,7 +4040,6 @@ private:
   TypeResult ParseCXXSpliceAsType(SourceLocation TypenameKWLoc,
                                   bool AllowDependent, bool Complain);
   DeclResult ParseCXXSpliceAsNamespace();
-  ParsedTemplateArgument ParseSpliceTemplateArgument();
 
   void ParseAnnotationSpecifier(ParsedAttributes &Attrs,
                                 SourceLocation *endLoc = nullptr);

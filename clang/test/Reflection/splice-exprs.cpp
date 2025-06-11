@@ -12,6 +12,21 @@
 
 using info = decltype(^^int);
 
+namespace anon_union_member_splice {
+struct C {
+  union {
+    int i;
+  };
+};
+
+auto c = C{.i=2};
+auto v = c.[:^^C::i:];  // expected-error {{not derived from}}
+
+static union { int m; };
+constexpr auto r = ^^m;
+auto p = &[:r:];  // expected-error {{cannot form a pointer-to-member}}
+}  // namespace anon_union_member_slice
+
                                  // ===========
                                  // idempotency
                                  // ===========

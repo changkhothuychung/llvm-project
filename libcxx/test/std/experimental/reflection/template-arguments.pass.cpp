@@ -59,7 +59,7 @@ static_assert(!has_template_arguments(^^NSAlias));
 static_assert(
     !has_template_arguments(
         substitute(^^Concept,
-                   {^^int, std::meta::reflect_value(9), ^^std::vector})));
+                   {^^int, std::meta::reflect_constant(9), ^^std::vector})));
 }  // namespace non_templates
 
                              // ==================
@@ -124,9 +124,10 @@ static_assert(!has_template_arguments(^^WithDependentArgument));
 static_assert(has_template_arguments(^^WithDependentArgument<int, 5>));
 static_assert(
       template_arguments_of(^^WithDependentArgument<int, 5>).size() == 2);
-static_assert(template_arguments_of(^^WithDependentArgument<int, 5>)[0] == ^^int);
+static_assert(template_arguments_of(^^WithDependentArgument<int, 5>)[0] ==
+              ^^int);
 static_assert(template_arguments_of(^^WithDependentArgument<int, 5>)[1] ==
-              std::meta::reflect_value(5));
+              std::meta::reflect_constant(5));
 }  // namespace special_cases
 
                                // ===============
@@ -137,9 +138,12 @@ namespace parameter_packs {
 template <typename... Ts> struct WithTypeParamPack {};
 static_assert(!has_template_arguments(^^WithTypeParamPack));
 static_assert(has_template_arguments(^^WithTypeParamPack<int, bool>));
-static_assert(template_arguments_of(^^WithTypeParamPack<int, bool>).size() == 2);
-static_assert(template_arguments_of(^^WithTypeParamPack<int, bool>)[0] == ^^int);
-static_assert(template_arguments_of(^^WithTypeParamPack<int, bool>)[1] == ^^bool);
+static_assert(template_arguments_of(^^WithTypeParamPack<int, bool>).size() ==
+              2);
+static_assert(template_arguments_of(^^WithTypeParamPack<int, bool>)[0] ==
+              ^^int);
+static_assert(template_arguments_of(^^WithTypeParamPack<int, bool>)[1] ==
+              ^^bool);
 
 struct S {
   int mem;
@@ -194,11 +198,11 @@ static_assert(!has_template_arguments(^^WithReflection));
 static_assert(has_template_arguments(^^WithReflection<^^int>));
 static_assert(template_arguments_of(^^WithReflection<^^int>).size() == 1);
 static_assert(template_arguments_of(^^WithReflection<^^int>)[0] ==
-              std::meta::reflect_value(^^int));
+              std::meta::reflect_constant(^^int));
 
 void instantiations() {
-  [[maybe_unused]] WithReflection<std::meta::reflect_value(nullptr)> wr;
-  FnWithReflection<std::meta::reflect_value(nullptr)>();
+  [[maybe_unused]] WithReflection<std::meta::reflect_constant(nullptr)> wr;
+  FnWithReflection<std::meta::reflect_constant(nullptr)>();
 }
 }  // namespace non_auto_non_types
 
@@ -208,9 +212,9 @@ void instantiations() {
 
 namespace properties_of_non_types {
 template <int P> void fn_int_value() {
-  static_assert(is_value(std::meta::reflect_value(P)));
-  static_assert(type_of(std::meta::reflect_value(P)) == ^^int);
-  static_assert([:std::meta::reflect_value(P):] == 1);
+  static_assert(is_value(std::meta::reflect_constant(P)));
+  static_assert(type_of(std::meta::reflect_constant(P)) == ^^int);
+  static_assert([:std::meta::reflect_constant(P):] == 1);
 }
 
 template <const int &P> void fn_int_ref() {
@@ -263,7 +267,7 @@ template <void(&P)()> void fn_fn_ref_param() {
 }
 
 template <void(*P)()> void fn_fn_ptr_param() {
-  static constexpr auto R = std::meta::reflect_value(P);
+  static constexpr auto R = std::meta::reflect_constant(P);
 
   static_assert(is_value(R));
   static_assert(!is_function(R));

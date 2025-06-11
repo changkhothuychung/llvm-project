@@ -52,7 +52,7 @@ consteval auto dealias(info) -> info;
 
 // object and value queries
 consteval auto object_of(info) -> info;
-consteval auto value_of(info) -> info;
+consteval auto constant_of(info) -> info;
 
 // template queries
 consteval auto template_of(info r) -> info;
@@ -75,7 +75,7 @@ template <reflection_range R = initializer_list<info>>
 
 // reflect expression results
 template <typename T>
-  consteval auto reflect_value(const T&) -> info;
+  consteval auto reflect_constant(const T&) -> info;
 template <typename T>
   consteval auto reflect_object(T &) -> info;
 template <typename T>
@@ -445,7 +445,7 @@ enum : unsigned {
   __metafn_underlying_entity_of,
   __metafn_proxied_entity_of,
   __metafn_object_of,
-  __metafn_value_of,
+  __metafn_constant_of,
   __metafn_template_of,
   __metafn_substitute,
   __metafn_extract,
@@ -873,8 +873,8 @@ consteval auto object_of(info r) -> info {
 }
 
 // Returns a reflection of the value evaluated from the reflected entity.
-consteval auto value_of(info r) -> info {
-  return __metafunction(detail::__metafn_value_of, r);
+consteval auto constant_of(info r) -> info {
+  return __metafunction(detail::__metafn_constant_of, r);
 }
 
 // Returns a reflection of the template from which the reflected entity was
@@ -1010,7 +1010,7 @@ public:
 
 consteval auto is_accessible(info r, access_context ctx) -> bool {
   // Note: The accessibility of an enumerator may be looked up in a class
-  // for which it's not a member, since that enumerator could be 
+  // for which it's not a member, since that enumerator could be
   if (!is_class_member(r) && !is_base(r) && !is_enumerator(r))
     return true;
 
@@ -1402,12 +1402,11 @@ consteval auto is_user_declared(info r) -> bool {
 }
 
 // Returns a reflection of the value held by the provided argument.
-template <typename T> 
-  requires (!is_reference_v<T> && 
+template <typename T>
+  requires (!is_reference_v<T> &&
             __metafunction(detail::__metafn_is_structural_type, ^^T))
-consteval auto reflect_value(const T &r) -> info {
-  return __metafunction(detail::__metafn_reflect_result, ^^T,
-                        static_cast<T>(r));
+consteval auto reflect_constant(T r) -> info {
+  return __metafunction(detail::__metafn_reflect_result, ^^T, r);
 }
 
 // Returns a reflection of the object designated by the provided argument.
@@ -1857,7 +1856,7 @@ consteval auto rank(info r) -> size_t {
 }
 
 consteval auto extent(info r, unsigned i = 0) -> size_t {
-  return extract<size_t>(substitute(^^extent_v, {r, reflect_value(i)}));
+  return extract<size_t>(substitute(^^extent_v, {r, reflect_constant(i)}));
 }
 
 consteval auto is_same_type(info r, info s) -> bool {
@@ -2048,7 +2047,7 @@ consteval auto tuple_size(info type) -> size_t {
 
 consteval auto tuple_element(size_t index, info type) -> info {
   return detail::__underlying_entity_of(substitute(^^tuple_element_t,
-                            {reflect_value(index), type}));
+                            {reflect_constant(index), type}));
 }
 
 consteval auto variant_size(info type) -> size_t {
@@ -2057,7 +2056,7 @@ consteval auto variant_size(info type) -> size_t {
 
 consteval auto variant_alternative(size_t index, info type) -> info {
   return detail::__underlying_entity_of(substitute(^^variant_alternative_t,
-                 {reflect_value(index), type}));
+                 {reflect_constant(index), type}));
 }
 
 
@@ -2242,12 +2241,24 @@ template <typename Ty>
              "'reflect_function' in P2996R4")]]
 consteval auto reflect_result(Ty r) -> info {
   constexpr auto DTy = detail::__underlying_entity_of(^^Ty);
-  constexpr auto RTy = is_class_v<[:DTy:]> || is_reference_v<[:DTy:]> ?
-                       DTy : ^^remove_cv_t<[:DTy:]>;
+  constexpr auto RTy = is_class_v<typename [:DTy:]> ||
+                       is_reference_v<typename [:DTy:]> ?
+                       DTy : ^^remove_cv_t<typename [:DTy:]>;
 
   return __metafunction(detail::__metafn_reflect_result,
                         detail::__underlying_entity_of(RTy),
                         static_cast<typename [:DTy:]>(r));
+}
+
+template <typename T>
+[[deprecated("renamed to 'reflect_constant' in P2996R12")]]
+consteval auto reflect_value(const T &r) -> info {
+  return reflect_constant(r);
+}
+
+[[deprecated("renamed to 'constant_of' in P2996R12")]]
+consteval auto value_of(info r) -> info {
+  return constant_of(r);
 }
 
 template <reflection_range R = initializer_list<info>>
@@ -2309,31 +2320,27 @@ consteval auto has_complete_definition(info r) -> bool {
   return __metafunction(detail::__metafn_has_complete_definition, r);
 }
 
-_LIBCPP_END_NAMESPACE_REFLECTION_V2
-
-_LIBCPP_BEGIN_NAMESPACE_STD
-
 namespace __define_static {
 
 template <typename ValTy, ValTy... Vals>
 inline constexpr ValTy FixedArray[sizeof...(Vals)] = {Vals...};
 
-template <auto &S>
-inline constexpr span StaticSpan(S, size(S));
-
-template <typename ValTy>
-consteval span<const ValTy> impl(const span<const ValTy> &in) {
-  if (in.size() == 0)
-    return {};
-
-  vector Args = {^^ValTy};
-  for (const auto &V : in)
-    Args.push_back(meta::reflect_value(V));
-
-  return meta::extract<span<const ValTy>>(
-    meta::substitute(^^StaticSpan, { meta::substitute(^^FixedArray, Args) }));
-}
 }  // namespace __define_static
+
+template <ranges::input_range R>
+    requires (is_constructible_v<ranges::range_value_t<R>,
+                                 ranges::range_reference_t<R>>)
+consteval auto reflect_constant_array(R &&elems) -> info {
+  using ValTy = ranges::range_value_t<R>;
+  vector Args = {^^ValTy};
+  for (const auto &V : elems)
+    Args.push_back(reflect_constant(V));
+  return substitute(^^__define_static::FixedArray, Args);
+}
+
+_LIBCPP_END_NAMESPACE_REFLECTION_V2
+
+_LIBCPP_BEGIN_NAMESPACE_STD
 
 template <ranges::input_range R>
     requires (is_constructible_v<ranges::range_value_t<R>,
@@ -2341,12 +2348,8 @@ template <ranges::input_range R>
 consteval auto define_static_array(R &&elems)
     -> span<const ranges::range_value_t<R>> {
   using ValTy  = ranges::range_value_t<R>;
-  using ImplTy = span<const ValTy>(*)(const span<const ValTy> &);
-  auto impl = meta::extract<ImplTy>(meta::substitute(^^__define_static::impl,
-                                                     {^^ValTy}));
-
-  vector<ValTy> vals(from_range, elems);
-  return impl(vals);
+  meta::info array = meta::reflect_constant_array(elems);
+  return span<const ValTy>(extract<const ValTy*>(array), meta::extent(type_of(array)));
 }
 
 // Returns a static string having the provided contents.
@@ -2442,7 +2445,7 @@ struct pretty_printer {
   static consteval auto expand(R range) {
     vector<info> args;
     for (auto r : range) {
-      args.push_back(reflect_value(r));
+      args.push_back(reflect_constant(r));
     }
     return substitute(^^replicator, args);
   }
@@ -2563,7 +2566,7 @@ template <typename CharT>
 consteval auto pretty_printer<CharT>::print(info R)
       -> const CharT * {
   return extract<const CharT *>(reflect_invoke(^^tprint,
-                                               {reflect_value(R)}, {}));
+                                               {reflect_constant(R)}, {}));
 }
 
 template <typename CharT>
@@ -2664,7 +2667,7 @@ consteval auto pretty_printer<CharT>::tprint_impl::render() -> string_t {
                                      access_context::unchecked())):] >>
       [&]<auto Mem> {
         if (Idx++ > 0) result += string_constant(", ");
-          result += tprint_impl::render<reflect_value([:R:].[:Mem:])>();
+          result += tprint_impl::render<reflect_constant([:R:].[:Mem:])>();
       };
   result += string_constant("}");
 

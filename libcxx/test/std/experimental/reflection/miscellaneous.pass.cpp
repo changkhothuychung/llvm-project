@@ -10,9 +10,7 @@
 
 // UNSUPPORTED: c++03 || c++11 || c++14 || c++17 || c++20
 // ADDITIONAL_COMPILE_FLAGS: -fblocks
-// ADDITIONAL_COMPILE_FLAGS: -freflection
-// ADDITIONAL_COMPILE_FLAGS: -fexpansion-statements
-// ADDITIONAL_COMPILE_FLAGS: -Wno-inconsistent-missing-override
+// ADDITIONAL_COMPILE_FLAGS: -freflection-latest
 
 // <experimental/reflection>
 //
@@ -61,7 +59,7 @@ consteval auto get_struct_to_tuple_helper() {
   std::vector args = {^^To, ^^From};
   for (auto mem : nonstatic_data_members_of(^^From,
                                             access_context::unchecked())) {
-    args.push_back(reflect_value(mem));
+    args.push_back(reflect_constant(mem));
   }
 
   return extract<To(*)(From const&)>(substitute(^^struct_to_tuple_helper,
@@ -137,7 +135,8 @@ void do_swap_representations(T& lhs, T& rhs) {
                   define_static_array(
                       nonstatic_data_members_of(
                           ^^T, std::meta::access_context::unchecked()))) {
-      do_swap_representations<[:type_of(mem):]>(lhs.[:mem:], rhs.[:mem:]);
+      do_swap_representations<typename [:type_of(mem):]>(lhs.[:mem:],
+                                                         rhs.[:mem:]);
     }
   } else if constexpr (std::is_array_v<T>) {
     static_assert(0 < std::rank_v<T>, "cannot swap arrays of unknown bound");
@@ -215,7 +214,7 @@ consteval auto fn() {
                            // ======================
 
 namespace compatible_with_blocks {
-constexpr auto block = std::meta::reflect_value(^int() { return 4; });
+constexpr auto block = std::meta::reflect_constant(^int() { return 4; });
 static_assert(type_of(block) == ^^int(^)());
 
 void run_test() {
@@ -227,11 +226,66 @@ void run_test() {
 }
 }  // namespace compatible_with_blocks
 
+                          // =========================
+                          // expansions_over_std_tuple
+                          // =========================
+
+namespace expansions_over_std_tuple {
+void run_test() {
+  std::tuple<int, bool, char> t;
+  template for (auto e : t)
+    (void) e;
+
+  template for (constexpr auto v : std::tuple{1, 2, 3})
+    (void) v;
+
+  static constexpr auto my_tuple = std::tuple{1, 2, 3};
+  template for (constexpr auto v : my_tuple)
+    (void) v;
+}
+}  // namespace expansions_over_std_tuple
 
 template <std::meta::info... Tests>
 void run_tests() {
   (..., [:Tests:]::run_test());
 }
+
+                               // ===============
+                               // barry_alias_bug
+                               // ===============
+
+namespace barry_alias_bug {
+template <std::meta::info R>
+struct Reflection {
+    static constexpr auto value = R;
+};
+
+template <class... R>
+struct Sequence { };
+
+template <size_t I, typename Seq>
+using get_element_t = [: template_arguments_of(^^Seq)[I] :];
+
+template <class T>
+using get_base_classes_t = [: [] {
+    std::vector<std::meta::info> args;
+    for (std::meta::info b : bases_of(T::value,
+                                      std::meta::access_context::unchecked())) {
+        args.push_back(substitute(^^Reflection,
+                                  {std::meta::reflect_constant(b)}));
+    }
+    return substitute(^^Sequence, args);
+}() :];
+
+
+struct B { };
+struct D : B { };
+
+constexpr auto b = bases_of(^^D, std::meta::access_context::unchecked())[0];
+static_assert(std::same_as<
+    get_element_t<0, get_base_classes_t<Reflection<^^D>>>,
+    Reflection<b>>);
+}  // namespace barry_alias_bug
 
 int main() {
   run_tests<
@@ -239,6 +293,7 @@ int main() {
       ^^pdimov_sorted_type_list,
       ^^alisdair_universal_swap,
       ^^std_apply_with_function_splice,
-      ^^compatible_with_blocks
+      ^^compatible_with_blocks,
+      ^^expansions_over_std_tuple
   >();
 }

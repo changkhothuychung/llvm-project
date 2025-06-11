@@ -7656,10 +7656,6 @@ ASTContext::getCanonicalTemplateArgument(const TemplateArgument &Arg) const {
     case TemplateArgument::Integral:
       return TemplateArgument(Arg, getCanonicalType(Arg.getIntegralType()));
 
-    case TemplateArgument::Splice:
-    case TemplateArgument::SpliceExpansion:
-      return Arg;
-
     case TemplateArgument::StructuralValue:
       return TemplateArgument(*this,
                               getCanonicalType(Arg.getStructuralValueType()),

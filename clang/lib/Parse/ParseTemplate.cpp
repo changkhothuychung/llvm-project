@@ -1509,18 +1509,18 @@ ParsedTemplateArgument Parser::ParseTemplateArgument() {
     /*LambdaContextDecl=*/nullptr,
     /*ExprContext=*/Sema::ExpressionEvaluationContextRecord::EK_TemplateArgument);
 
-  // Try to parse a splice-template-argument.
+  // P2996: Unparenthesized splice expressions are ill-formed (i.e., to carve out
+  // syntactic space for future splice template arguments).
   if (Tok.is(tok::l_splice)) {
     if (ParseSpliceSpecifier()) {
       // Nothing to be done about a malformed splice-specifier.
       return ParsedTemplateArgument();
     } else if (NextToken().is(tok::ellipsis) ||
                isEndOfTemplateArgument(NextToken())) {
-      // Parse as a splice-template-argument if this is the end of the
-      // template argument. Otherwise, it could be a splice-expression within a
-      // constant template argument (in which case, just leave the
-      // splice-specifier where it is).
-      return ParseSpliceTemplateArgument();
+      SpliceResult SR = getSpliceAnnotation(Tok);
+      Diag(Tok.getLocation(), diag::err_splice_template_argument)
+          << SR.get()->getSourceRange();
+      return ParsedTemplateArgument();
     }
   }
 

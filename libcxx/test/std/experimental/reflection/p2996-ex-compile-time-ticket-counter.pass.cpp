@@ -29,14 +29,14 @@ struct TU_Ticket {
   static consteval int latest() {
     int k = 0;
     while (is_complete_type(substitute(^^Helper,
-                                       { std::meta::reflect_value(k) })))
+                                       { std::meta::reflect_constant(k) })))
       ++k;
     return k;
   }
 
   static consteval void increment() {
     define_aggregate(substitute(^^Helper,
-                                { std::meta::reflect_value(latest())}),
+                                { std::meta::reflect_constant(latest())}),
                      {});
   }
 };

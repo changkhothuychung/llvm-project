@@ -63,24 +63,24 @@ static_assert(!is_user_provided(null_reflection));
 static_assert(!is_user_declared(null_reflection));
 static_assert(!is_data_member_spec(null_reflection));
 
-static_assert(!is_type(std::meta::reflect_value(3)));
-static_assert(!is_complete_type(std::meta::reflect_value(3)));
-static_assert(!is_type_alias(std::meta::reflect_value(3)));
-static_assert(!is_namespace_alias(std::meta::reflect_value(3)));
-static_assert(!is_function(std::meta::reflect_value(3)));
-static_assert(!is_variable(std::meta::reflect_value(3)));
-static_assert(!is_namespace(std::meta::reflect_value(3)));
-static_assert(!is_template(std::meta::reflect_value(3)));
-static_assert(!is_function_template(std::meta::reflect_value(3)));
-static_assert(!is_variable_template(std::meta::reflect_value(3)));
-static_assert(!is_class_template(std::meta::reflect_value(3)));
-static_assert(!is_alias_template(std::meta::reflect_value(3)));
-static_assert(!is_concept(std::meta::reflect_value(3)));
-static_assert(!is_base(std::meta::reflect_value(3)));
-static_assert(is_value(std::meta::reflect_value(3)));
-static_assert(!is_object(std::meta::reflect_value(3)));
-static_assert(!is_enumerator(std::meta::reflect_value(3)));
-static_assert(!is_data_member_spec(std::meta::reflect_value(3)));
+static_assert(!is_type(std::meta::reflect_constant(3)));
+static_assert(!is_complete_type(std::meta::reflect_constant(3)));
+static_assert(!is_type_alias(std::meta::reflect_constant(3)));
+static_assert(!is_namespace_alias(std::meta::reflect_constant(3)));
+static_assert(!is_function(std::meta::reflect_constant(3)));
+static_assert(!is_variable(std::meta::reflect_constant(3)));
+static_assert(!is_namespace(std::meta::reflect_constant(3)));
+static_assert(!is_template(std::meta::reflect_constant(3)));
+static_assert(!is_function_template(std::meta::reflect_constant(3)));
+static_assert(!is_variable_template(std::meta::reflect_constant(3)));
+static_assert(!is_class_template(std::meta::reflect_constant(3)));
+static_assert(!is_alias_template(std::meta::reflect_constant(3)));
+static_assert(!is_concept(std::meta::reflect_constant(3)));
+static_assert(!is_base(std::meta::reflect_constant(3)));
+static_assert(is_value(std::meta::reflect_constant(3)));
+static_assert(!is_object(std::meta::reflect_constant(3)));
+static_assert(!is_enumerator(std::meta::reflect_constant(3)));
+static_assert(!is_data_member_spec(std::meta::reflect_constant(3)));
 
 static_assert(is_type(^^type));
 static_assert(is_complete_type(^^type));
@@ -619,7 +619,7 @@ static_assert(!is_variable(^^x5));
 static_assert(!is_variable(^^y5));
 
 static_assert(!is_structured_binding(^^var));
-static_assert(!is_structured_binding(std::meta::reflect_value(3)));
+static_assert(!is_structured_binding(std::meta::reflect_constant(3)));
 } // namespace test_is_structured_binding_and_related_edge_cases
 
                      // ==================================

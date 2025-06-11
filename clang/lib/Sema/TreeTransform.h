@@ -4006,22 +4006,12 @@ public:
           Pattern.getTemplateQualifierLoc(), Pattern.getTemplateNameLoc(),
           EllipsisLoc);
 
-    case TemplateArgument::Splice: {
-      return TemplateArgumentLoc(
-          SemaRef.Context,
-          TemplateArgument(Pattern.getArgument().getAsSpliceSpecifier(),
-                           NumExpansions),
-          Pattern.getArgument().getAsSpliceSpecifier(),
-          EllipsisLoc);
-    }
-
     case TemplateArgument::Null:
     case TemplateArgument::Integral:
     case TemplateArgument::Declaration:
     case TemplateArgument::StructuralValue:
     case TemplateArgument::Pack:
     case TemplateArgument::TemplateExpansion:
-    case TemplateArgument::SpliceExpansion:
     case TemplateArgument::NullPtr:
       llvm_unreachable("Pack expansion pattern has no parameter packs");
 
@@ -4941,34 +4931,6 @@ bool TreeTransform<Derived>::TransformTemplateArgument(
     return false;
   }
 
-  case TemplateArgument::Splice: {
-    // Template argument expressions are constant expressions.
-    EnterExpressionEvaluationContext Unevaluated(
-        getSema(),
-        Uneval ? Sema::ExpressionEvaluationContext::Unevaluated
-               : Sema::ExpressionEvaluationContext::ConstantEvaluated,
-        Sema::ReuseLambdaContextDecl, /*ExprContext=*/
-        Sema::ExpressionEvaluationContextRecord::EK_TemplateArgument);
-
-    SpliceResult SR = getDerived().TransformSpliceSpecifier(
-          Input.getArgument().getAsSpliceSpecifier());
-    if (SR.isInvalid())
-      return true;
-
-    ParsedTemplateArgument ParsedTAs[1] = {
-      SemaRef.ActOnSpliceTemplateArgument(SR.get())
-    };
-    if (ParsedTAs[0].isInvalid())
-      return true;
-
-    TemplateArgumentListInfo TAListInfo;
-    SemaRef.translateTemplateArguments(ParsedTAs, TAListInfo);
-    assert(TAListInfo.size() == 1);
-
-    Output = TAListInfo[0];
-    return false;
-  }
-
   case TemplateArgument::Type: {
     TypeSourceInfo *DI = Input.getTypeSourceInfo();
     if (!DI)
@@ -5003,7 +4965,6 @@ bool TreeTransform<Derived>::TransformTemplateArgument(
   }
 
   case TemplateArgument::TemplateExpansion:
-  case TemplateArgument::SpliceExpansion:
     llvm_unreachable("Caller should expand pack expansions");
 
   case TemplateArgument::Expression: {
@@ -9210,8 +9171,7 @@ TreeTransform<Derived>::TransformExplDependentCallExpr(
   unsigned OldDepth = E->getTemplateDepth();
   unsigned NewDepth = getDerived().TransformTemplateDepth(OldDepth);
 
-  return getSema().BuildExplDependentCallExpr(cast<CallExpr>(Call.get()),
-                                              NewDepth);
+  return getSema().BuildExplDependentCallExpr(Call.get(), NewDepth);
 }
 
 // Expansions Statements (C++2c, P1306).

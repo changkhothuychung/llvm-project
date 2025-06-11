@@ -273,7 +273,7 @@ static_assert(is_function_parameter(parameters_of(^^fn)[2]));
 static_assert(!is_function_parameter(^^::));
 static_assert(!is_function_parameter(^^int));
 static_assert(!is_function_parameter(^^fn));
-static_assert(!is_function_parameter(std::meta::reflect_value(3)));
+static_assert(!is_function_parameter(std::meta::reflect_constant(3)));
 static_assert(has_ellipsis_parameter(type_of(^^fn)));
 }  // namespace identify_function_parameters
 

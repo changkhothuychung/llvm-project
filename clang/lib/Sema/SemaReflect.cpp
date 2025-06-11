@@ -251,9 +251,11 @@ public:
     DeclContext *PreviousDC = S.CurContext;
     {
       S.CurContext = Ctx;
+      auto Undelayed = S.DelayedDiagnostics.pushUndelayed();
       Result = S.CheckBaseClassAccess(AccessLoc, BaseTy, DerivedTy, Path, 0,
                                       /*ForceCheck=*/true,
                                       /*ForceUnprivileged=*/false);
+      S.DelayedDiagnostics.popUndelayed(Undelayed);
       S.CurContext = PreviousDC;
     }
     return (Result == Sema::AR_accessible);
@@ -343,6 +345,11 @@ public:
 
   void EnsureDeclarationOfImplicitMembers(CXXRecordDecl *RD) override {
     S.ForceDeclarationOfImplicitMembers(RD);
+  }
+
+  void EnsureInstantiationOfExceptionSpec(SourceLocation Loc,
+                                          FunctionDecl *FD) override {
+    S.InstantiateExceptionSpec(Loc, FD);
   }
 
   QualType Substitute(TypeAliasTemplateDecl *TD,
@@ -536,6 +543,12 @@ public:
           case TemplateArgument::Template: {
             ParsedTemplateTy P = ParsedTemplateTy::make(TArg.getAsTemplate());
             ParsedTArgs.emplace_back(SS, P, SourceLocation());
+            break;
+          }
+          case TemplateArgument::Declaration: {
+            Expr *E = CreateRefToDecl(S, TArg.getAsDecl(), SourceLocation());
+            ParsedTArgs.emplace_back(ParsedTemplateArgument::NonType, E,
+                                     SourceLocation());
             break;
           }
           // TODO(P2996): Handle other kinds of TemplateArgument
@@ -1097,85 +1110,6 @@ DeclResult Sema::ActOnCXXSpliceExpectingNamespace(SpliceSpecifier *Splice) {
   return BuildReflectionSpliceNamespace(Splice);
 }
 
-ParsedTemplateArgument
-Sema::ActOnSpliceTemplateArgument(SpliceSpecifier *Splice) {
-  assert(!Splice->isSpecialization() &&
-         "splice-template-argument cannot be a specialization");
-
-  if (Splice->getDependence() != SpliceSpecifierDependence::None) {
-    return ParsedTemplateArgument(ParsedTemplateArgument::Splice, Splice,
-                                  Splice->getBeginLoc());
-  }
-
-  SmallVector<PartialDiagnosticAt, 4> Diags;
-  Expr::EvalResult ER;
-  ER.Diag = &Diags;
-  if (!Splice->getOperand()->EvaluateAsRValue(ER, Context, true)) {
-    return ParsedTemplateArgument();
-  }
-  assert(ER.Val.getKind() == APValue::Reflection);
-
-  APValue Refl = MaybeUnproxy(Context, ER.Val);
-  switch (Refl.getReflectionKind()) {
-  case ReflectionKind::Type:
-    return ParsedTemplateArgument(ParsedTemplateArgument::Type,
-                                  const_cast<void *>(
-                                      Refl.getOpaqueReflectionData()),
-                                  Splice->getBeginLoc());
-  case ReflectionKind::Object: {
-    QualType ResultTy = Refl.getTypeOfReflectedResult(Context);
-    Expr *OVE = new (Context) OpaqueValueExpr(Splice->getBeginLoc(), ResultTy,
-                                              VK_LValue);
-    Expr *CE = ConstantExpr::Create(Context, OVE, Refl.getReflectedObject());
-    return ParsedTemplateArgument(ParsedTemplateArgument::NonType, CE,
-                                  Splice->getBeginLoc());
-  }
-  case ReflectionKind::Value: {
-    QualType ResultTy = Refl.getTypeOfReflectedResult(Context);
-    Expr *OVE = new (Context) OpaqueValueExpr(Splice->getBeginLoc(), ResultTy,
-                                              VK_PRValue);
-    Expr *CE = ConstantExpr::Create(Context, OVE, Refl.getReflectedValue());
-    return ParsedTemplateArgument(ParsedTemplateArgument::NonType, CE,
-                                  Splice->getBeginLoc());
-  }
-  case ReflectionKind::Template: {
-    TemplateName TName = Refl.getReflectedTemplate();
-    return ParsedTemplateArgument(ParsedTemplateArgument::Template,
-                                  TName.getAsTemplateDecl(),
-                                  Splice->getBeginLoc());
-  }
-  case ReflectionKind::Declaration: {
-    Expr *E = CreateRefToDecl(*this, cast<ValueDecl>(Refl.getReflectedDecl()),
-                              Splice->getBeginLoc());
-    return ParsedTemplateArgument(ParsedTemplateArgument::NonType, E,
-                                  E->getBeginLoc());
-  }
-  case ReflectionKind::Null:
-    Diag(Splice->getBeginLoc(), diag::err_unsupported_splice_kind)
-      << "null reflections" << 0 << 0;
-    break;
-  case ReflectionKind::Namespace:
-    Diag(Splice->getBeginLoc(), diag::err_unsupported_splice_kind)
-      << "namespaces" << 0 << 0;
-    break;
-  case ReflectionKind::BaseSpecifier:
-    Diag(Splice->getBeginLoc(), diag::err_unsupported_splice_kind)
-      << "base specifiers" << 0 << 0;
-    break;
-  case ReflectionKind::DataMemberSpec:
-    Diag(Splice->getBeginLoc(), diag::err_unsupported_splice_kind)
-      << "data member specs" << 0 << 0;
-    break;
-  case ReflectionKind::Annotation:
-    Diag(Splice->getBeginLoc(), diag::err_unsupported_splice_kind)
-      << "annotations" << 0 << 0;
-    break;
-  case ReflectionKind::EntityProxy:
-    llvm_unreachable("proxies should already have been unwrapped");
-  }
-  return ParsedTemplateArgument();
-}
-
 bool Sema::ActOnCXXSpliceScopeSpecifier(CXXScopeSpec &SS,
                                         SourceLocation TemplateKWLoc,
                                         SpliceSpecifier *Splice,
@@ -1203,6 +1137,9 @@ ExprResult Sema::BuildCXXReflectExpr(SourceLocation OperatorLoc,
     else
       T = UT->getUnderlyingType();
   }
+
+  if (auto *STTPTy = T->getAs<SubstTemplateTypeParmType>())
+    T = STTPTy->getReplacementType().getCanonicalType();
 
   APValue RV(ReflectionKind::Type, T.getAsOpaquePtr());
   return CXXReflectExpr::Create(Context, OperatorLoc, OperandLoc, RV);
@@ -1452,7 +1389,7 @@ ExprResult Sema::BuildCXXMetafunctionExpr(
                                      KwLoc, LParenLoc, RParenLoc);
 }
 
-ExprResult Sema::BuildExplDependentCallExpr(CallExpr *SubExpr,
+ExprResult Sema::BuildExplDependentCallExpr(Expr *SubExpr,
                                             unsigned TemplateDepth) {
   return ExplDependentCallExpr::Create(Context, SubExpr, TemplateDepth);
 }

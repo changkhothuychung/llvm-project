@@ -901,18 +901,6 @@ ParsedTemplateArgument ParsedTemplateArgument::getTemplatePackExpansion(
   return Result;
 }
 
-ParsedTemplateArgument ParsedTemplateArgument::getSplicePackExpansion(
-                                             SourceLocation EllipsisLoc) const {
-  assert(Kind == Splice &&
-         "Only splice template arguments can be pack expansions here");
-  assert(
-      getAsSpliceSpecifier()->getOperand()->containsUnexpandedParameterPack() &&
-      "Splice template argument pack expansion without packs");
-  ParsedTemplateArgument Result(*this);
-  Result.EllipsisLoc = EllipsisLoc;
-  return Result;
-}
-
 static TemplateArgumentLoc translateTemplateArgument(Sema &SemaRef,
                                             const ParsedTemplateArgument &Arg) {
 
@@ -941,16 +929,6 @@ static TemplateArgumentLoc translateTemplateArgument(Sema &SemaRef,
         SemaRef.Context, TArg,
         Arg.getScopeSpec().getWithLocInContext(SemaRef.Context),
         Arg.getLocation(), Arg.getEllipsisLoc());
-  }
-
-  case ParsedTemplateArgument::Splice: {
-    auto *SS = Arg.getAsSpliceSpecifier();
-    TemplateArgument TArg;
-    if (Arg.getEllipsisLoc().isValid())
-      TArg = TemplateArgument(SS, std::nullopt);
-    else
-      TArg = TemplateArgument(SS);
-    return TemplateArgumentLoc(SemaRef.Context, TArg, SS, Arg.getEllipsisLoc());
   }
   }
 
@@ -3998,8 +3976,6 @@ static bool isTemplateArgumentTemplateParameter(
   case TemplateArgument::Null:
   case TemplateArgument::NullPtr:
   case TemplateArgument::Integral:
-  case TemplateArgument::Splice:
-  case TemplateArgument::SpliceExpansion:
   case TemplateArgument::Declaration:
   case TemplateArgument::StructuralValue:
   case TemplateArgument::Pack:
@@ -4891,12 +4867,6 @@ bool Sema::CheckTemplateTypeArgument(
     diagnoseMissingTemplateArguments(Name, SR.getEnd());
     return true;
   }
-  case TemplateArgument::Splice:
-  case TemplateArgument::SpliceExpansion:
-    // These are dependent and will be converted during substitution.
-    SugaredConverted.push_back(Arg);
-    CanonicalConverted.push_back(Arg);
-    return false;
   case TemplateArgument::Expression: {
     // We have a template type parameter but the template argument is an
     // expression; see if maybe it is missing the "typename" keyword.
@@ -5342,8 +5312,6 @@ bool Sema::CheckTemplateArgument(NamedDecl *Param, TemplateArgumentLoc &ArgLoc,
     case TemplateArgument::Integral:
     case TemplateArgument::Declaration:
     case TemplateArgument::NullPtr:
-    case TemplateArgument::Splice:
-    case TemplateArgument::SpliceExpansion:
     case TemplateArgument::StructuralValue: {
       // FIXME: StructuralValue is untested here.
       ExprResult R =
@@ -5488,14 +5456,6 @@ bool Sema::CheckTemplateArgument(NamedDecl *Param, TemplateArgumentLoc &ArgLoc,
                                       &CTAI.StrictPackMatch))
       return true;
 
-    CTAI.SugaredConverted.push_back(Arg);
-    CTAI.CanonicalConverted.push_back(
-        Context.getCanonicalTemplateArgument(Arg));
-    break;
-
-  case TemplateArgument::Splice:
-  case TemplateArgument::SpliceExpansion:
-    // These are dependent and cannot yet be validated. Assume valid for now.
     CTAI.SugaredConverted.push_back(Arg);
     CTAI.CanonicalConverted.push_back(
         Context.getCanonicalTemplateArgument(Arg));
@@ -7843,11 +7803,6 @@ Sema::BuildExpressionFromNonTypeTemplateArgument(const TemplateArgument &Arg,
   case TemplateArgument::TemplateExpansion:
   case TemplateArgument::Pack:
     llvm_unreachable("not a non-type template argument");
-
-  case TemplateArgument::Splice:
-  case TemplateArgument::SpliceExpansion:
-    return BuildReflectionSpliceExpr(SourceLocation(),
-                                     Arg.getAsSpliceSpecifier(), false);
 
   case TemplateArgument::Expression:
     return Arg.getAsExpr();

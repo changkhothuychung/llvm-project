@@ -2656,17 +2656,6 @@ TemplateInstantiator::TransformTemplateTypeParmType(TypeLocBuilder &TLB,
       return NewT;
     }
 
-    if (Arg.getKind() == TemplateArgument::Splice) {
-      SpliceSpecifier *Splice = Arg.getAsSpliceSpecifier();
-      QualType UnderlyingTy = SemaRef.Context.DependentTy;
-
-      QualType Ty = SemaRef.Context.getReflectionSpliceType(SourceLocation(),
-                                                            Splice,
-                                                            UnderlyingTy);
-      TLB.push<ReflectionSpliceTypeLoc>(Ty);
-      return Ty;
-    }
-
     auto [AssociatedDecl, Final] =
         TemplateArgs.getAssociatedDecl(T->getDepth());
     UnsignedOrNone PackIndex = std::nullopt;

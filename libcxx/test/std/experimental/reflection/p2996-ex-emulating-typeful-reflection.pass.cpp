@@ -68,8 +68,8 @@ consteval std::meta::info enrich(std::meta::info r) {
   std::array checks = {^^Choices::check..., ^^unmatched::check};
 
   for (auto [check, ctor] : std::views::zip(checks, ctors))
-    if (extract<bool>(reflect_invoke(check, {reflect_value(r)})))
-      return reflect_invoke(ctor, {reflect_value(r)});
+    if (extract<bool>(reflect_invoke(check, {reflect_constant(r)})))
+      return reflect_invoke(ctor, {reflect_constant(r)});
 
   std::unreachable();
 }
@@ -94,5 +94,5 @@ int main() {
   // Demonstration of using 'enrich' to select an overload.
   PrintKind([:enrich(^^metatype):]);                    // "template"
   PrintKind([:enrich(^^type_t):]);                      // "type"
-  PrintKind([:enrich(std::meta::reflect_value(3)):]);  // "unknown kind"
+  PrintKind([:enrich(std::meta::reflect_constant(3)):]);  // "unknown kind"
 }

@@ -2726,6 +2726,15 @@ QualType Sema::BuildMemberPointerType(QualType T, const CXXScopeSpec &SS,
     }
   }
 
+  if (Cls && Cls->isAnonymousStructOrUnion()) {
+    auto D = Diag(Loc, diag::err_illegal_decl_mempointer_into_anon_union);
+    if (const IdentifierInfo *II = Entity.getAsIdentifierInfo())
+      D << II;
+    else
+      D << "member pointer";
+    return QualType();
+  }
+
   // Verify that we're not building a pointer to pointer to function with
   // exception specification.
   if (CheckDistantExceptionSpec(T)) {

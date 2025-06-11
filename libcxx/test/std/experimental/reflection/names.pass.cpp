@@ -27,9 +27,9 @@ static_assert(!has_identifier(^^::));
 
 static_assert(!has_identifier(^^int));
 
-static_assert(u8display_string_of(std::meta::reflect_value(3)) ==
+static_assert(u8display_string_of(std::meta::reflect_constant(3)) ==
               u8"(value : int)");
-static_assert(display_string_of(std::meta::reflect_value(3)) == "3");
+static_assert(display_string_of(std::meta::reflect_constant(3)) == "3");
 static_assert(u8display_string_of(^^int) == u8"int");
 static_assert(display_string_of(^^int) == "int");
 

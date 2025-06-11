@@ -56,7 +56,6 @@ class APValue;
 class ASTContext;
 class Expr;
 struct PrintingPolicy;
-class SpliceSpecifier;
 class TypeSourceInfo;
 class ValueDecl;
 
@@ -83,15 +82,6 @@ public:
     /// The template argument is an integral value stored in an llvm::APSInt
     /// that was provided for an integral non-type template parameter.
     Integral,
-
-    /// The template argument is a splice-template-argument, which might splice
-    /// to a type, a declaration, a structural value, or a template.
-    Splice,
-
-    /// The template argument is a pack expansion of splice-template-arguments,
-    /// each of which might splice into a type, a declaration, a structural
-    /// value, or a template.
-    SpliceExpansion,
 
     /// The template argument is a non-type template argument that can't be
     /// represented by the special-case Declaration, NullPtr, or Integral
@@ -183,14 +173,6 @@ private:
     unsigned IsCanonicalExpr : 1;
     uintptr_t V;
   };
-  struct S {
-    LLVM_PREFERRED_TYPE(ArgKind)
-    unsigned Kind : 31;
-    LLVM_PREFERRED_TYPE(bool)
-    unsigned IsDefaulted : 1;
-    UnsignedOrNone NumExpansions;
-    SpliceSpecifier *SS;
-  };
   union {
     struct DA DeclArg;
     struct I Integer;
@@ -198,7 +180,6 @@ private:
     struct A Args;
     struct TA TemplateArg;
     struct TV TypeOrValue;
-    struct S SpliceArg;
   };
 
   void initFromType(QualType T, bool IsNullPtr, bool IsDefaulted);
@@ -233,14 +214,6 @@ public:
   /// Construct a template argument from an arbitrary constant value.
   TemplateArgument(const ASTContext &Ctx, QualType Type, const APValue &Value,
                    bool IsDefaulted = false);
-
-  /// Construct a splice template argument.
-  explicit TemplateArgument(SpliceSpecifier *SS,
-                            bool IsDefaulted = false);
-
-  /// Construct a pack of splice template argument.
-  explicit TemplateArgument(SpliceSpecifier *SS, UnsignedOrNone NumExpansions,
-                            bool IsDefaulted = false);
 
   /// Construct an integral constant template argument with the same
   /// value as Other but a different type.
@@ -388,10 +361,6 @@ public:
   /// expansion will produce, if known.
   UnsignedOrNone getNumTemplateExpansions() const;
 
-  /// Retrieve the number of expansions that a splice template argument
-  /// expansion will produce, if known.
-  UnsignedOrNone getNumSpliceExpansions() const;
-
   /// Retrieve the template argument as an integral value.
   // FIXME: Provide a way to read the integral data without copying the value.
   llvm::APSInt getAsIntegral() const {
@@ -405,12 +374,6 @@ public:
     unsigned NumWords = APInt::getNumWords(Integer.BitWidth);
     return APSInt(APInt(Integer.BitWidth, ArrayRef(Integer.pVal, NumWords)),
                   Integer.IsUnsigned);
-  }
-
-  SpliceSpecifier *getAsSpliceSpecifier() const {
-    assert((getKind() == Splice || getKind() == SpliceExpansion) &&
-           "Unexpected kind");
-    return reinterpret_cast<SpliceSpecifier *>(SpliceArg.SS);
   }
 
   /// Retrieve the type of the integral value.
@@ -525,21 +488,11 @@ private:
     SourceLocation EllipsisLoc;
   };
 
-  struct SpliceTemplateArgLocInfo {
-    SpliceSpecifier *SS;
-    SourceLocation EllipsisLoc;
-  };
-
-  llvm::PointerUnion<TemplateTemplateArgLocInfo *, Expr *, TypeSourceInfo *,
-                     SpliceTemplateArgLocInfo *>
+  llvm::PointerUnion<TemplateTemplateArgLocInfo *, Expr *, TypeSourceInfo *>
       Pointer;
 
   TemplateTemplateArgLocInfo *getTemplate() const {
     return cast<TemplateTemplateArgLocInfo *>(Pointer);
-  }
-
-  SpliceTemplateArgLocInfo *getSplice() const {
-    return cast<SpliceTemplateArgLocInfo *>(Pointer);
   }
 
 public:
@@ -551,8 +504,6 @@ public:
   // so we store the payload out-of-line.
   TemplateArgumentLocInfo(ASTContext &Ctx, NestedNameSpecifierLoc QualifierLoc,
                           SourceLocation TemplateNameLoc,
-                          SourceLocation EllipsisLoc);
-  TemplateArgumentLocInfo(ASTContext &Ctx, SpliceSpecifier *SS,
                           SourceLocation EllipsisLoc);
 
   TypeSourceInfo *getAsTypeSourceInfo() const {
@@ -573,14 +524,6 @@ public:
 
   SourceLocation getTemplateEllipsisLoc() const {
     return getTemplate()->EllipsisLoc;
-  }
-
-  SpliceSpecifier *getSpliceSpecifier() const {
-    return getSplice()->SS;
-  }
-
-  SourceLocation getSpliceEllipsisLoc() const {
-    return getSplice()->EllipsisLoc;
   }
 };
 
@@ -622,14 +565,6 @@ public:
         LocInfo(Ctx, QualifierLoc, TemplateNameLoc, EllipsisLoc) {
     assert(Argument.getKind() == TemplateArgument::Template ||
            Argument.getKind() == TemplateArgument::TemplateExpansion);
-  }
-
-  TemplateArgumentLoc(ASTContext &Ctx, const TemplateArgument &Argument,
-                      SpliceSpecifier *SS,
-                      SourceLocation EllipsisLoc = SourceLocation())
-      : Argument(Argument), LocInfo(Ctx, SS, EllipsisLoc) {
-    assert(Argument.getKind() == TemplateArgument::Splice ||
-           Argument.getKind() == TemplateArgument::SpliceExpansion);
   }
 
   /// - Fetches the primary location of the argument.
@@ -697,18 +632,6 @@ public:
     if (Argument.getKind() != TemplateArgument::TemplateExpansion)
       return SourceLocation();
     return LocInfo.getTemplateEllipsisLoc();
-  }
-
-  SpliceSpecifier *getSpliceSpecifier() const {
-    assert(Argument.getKind() == TemplateArgument::Splice ||
-           Argument.getKind() == TemplateArgument::SpliceExpansion);
-    return LocInfo.getSpliceSpecifier();
-  }
-
-  SourceLocation getSpliceEllipsisLoc() const {
-    if (Argument.getKind() != TemplateArgument::Splice)
-      return SourceLocation();
-    return LocInfo.getSpliceEllipsisLoc();
   }
 };
 

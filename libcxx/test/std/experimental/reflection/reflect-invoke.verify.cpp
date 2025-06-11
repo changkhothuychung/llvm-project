@@ -52,7 +52,7 @@ int main() {
  // expected-note@-2 {{expected related object reflection as a first argument for invoking non-static member function}}
  // expected-error@-3 {{consteval-only type}}
 
- reflect_invoke(^^A::fn, {std::meta::reflect_value(42)});
+ reflect_invoke(^^A::fn, {std::meta::reflect_constant(42)});
  // expected-error-re@-1 {{call to consteval function 'std::meta::reflect_invoke<{{.*}}>' is not a constant expression}}
  // expected-note@-2 {{expected related object reflection as a first argument for invoking non-static member function}}
  // expected-error@-3 {{consteval-only type}}

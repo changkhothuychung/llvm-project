@@ -281,17 +281,6 @@ checkDeducedTemplateArguments(ASTContext &Context,
     // All other combinations are incompatible.
     return DeducedTemplateArgument();
 
-  case TemplateArgument::Splice:
-    if (Y.getKind() == TemplateArgument::Type ||
-        Y.getKind() == TemplateArgument::Expression ||
-        Y.getKind() == TemplateArgument::Declaration ||
-        Y.getKind() == TemplateArgument::Splice ||
-        Y.getKind() == TemplateArgument::Template)
-      return X;
-
-    // All other combinations are incompatible.
-    return DeducedTemplateArgument();
-
   case TemplateArgument::StructuralValue:
     // If we deduced a value and a dependent expression, keep the value.
     if (Y.getKind() == TemplateArgument::Expression ||
@@ -2594,9 +2583,6 @@ DeduceTemplateArguments(Sema &S, TemplateParameterList *TemplateParams,
     Info.SecondArg = A;
     return TemplateDeductionResult::NonDeducedMismatch;
 
-  case TemplateArgument::Splice:
-    llvm_unreachable("TODO");
-
   case TemplateArgument::StructuralValue:
     // FIXME: structural equality will also compare types,
     // but they should match iff they have the same value.
@@ -2638,7 +2624,6 @@ DeduceTemplateArguments(Sema &S, TemplateParameterList *TemplateParams,
       }
       case TemplateArgument::Integral:
       case TemplateArgument::StructuralValue:
-      case TemplateArgument::Splice:
         return DeduceNonTypeTemplateArgument(
             S, TemplateParams, NTTP, DeducedTemplateArgument(A),
             A.getNonTypeTemplateArgumentType(), Info, PartialOrdering, Deduced,
@@ -2875,9 +2860,6 @@ static bool isSameTemplateArg(ASTContext &Context, const TemplateArgument &X,
     case TemplateArgument::Integral:
       return hasSameExtendedValue(X.getAsIntegral(), Y.getAsIntegral());
 
-    case TemplateArgument::Splice:
-      return false;
-
     case TemplateArgument::StructuralValue:
       return X.structurallyEquals(Y);
 
@@ -2939,9 +2921,6 @@ Sema::getTrivialTemplateArgumentLoc(const TemplateArgument &Arg,
     Expr *E = BuildExpressionFromNonTypeTemplateArgument(Arg, Loc).get();
     return TemplateArgumentLoc(TemplateArgument(E, /*IsCanonical=*/false), E);
   }
-
-  case TemplateArgument::Splice:
-    llvm_unreachable("TODO: unimplemented");
 
     case TemplateArgument::Template:
     case TemplateArgument::TemplateExpansion: {
@@ -7129,7 +7108,6 @@ MarkUsedTemplateParameters(ASTContext &Ctx,
   switch (TemplateArg.getKind()) {
   case TemplateArgument::Null:
   case TemplateArgument::Integral:
-  case TemplateArgument::Splice:
   case TemplateArgument::Declaration:
   case TemplateArgument::NullPtr:
   case TemplateArgument::StructuralValue:

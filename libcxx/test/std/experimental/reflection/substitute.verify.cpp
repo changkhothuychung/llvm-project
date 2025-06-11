@@ -27,7 +27,7 @@
 constexpr auto ctx = std::meta::access_context::unchecked();
 
 template <int K>
-constexpr std::meta::info RVal = std::meta::reflect_value(K);
+constexpr std::meta::info RVal = std::meta::reflect_constant(K);
 
                                // ===============
                                // class_templates
@@ -389,7 +389,8 @@ static_assert(
                           return (c >= 'A' && c <= 'Z') ||
                                  (c >= 'a' && c <= 'z') || c == ' ';
                         }) |
-                        std::views::transform(std::meta::reflect_value<char>))
+                        std::views::transform(
+                            std::meta::reflect_constant<char>))
     :]() == "Hello world");
 
 static_assert(!can_substitute(^^join,
@@ -460,6 +461,20 @@ template <auto &V> static constexpr auto &Value = V;
 
 static_assert([:substitute(^^Value, {members_of(^^Cls, ctx)[0]}):] == 11);
 }  // namespace non_type_ref_regression_test
+
+                  // ========================================
+                  // bb_clang_p2996_issue_147_regression_test
+                  // ========================================
+
+namespace bb_clang_p2996_issue_147_regression_test {
+template<int V> constexpr int my_int = V;
+template<int S> struct test {};
+
+constexpr auto r = substitute(^^test, {
+  substitute(^^my_int, {std::meta::reflect_constant(0)})
+});
+}  // namespace bb_clang_p2996_issue_147_regression_test
+
 
                                // ===============
                                // wording_example

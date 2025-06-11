@@ -36,8 +36,6 @@ namespace clang {
       NonType,
       /// A template template argument, stored as a template name.
       Template,
-      /// A splice specifier argument, stored as an expression.
-      Splice,
     };
 
     /// Build an empty template argument.
@@ -91,11 +89,6 @@ namespace clang {
       return ParsedTemplateTy::getFromOpaquePtr(Arg);
     }
 
-    SpliceSpecifier *getAsSpliceSpecifier() const {
-      assert(Kind == Splice && "Not a splice specifier argument");
-      return static_cast<SpliceSpecifier *>(Arg);
-    }
-
     /// Retrieve the location of the template argument.
     SourceLocation getLocation() const { return Loc; }
 
@@ -110,7 +103,7 @@ namespace clang {
     /// Retrieve the location of the ellipsis that makes a template
     /// template argument into a pack expansion.
     SourceLocation getEllipsisLoc() const {
-      assert((Kind == Template || Kind == Splice) &&
+      assert((Kind == Template) &&
              "Only template template arguments can have an ellipsis");
       return EllipsisLoc;
     }
@@ -120,12 +113,6 @@ namespace clang {
     ///
     /// \param EllipsisLoc The location of the ellipsis.
     ParsedTemplateArgument getTemplatePackExpansion(
-                                              SourceLocation EllipsisLoc) const;
-
-    /// Retrieve a pack expansion of the given splice template argument.
-    ///
-    /// \param EllipsisLoc The location of the ellipsis.
-    ParsedTemplateArgument getSplicePackExpansion(
                                               SourceLocation EllipsisLoc) const;
 
   private:

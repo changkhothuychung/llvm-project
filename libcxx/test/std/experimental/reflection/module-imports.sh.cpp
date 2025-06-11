@@ -43,7 +43,7 @@ static_assert(type_of(Example::rObj) == ^^int);
                             // =====================
 
 static_assert(is_value(Example::rValue));
-static_assert(Example::rValue == std::meta::reflect_value(1));
+static_assert(Example::rValue == std::meta::reflect_constant(1));
 static_assert(Example::rValue == [:Example::rRefl:]);
 static_assert(Example::Splice == Example::rValue);
 

@@ -7185,6 +7185,8 @@ def err_illegal_decl_mempointer_to_reference : Error<
   "'%0' declared as a member pointer to a reference of type %1">;
 def err_illegal_decl_mempointer_to_void : Error<
   "'%0' declared as a member pointer to void">;
+def err_illegal_decl_mempointer_into_anon_union : Error<
+  "'%0' declared as a member pointer into an anonymous union">;
 def err_illegal_decl_mempointer_in_nonclass
     : Error<"%0 does not point into a class">;
 def err_reference_to_void : Error<"cannot form a reference to 'void'">;
@@ -8776,6 +8778,9 @@ def warn_no_typeid_with_rtti_disabled: Warning<
 
 def err_cannot_form_pointer_to_member_of_reference_type : Error<
   "cannot form a pointer-to-member to member %0 of reference type %1">;
+def err_cannot_form_pointer_to_member_anon_union : Error<
+  "cannot form a pointer-to-member to member %0 of %1 that is not a member of "
+  "a named class">;
 def err_incomplete_object_call : Error<
   "incomplete type in call to object of type %0">;
 
@@ -9931,6 +9936,7 @@ def err_base_class_has_flexible_array_member : Error<
 def err_incomplete_base_class : Error<"base class has incomplete type">;
 def err_duplicate_base_class : Error<
   "base class %0 specified more than once as a direct base class">;
+def err_class_not_derived_from_base : Error<"class %0 not derived from %1">;
 def warn_inaccessible_base_class : Warning<
   "direct base %0 is inaccessible due to ambiguity:%1">,
   InGroup<DiagGroup<"inaccessible-base">>;

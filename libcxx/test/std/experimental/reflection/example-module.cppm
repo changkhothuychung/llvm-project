@@ -27,8 +27,8 @@ export constexpr auto rObj = std::meta::reflect_object(obj);
                             // Reflections of values
                             // =====================
 
-export constexpr auto rValue = std::meta::reflect_value(1);
-export constexpr auto rRefl = std::meta::reflect_value(rValue);
+export constexpr auto rValue = std::meta::reflect_constant(1);
+export constexpr auto rRefl = std::meta::reflect_constant(rValue);
 export constexpr auto Splice = [:rRefl:];
 
                           // ========================

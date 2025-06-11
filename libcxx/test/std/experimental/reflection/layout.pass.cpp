@@ -22,7 +22,7 @@ using int_alias = int;
 
 long x;
 static_assert(size_of(std::meta::reflect_object(x)) == sizeof(long));
-static_assert(size_of(std::meta::reflect_value(38)) == sizeof(int));
+static_assert(size_of(std::meta::reflect_constant(38)) == sizeof(int));
 static_assert(size_of(^^int) == sizeof(int));
 static_assert(size_of(^^int&) == sizeof(int *));
 static_assert(size_of(^^int_alias) == sizeof(int));

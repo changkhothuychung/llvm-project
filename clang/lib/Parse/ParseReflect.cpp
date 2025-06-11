@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/LocInfoType.h"
 #include "clang/Basic/DiagnosticParse.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
@@ -94,6 +95,30 @@ ExprResult Parser::ParseCXXReflectExpression(SourceLocation OpLoc) {
     TypeResult TR = ParseTypeName(nullptr, DeclaratorContext::ReflectOperator);
     if (TR.isInvalid())
       return ExprError();
+
+    std::string refKind;
+    if (QualType QT = cast<LocInfoType>(TR.get().get())->getType();
+        QT->isLValueReferenceType()) {
+      refKind = "&";
+    } else if (QT->isRValueReferenceType()) {
+      refKind = "&&";
+    } else if (auto *FPT = dyn_cast<FunctionProtoType>(QT)) {
+      if (FPT->getRefQualifier() == RQ_LValue)
+        refKind = "&";
+      else if (FPT->getRefQualifier() == RQ_RValue)
+        refKind = "&&";
+    }
+
+    if (!refKind.empty() &&
+        !Tok.isOneOf(tok::r_paren, tok::greater, tok::greatergreater,
+                     tok::comma, tok::r_brace, tok::r_square, tok::r_splice,
+                     tok::semi, tok::ellipsis, tok::colon, tok::question)) {
+      TypeLoc TL = cast<LocInfoType>(TR.get().get())
+          ->getTypeSourceInfo()->getTypeLoc();
+
+      Diag(OperandLoc, diag::warn_meant_parenthesize_reflection)
+        << refKind << TL.getSourceRange();
+    }
 
     return RecordConstevalOnly.RecordAndReturn(
             Actions.ActOnCXXReflectExpr(OpLoc, TR));
@@ -232,26 +257,4 @@ DeclResult Parser::ParseCXXSpliceAsNamespace() {
   ConsumeAnnotationToken();
 
   return Actions.ActOnCXXSpliceExpectingNamespace(Splice);
-}
-
-ParsedTemplateArgument Parser::ParseSpliceTemplateArgument() {
-  assert(Tok.is(tok::annot_splice) && "expected annot_splice");
-
-  SpliceResult SR = getSpliceAnnotation(Tok);
-  if (SR.isInvalid())
-    return ParsedTemplateArgument();
-  SpliceSpecifier *Splice = SR.get();
-
-  assert(!Splice->isSpecialization() &&
-         "splice-template-argument cannot be specialized");
-  ConsumeAnnotationToken();
-
-  ParsedTemplateArgument Result = Actions.ActOnSpliceTemplateArgument(Splice);
-
-  SourceLocation EllipsisLoc;
-  if (TryConsumeToken(tok::ellipsis, EllipsisLoc) && EllipsisLoc.isValid() &&
-      !Result.isInvalid()) {
-    Result = Actions.ActOnPackExpansion(Result, EllipsisLoc);
-  }
-  return Result;
 }

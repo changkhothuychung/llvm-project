@@ -1002,31 +1002,6 @@ let Class = PropertyTypeCase<TemplateArgument, "Integral"> in {
     return TemplateArgument(ctx, value, type, isDefaulted);
   }]>;
 }
-let Class = PropertyTypeCase<TemplateArgument, "Splice"> in {
-  def : Property<"value", SpliceSpecifierRef> {
-    let Read = [{ node.getAsSpliceSpecifier() }];
-  }
-  def : Property<"isDefaulted", Bool> {
-    let Read = [{ node.getIsDefaulted() }];
-  }
-  def : Creator<[{
-    return TemplateArgument(value, isDefaulted);
-  }]>;
-}
-let Class = PropertyTypeCase<TemplateArgument, "SpliceExpansion"> in {
-  def : Property<"value", SpliceSpecifierRef> {
-    let Read = [{ node.getAsSpliceSpecifier() }];
-  }
-  def : Property<"isDefaulted", Bool> {
-    let Read = [{ node.getIsDefaulted() }];
-  }
-  def : Property<"numExpansions", UnsignedOrNone> {
-    let Read = [{ node.getNumSpliceExpansions() }];
-  }
-  def : Creator<[{
-    return TemplateArgument(value, numExpansions, isDefaulted);
-  }]>;
-}
 let Class = PropertyTypeCase<TemplateArgument, "StructuralValue"> in {
   def : Property<"value", APValue> {
     let Read = [{ node.getAsStructuralValue() }];
