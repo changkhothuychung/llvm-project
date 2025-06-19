@@ -1699,6 +1699,7 @@ ExprResult Sema::BuildReflectionSpliceExpr(SourceLocation TemplateKWLoc,
     case ReflectionKind::Type:
     case ReflectionKind::Namespace:
     case ReflectionKind::BaseSpecifier:
+    case ReflectionKind::Parameter:
     case ReflectionKind::DataMemberSpec:
     case ReflectionKind::Annotation:
       Diag(Splice->getBeginLoc(),
@@ -1834,6 +1835,7 @@ DeclContext *Sema::TryFindDeclContextOf(SpliceSpecifier *Splice) {
   case ReflectionKind::Value:
   case ReflectionKind::Declaration:
   case ReflectionKind::BaseSpecifier:
+  case ReflectionKind::Parameter:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:
     Diag(Splice->getBeginLoc(), diag::err_expected_class_or_namespace)

@@ -507,6 +507,10 @@ let Class = PropertyTypeCase<APValue, "Reflection"> in {
     let Conditional = [{ kind == ReflectionKind::EntityProxy }];
     let Read = [{ base.getReflectedEntityProxy() }];
   }
+  def : Property<"baseParameter", DeclRef> {
+    let Conditional = [{ kind == ReflectionKind::Parameter  }];
+    let Read = [{ base.getReflectedParameter() }];
+  }
   def : Property<"baseBaseSpecDerivedFrom", CXXRecordDeclRef> {
     let Conditional = [{ kind == ReflectionKind::BaseSpecifier }];
     let Read = [{ base.getReflectedBaseSpecifier()->getDerived() }];
@@ -573,6 +577,9 @@ let Class = PropertyTypeCase<APValue, "Reflection"> in {
       break;
     case ReflectionKind::EntityProxy:
       V = APValue(kind, *baseEntityProxy);
+      break;
+    case ReflectionKind::Parameter:
+      V = APValue(kind, *baseParameter);
       break;
     case ReflectionKind::BaseSpecifier:
       V = APValue(

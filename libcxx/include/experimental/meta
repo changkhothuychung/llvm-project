@@ -340,14 +340,12 @@ consteval auto is_entity_proxy(info) -> bool;
 
 // function parameters (P3096)
 consteval auto parameters_of(info) -> vector<info>;
-consteval auto has_consistent_identifier(info) -> bool;
-consteval auto any_identifier_of(info) -> string_view;
-consteval auto u8any_identifier_of(info) -> u8string_view;
 consteval auto has_ellipsis_parameter(info) -> bool;
 consteval auto has_default_argument(info) -> bool;
 consteval auto is_explicit_object_parameter(info) -> bool;
 consteval auto is_function_parameter(info) -> bool;
 consteval auto return_type_of(info) -> info;
+consteval auto variable_of(info) -> info;
 
 // annotations (P3394)
 consteval auto annotations_of(info) -> vector<info>;
@@ -528,12 +526,12 @@ enum : unsigned {
 
   // P3096 parameter reflection metafunctions
   __metafn_get_ith_parameter_of,
-  __metafn_has_consistent_identifier,
   __metafn_has_ellipsis_parameter,
   __metafn_has_default_argument,
   __metafn_is_explicit_object_parameter,
   __metafn_is_function_parameter,
   __metafn_return_type_of,
+  __metafn_variable_of,
 
   // P3394 annotation metafunctions
   __metafn_get_ith_annotation_of,
@@ -2082,20 +2080,6 @@ consteval auto parameters_of(info r) -> vector<info> {
   return vector<info>{rng.begin(), rng.end()};
 }
 
-consteval auto has_consistent_identifier(info r) -> bool {
-  return __metafunction(detail::__metafn_has_consistent_identifier, r);
-}
-
-consteval auto any_identifier_of(info r) -> string_view {
-  return __metafunction(detail::__metafn_identifier_of, ^^const char *, r,
-                        /*UTF8=*/false, /*EnforceConsistent=*/false);
-}
-
-consteval auto u8any_identifier_of(info r) -> u8string_view {
-  return __metafunction(detail::__metafn_identifier_of, ^^const char8_t *,
-                        r, /*UTF8=*/true, /*EnforceConsistent=*/false);
-}
-
 consteval auto has_ellipsis_parameter(info r) -> bool {
   return __metafunction(detail::__metafn_has_ellipsis_parameter, r);
 }
@@ -2114,6 +2098,10 @@ consteval auto is_function_parameter(info r) -> bool {
 
 consteval auto return_type_of(info r) -> info {
   return __metafunction(detail::__metafn_return_type_of, r);
+}
+
+consteval auto variable_of(info r) -> info {
+  return __metafunction(detail::__metafn_variable_of, r);
 }
 
 #endif  // __has_feature(parameter_reflection)

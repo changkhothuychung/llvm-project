@@ -9071,6 +9071,14 @@ TreeTransform<Derived>::TransformCXXReflectExpr(CXXReflectExpr *E) {
                                           E->getOperandRange().getBegin(),
                                           cast<UsingShadowDecl>(Transformed)));
   }
+  case ReflectionKind::Parameter: {
+    Decl *Transformed = getDerived().TransformDecl(E->getExprLoc(),
+                                                   RV.getReflectedParameter());
+    return RecordConstevalOnly.RecordAndReturn(
+            getSema().BuildCXXReflectExpr(E->getOperatorLoc(),
+                                          E->getOperandRange().getBegin(),
+                                          Transformed));
+  }
   case ReflectionKind::Namespace: {
     Decl *Transformed =
           getDerived().TransformDecl(E->getExprLoc(),

@@ -552,6 +552,13 @@ static void profileReflection(llvm::FoldingSetNodeID &ID, APValue V) {
     ID.AddPointer(TDecl);
     return;
   }
+  case ReflectionKind::Parameter: {
+    ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(V.getReflectedParameter());
+    if (auto *FD = dyn_cast<FunctionDecl>(PVD->getDeclContext()))
+      PVD = FD->getFirstDecl()->getParamDecl(PVD->getFunctionScopeIndex());
+    ID.AddPointer(PVD);
+    return;
+  }
   case ReflectionKind::Namespace:
   case ReflectionKind::EntityProxy:
   case ReflectionKind::BaseSpecifier:
@@ -936,6 +943,13 @@ UsingShadowDecl *APValue::getReflectedEntityProxy() const {
           const_cast<void *>(getOpaqueReflectionData()));
 }
 
+ParmVarDecl *APValue::getReflectedParameter() const {
+  assert(getReflectionKind() == ReflectionKind::Parameter &&
+         "not a reflection of a parameter");
+  return reinterpret_cast<ParmVarDecl *>(
+          const_cast<void *>(getOpaqueReflectionData()));
+}
+
 CXXBaseSpecifier *APValue::getReflectedBaseSpecifier() const {
   assert(getReflectionKind() == ReflectionKind::BaseSpecifier &&
          "not a reflection of a base specifier");
@@ -1304,6 +1318,9 @@ void APValue::printPretty(raw_ostream &Out, const PrintingPolicy &Policy,
     case ReflectionKind::EntityProxy:
       Repr = "entity-proxy";
       break;
+    case ReflectionKind::Parameter:
+      Repr = "parameter";
+      break;
     case ReflectionKind::BaseSpecifier:
       Repr = "base-specifier";
       break;
@@ -1647,6 +1664,7 @@ void APValue::setReflection(ReflectionKind RK, const void *Ptr) {
   case ReflectionKind::Template:
   case ReflectionKind::Namespace:
   case ReflectionKind::EntityProxy:
+  case ReflectionKind::Parameter:
   case ReflectionKind::BaseSpecifier:
   case ReflectionKind::DataMemberSpec:
   case ReflectionKind::Annotation:

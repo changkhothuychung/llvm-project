@@ -982,6 +982,14 @@ ExprDependence clang::computeDependence(CXXReflectExpr *E,
       D |= ExprDependence::UnexpandedPack;
     return D | computeDeclDependence(VD, Ctx);
   }
+  case ReflectionKind::Parameter: {
+    ParmVarDecl *PD = RV.getReflectedParameter();
+    if (PD->getType()->isDependentType())
+      D |= ExprDependence::ValueInstantiation;
+    if (PD->getType()->containsUnexpandedParameterPack())
+      D |= ExprDependence::UnexpandedPack;
+    return D | computeDeclDependence(PD, Ctx);
+  }
   case ReflectionKind::Template: {
     const TemplateName Template = RV.getReflectedTemplate();
 

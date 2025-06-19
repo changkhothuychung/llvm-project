@@ -3054,6 +3054,10 @@ DEF_TRAVERSE_STMT(CXXReflectExpr, {
       TRY_TO(TraverseDecl(RV.getReflectedEntityProxy()));
       break;
     }
+    case ReflectionKind::Parameter: {
+      TRY_TO(TraverseDecl(RV.getReflectedParameter()));
+      break;
+    }
     case ReflectionKind::Annotation: {
       TRY_TO(TraverseStmt(RV.getReflectedAnnotation()->getArg()));
       break;
