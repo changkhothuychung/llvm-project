@@ -253,12 +253,15 @@ Retry:
       ExpansionStmtDecl *ExpansionDecl =
           cast<ExpansionStmtDecl>(
               Actions.ActOnExpansionStmtDeclaration(getCurScope(),
+                                                    TemplateParameterDepth,
                                                     Tok.getLocation()));
       assert(ExpansionDecl && "no ExpansionStmtDecl returned");
 
       CXXExpansionStmt *Expansion;
       {
         Sema::ContextRAII CtxGuard(Actions, ExpansionDecl, /*NewThis=*/false);
+        TemplateParameterDepthRAII TParamDepthGuard(TemplateParameterDepth);
+        ++TParamDepthGuard;
 
         StmtResult SR = ParseForStatement(TrailingElseLoc);
         if (SR.isInvalid())

@@ -15767,7 +15767,8 @@ public:
   Decl *BuildConstevalBlockDeclaration(SourceLocation ConstevalLoc,
                                        Expr *EvaluatingExpr);
 
-  Decl *ActOnExpansionStmtDeclaration(Scope *S, SourceLocation TemplateKWLoc);
+  Decl *ActOnExpansionStmtDeclaration(Scope *S, unsigned TParamDepth,
+                                      SourceLocation TemplateKWLoc);
   Decl *BuildExpansionStmtDeclaration(SourceLocation TemplateKWLoc,
                                       NonTypeTemplateParmDecl *NTTP);
 

@@ -36,20 +36,14 @@ VarDecl *ExtractVarDecl(Stmt *S) {
 }
 
 unsigned ExtractParmVarDeclDepth(Expr *E) {
-  if (auto *DRE = cast<DeclRefExpr>(E))
+  if (auto *DRE = dyn_cast<DeclRefExpr>(E)) {
     if (auto *PVD = cast<NonTypeTemplateParmDecl>(DRE->getDecl()))
       return PVD->getDepth();
-  return 0;
-}
-
-// Returns how many layers of templates the current scope is nested within.
-unsigned ComputeTemplateEmbeddingDepth(Scope *CurScope) {
-  int Depth = 0;
-  while ((CurScope = CurScope->getParent())) {
-    if (CurScope->isTemplateParamScope())
-      ++Depth;
+  } else if (auto *SNTTPE = cast<SubstNonTypeTemplateParmExpr>(E)) {
+    if (auto *PVD = cast<NonTypeTemplateParmDecl>(SNTTPE->getAssociatedDecl()))
+      return PVD->getDepth();
   }
-  return Depth;
+  return 0;
 }
 
 ExprResult makeIterableExpansionSizeExpr(Sema &S, VarDecl *RangeVar) {
@@ -597,10 +591,10 @@ ExprResult Sema::BuildCXXExpansionInitList(SourceLocation LBraceLoc,
                                           RBraceLoc);
 }
 
-Decl *Sema::ActOnExpansionStmtDeclaration(Scope *S,
+Decl *Sema::ActOnExpansionStmtDeclaration(Scope *S, unsigned TParamDepth,
                                           SourceLocation TemplateKWLoc) {
   // Compute how many layers of template parameters wrap this statement.
-  unsigned TemplateDepth = ComputeTemplateEmbeddingDepth(S);
+  unsigned TemplateDepth = TParamDepth;
 
   // Create a template parameter '__N'.
   IdentifierInfo *ParmName = &Context.Idents.get("__N");
