@@ -3250,8 +3250,8 @@ def err_injected_decl_outside_cone : Error <
 
 def err_compute_expansion_size_index : Error<
   "could not compute %select{size|index}0 of expansion">;
-def err_cannot_expand_over_type : Error<
-  "cannot expand over an expression of type %0">;
+def err_expanded_identifier_label : Error<
+  "identifier labels are not allowed in expansion statements">;
 
 // C++11 char16_t/char32_t
 def warn_cxx98_compat_unicode_type : Warning<

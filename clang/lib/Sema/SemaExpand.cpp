@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DynamicRecursiveASTVisitor.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
@@ -516,6 +517,18 @@ Sema::BuildCXXExpansionInitListSelectExpr(CXXExpansionInitListExpr *Range,
 
 StmtResult Sema::FinishCXXExpansionStmt(Stmt *Heading, Stmt *Body) {
   if (!Heading || !Body)
+    return StmtError();
+
+  // Diagnose identifier labels.
+  struct DiagnoseLabels : DynamicRecursiveASTVisitor {
+    Sema &SemaRef;
+    DiagnoseLabels(Sema &S) : SemaRef(S) {}
+    bool VisitLabelStmt(LabelStmt *S) override {
+      SemaRef.Diag(S->getIdentLoc(), diag::err_expanded_identifier_label);
+      return false;
+    }
+  } Visitor(*this);
+  if (!Visitor.TraverseStmt(Body))
     return StmtError();
 
   CXXExpansionStmt *Expansion = cast<CXXExpansionStmt>(Heading);
