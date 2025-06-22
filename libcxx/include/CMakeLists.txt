@@ -1029,6 +1029,7 @@ set(files
   mdspan
   memory
   memory_resource
+  meta
   mutex
   new
   numbers
