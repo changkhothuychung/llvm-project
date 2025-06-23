@@ -2110,7 +2110,7 @@ void QualifierInfo::setTemplateParameterListsInfo(
   if (!TPLists.empty()) {
     TemplParamLists = new (Context) TemplateParameterList *[TPLists.size()];
     NumTemplParamLists = TPLists.size();
-    std::copy(TPLists.begin(), TPLists.end(), TemplParamLists);
+    llvm::copy(TPLists, TemplParamLists);
   }
 }
 
@@ -2450,6 +2450,30 @@ VarDecl *VarDecl::getInitializingDeclaration() {
     }
   }
   return Def;
+}
+
+bool VarDecl::hasInitWithSideEffects() const {
+  if (!hasInit())
+    return false;
+
+  // Check if we can get the initializer without deserializing
+  const Expr *E = nullptr;
+  if (auto *S = dyn_cast<Stmt *>(Init)) {
+    E = cast<Expr>(S);
+  } else {
+    E = cast_or_null<Expr>(getEvaluatedStmt()->Value.getWithoutDeserializing());
+  }
+
+  if (E)
+    return E->HasSideEffects(getASTContext()) &&
+           // We can get a value-dependent initializer during error recovery.
+           (E->isValueDependent() || !evaluateValue());
+
+  assert(getEvaluatedStmt()->Value.isOffset());
+  // ASTReader tracks this without having to deserialize the initializer
+  if (auto Source = getASTContext().getExternalSource())
+    return Source->hasInitializerWithSideEffects(this);
+  return false;
 }
 
 bool VarDecl::isOutOfLine() const {
@@ -3774,7 +3798,7 @@ void FunctionDecl::setParams(ASTContext &C,
   // Zero params -> null pointer.
   if (!NewParamInfo.empty()) {
     ParamInfo = new (C) ParmVarDecl*[NewParamInfo.size()];
-    std::copy(NewParamInfo.begin(), NewParamInfo.end(), ParamInfo);
+    llvm::copy(NewParamInfo, ParamInfo);
   }
 }
 
@@ -5361,7 +5385,7 @@ void BlockDecl::setParams(ArrayRef<ParmVarDecl *> NewParamInfo) {
   if (!NewParamInfo.empty()) {
     NumParams = NewParamInfo.size();
     ParamInfo = new (getASTContext()) ParmVarDecl*[NewParamInfo.size()];
-    std::copy(NewParamInfo.begin(), NewParamInfo.end(), ParamInfo);
+    llvm::copy(NewParamInfo, ParamInfo);
   }
 }
 
@@ -5418,8 +5442,8 @@ PragmaCommentDecl *PragmaCommentDecl::Create(const ASTContext &C,
   PragmaCommentDecl *PCD =
       new (C, DC, additionalSizeToAlloc<char>(Arg.size() + 1))
           PragmaCommentDecl(DC, CommentLoc, CommentKind);
-  memcpy(PCD->getTrailingObjects(), Arg.data(), Arg.size());
-  PCD->getTrailingObjects<char>()[Arg.size()] = '\0';
+  llvm::copy(Arg, PCD->getTrailingObjects());
+  PCD->getTrailingObjects()[Arg.size()] = '\0';
   return PCD;
 }
 
@@ -5440,9 +5464,9 @@ PragmaDetectMismatchDecl::Create(const ASTContext &C, TranslationUnitDecl *DC,
   PragmaDetectMismatchDecl *PDMD =
       new (C, DC, additionalSizeToAlloc<char>(ValueStart + Value.size() + 1))
           PragmaDetectMismatchDecl(DC, Loc, ValueStart);
-  memcpy(PDMD->getTrailingObjects(), Name.data(), Name.size());
+  llvm::copy(Name, PDMD->getTrailingObjects());
   PDMD->getTrailingObjects()[Name.size()] = '\0';
-  memcpy(PDMD->getTrailingObjects() + ValueStart, Value.data(), Value.size());
+  llvm::copy(Value, PDMD->getTrailingObjects() + ValueStart);
   PDMD->getTrailingObjects()[ValueStart + Value.size()] = '\0';
   return PDMD;
 }
@@ -5482,9 +5506,9 @@ LabelDecl *LabelDecl::CreateDeserialized(ASTContext &C, GlobalDeclID ID) {
 
 void LabelDecl::setMSAsmLabel(StringRef Name) {
 char *Buffer = new (getASTContext(), 1) char[Name.size() + 1];
-  memcpy(Buffer, Name.data(), Name.size());
-  Buffer[Name.size()] = '\0';
-  MSAsmName = Buffer;
+llvm::copy(Name, Buffer);
+Buffer[Name.size()] = '\0';
+MSAsmName = Buffer;
 }
 
 void ValueDecl::anchor() {}
@@ -5867,7 +5891,7 @@ void HLSLBufferDecl::setDefaultBufferDecls(ArrayRef<Decl *> Decls) {
 
   // allocate array for default decls with ASTContext allocator
   Decl **DeclsArray = new (getASTContext()) Decl *[Decls.size()];
-  std::copy(Decls.begin(), Decls.end(), DeclsArray);
+  llvm::copy(Decls, DeclsArray);
   DefaultBufferDecls = ArrayRef<Decl *>(DeclsArray, Decls.size());
 }
 
@@ -5908,8 +5932,7 @@ HLSLRootSignatureDecl *HLSLRootSignatureDecl::Create(
                RootElements.size()))
           HLSLRootSignatureDecl(DC, Loc, ID, RootElements.size());
   auto *StoredElems = RSDecl->getElems();
-  std::uninitialized_copy(RootElements.begin(), RootElements.end(),
-                          StoredElems);
+  llvm::uninitialized_copy(RootElements, StoredElems);
   return RSDecl;
 }
 

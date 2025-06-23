@@ -631,7 +631,7 @@ StmtResult Parser::ParseSEHExceptBlock(SourceLocation ExceptLoc) {
   {
     ParseScopeFlags FilterScope(this, getCurScope()->getFlags() |
                                           Scope::SEHFilterScope);
-    FilterExpr = Actions.CorrectDelayedTyposInExpr(ParseExpression());
+    FilterExpr = ParseExpression();
   }
 
   if (getLangOpts().Borland) {
@@ -861,10 +861,12 @@ StmtResult Parser::ParseCaseStatement(ParsedStmtContext StmtCtx,
           << "'case'" << tok::colon
           << FixItHint::CreateReplacement(ColonLoc, ":");
     } else {
-      SourceLocation ExpectedLoc = PP.getLocForEndOfToken(PrevTokLocation);
+      SourceLocation ExpectedLoc = getEndOfPreviousToken();
+
       Diag(ExpectedLoc, diag::err_expected_after)
           << "'case'" << tok::colon
           << FixItHint::CreateInsertion(ExpectedLoc, ":");
+
       ColonLoc = ExpectedLoc;
     }
 
@@ -1858,11 +1860,7 @@ StmtResult Parser::ParseDoStatement() {
 
   SourceLocation Start = Tok.getLocation();
   ExprResult Cond = ParseExpression();
-  // Correct the typos in condition before closing the scope.
-  if (Cond.isUsable())
-    Cond = Actions.CorrectDelayedTyposInExpr(Cond, /*InitDecl=*/nullptr,
-                                             /*RecoverUncorrectedTypos=*/true);
-  else {
+  if (!Cond.isUsable()) {
     if (!Tok.isOneOf(tok::r_paren, tok::r_square, tok::r_brace))
       SkipUntil(tok::semi);
     Cond = Actions.CreateRecoveryExpr(
@@ -2061,7 +2059,7 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
     }
   } else {
     ProhibitAttributes(attrs);
-    Value = Actions.CorrectDelayedTyposInExpr(ParseExpression());
+    Value = ParseExpression();
 
     ForEach = isTokIdentifier_in();
 
@@ -2221,19 +2219,17 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
   StmtResult ForEachStmt;
 
   if (ForRangeInfo.ParsedForRangeDecl()) {
-    ExprResult CorrectedRange =
-        Actions.CorrectDelayedTyposInExpr(ForRangeInfo.RangeExpr.get());
     if (ForRangeInfo.ExpansionStmt)
       ForRangeStmt = Actions.ActOnCXXExpansionStmt(
-        ExpansionStmtTemplateParm, TemplateKWLoc, ForLoc, T.getOpenLocation(),
-        FirstPart.get(), ForRangeInfo.LoopVar.get(), ForRangeInfo.ColonLoc,
-        CorrectedRange.get(), T.getCloseLocation(), Sema::BFRK_Build,
-        ForRangeInfo.LifetimeExtendTemps);
+          ExpansionStmtTemplateParm, TemplateKWLoc, ForLoc, T.getOpenLocation(),
+          FirstPart.get(), ForRangeInfo.LoopVar.get(), ForRangeInfo.ColonLoc,
+          ForRangeInfo.RangeExpr.get(), T.getCloseLocation(), Sema::BFRK_Build,
+          ForRangeInfo.LifetimeExtendTemps);
     else
       ForRangeStmt = Actions.ActOnCXXForRangeStmt(
           getCurScope(), ForLoc, CoawaitLoc, FirstPart.get(),
           ForRangeInfo.LoopVar.get(), ForRangeInfo.ColonLoc,
-          CorrectedRange.get(), T.getCloseLocation(), Sema::BFRK_Build,
+          ForRangeInfo.RangeExpr.get(), T.getCloseLocation(), Sema::BFRK_Build,
           ForRangeInfo.LifetimeExtendTemps);
   } else if (ForEach) {
     // Similarly, we need to do the semantic analysis for a for-range
@@ -2407,8 +2403,8 @@ StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,
     ArgsUnion ArgHints[] = {Hint.PragmaNameLoc, Hint.OptionLoc, Hint.StateLoc,
                             ArgsUnion(Hint.ValueExpr)};
     TempAttrs.addNew(Hint.PragmaNameLoc->getIdentifierInfo(), Hint.Range,
-                     /*scopeName=*/nullptr, Hint.PragmaNameLoc->getLoc(),
-                     ArgHints, /*numArgs=*/4, ParsedAttr::Form::Pragma());
+                     AttributeScopeInfo(), ArgHints, /*numArgs=*/4,
+                     ParsedAttr::Form::Pragma());
   }
 
   // Get the next statement.

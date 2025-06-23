@@ -659,16 +659,13 @@ public:
         ParsedAttr::Form Form(tok::kw_alignas);
 
         SourceRange Range(DefinitionLoc, DefinitionLoc);
-        MemberAttrs.addAtEnd(AttrPool.create(&II, Range, nullptr,
-                                             SourceLocation{}, nullptr, 0,
-                                             Form));
+        MemberAttrs.addAtEnd(AttrPool.create(&II, Range, {}, nullptr, 0, Form));
       }
       if (MemberSpec->NoUniqueAddress) {
         IdentifierInfo &II = S.Context.Idents.get("no_unique_address");
 
         SourceRange Range(DefinitionLoc, DefinitionLoc);
-        MemberAttrs.addAtEnd(AttrPool.create(&II, Range, nullptr,
-                                             SourceLocation{}, nullptr, 0,
+        MemberAttrs.addAtEnd(AttrPool.create(&II, Range, {}, nullptr, 0,
                                              ParsedAttr::Form::CXX11()));
       }
 
@@ -785,8 +782,8 @@ public:
       SourceRange Range(DefinitionLoc, DefinitionLoc);
       IdentifierInfo &II = S.Context.Idents.get("__annotation_placeholder");
       AttributeCommonInfo *ACI = ParsedAttrs.addNew(
-            &II, Range, nullptr, DefinitionLoc, nullptr, 0,
-            ParsedAttr::Form::Annotation());
+            &II, Range, {}, nullptr, 0,
+            ParsedAttr::Form::Annotation(), DefinitionLoc);
 
       Annot = CXX26AnnotationAttr::Create(S.Context, CE, *ACI);
       Annot->setValue(Value.getReflectedValue());
@@ -804,8 +801,8 @@ public:
 
     SourceRange Range(Loc, Loc);
     IdentifierInfo &II = S.Context.Idents.get("__annotation_placeholder");
-    return ParsedAttrs.addNew(&II, Range, nullptr, Loc, nullptr, 0,
-                              ParsedAttr::Form::Annotation());
+    return ParsedAttrs.addNew(&II, Range, {}, nullptr, 0,
+                              ParsedAttr::Form::Annotation(), Loc);
   }
 };
 }  // anonymous namespace
