@@ -1686,6 +1686,11 @@ module std [system] {
     export *
   }
 
+  module meta {
+    header "meta"
+    export "*"
+  }
+
   module mutex {
     module lock_guard     { header "__mutex/lock_guard.h" }
     module mutex          { header "__mutex/mutex.h" }
