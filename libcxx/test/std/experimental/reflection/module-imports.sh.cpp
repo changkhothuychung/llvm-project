@@ -11,7 +11,7 @@
 // RUN: %t/module-imports.sh.cpp.tsk > %t/stdout.txt
 
 // expected-no-diagnostics
-#include <experimental/meta>
+#include <meta>
 #include <print>
 
 import Example;

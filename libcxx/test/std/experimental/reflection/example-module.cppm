@@ -1,5 +1,5 @@
 module;
-#include <experimental/meta>
+#include <meta>
 
 export module Example;
 namespace Example {
