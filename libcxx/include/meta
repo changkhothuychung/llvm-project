@@ -2279,26 +2279,22 @@ consteval auto define_class(info class_type, R &&members) -> info {
   return define_aggregate(class_type, members);
 }
 
-[[deprecated("P3547 requires an 'access_context' argument "
-             "(compile with '-fno-access-contexts' to disable this warning)")]]
+[[deprecated("P2996R10 requires an 'access_context' argument")]]
 consteval auto members_of(info r) -> vector<info> {
   return members_of(r, access_context::unchecked());
 }
 
-[[deprecated("P3547 requires an 'access_context' argument "
-             "(compile with '-fno-access-contexts' to disable this warning)")]]
+[[deprecated("P2996R10 requires an 'access_context' argument")]]
 consteval auto bases_of(info r) -> vector<info> {
   return bases_of(r, access_context::unchecked());
 }
 
-[[deprecated("P3547 requires an 'access_context' argument "
-             "(compile with '-fno-access-contexts' to disable this warning)")]]
+[[deprecated("P2996R10 requires an 'access_context' argument")]]
 consteval auto static_data_members_of(info r) -> vector<info> {
   return static_data_members_of(r, access_context::unchecked());
 }
 
-[[deprecated("P3547 requires an 'access_context' argument "
-             "(compile with '-fno-access-contexts' to disable this warning)")]]
+[[deprecated("P2996R10 requires an 'access_context' argument")]]
 consteval auto nonstatic_data_members_of(info r) -> vector<info> {
   return nonstatic_data_members_of(r, access_context::unchecked());
 }
