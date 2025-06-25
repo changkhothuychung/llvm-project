@@ -6896,6 +6896,8 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
     QualType Ty = cast<ParmVarDecl>(D)->getType();
     if (!Ty->isInstantiationDependentType())
       return D;
+    if (auto *RT = dyn_cast<ReferenceType>(Ty))
+      Ty = RT->getPointeeType();
     if (auto *TTPT = dyn_cast<TemplateTypeParmType>(Ty);
         TTPT && TTPT->getDepth() < TemplateArgs.getNumRetainedOuterLevels())
       return D;
