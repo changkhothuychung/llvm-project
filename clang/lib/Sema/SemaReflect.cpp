@@ -551,8 +551,15 @@ public:
                                      SourceLocation());
             break;
           }
-          // TODO(P2996): Handle other kinds of TemplateArgument
-          // (e.g., structural).
+          case TemplateArgument::StructuralValue: {
+            Expr *E = new (S.Context) OpaqueValueExpr(
+                DefinitionLoc, TArg.getStructuralValueType(), VK_PRValue);
+            E = ConstantExpr::Create(S.Context, E, TArg.getAsStructuralValue());
+            ParsedTArgs.emplace_back(ParsedTemplateArgument::NonType, E,
+                                     SourceLocation());
+            break;
+          }
+          // TODO(P2996): Handle other kinds of TemplateArgument.
           default:
             llvm_unreachable("unimplemented");
           }
