@@ -2322,6 +2322,14 @@ consteval auto reflect_constant_array(R &&elems) -> info {
   return substitute(^^__define_static::FixedArray, Args);
 }
 
+consteval auto reflect_constant_string(std::string_view In) -> info {
+  vector Args = {^^char};
+  for (char C : In)
+    Args.push_back(reflect_constant(C));
+  Args.push_back(reflect_constant(char{}));
+  return substitute(^^__define_static::FixedArray, Args);
+}
+
 _LIBCPP_END_NAMESPACE_REFLECTION_V2
 
 _LIBCPP_BEGIN_NAMESPACE_STD
