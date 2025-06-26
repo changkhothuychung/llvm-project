@@ -143,7 +143,7 @@ bool CheckSpliceVar(Sema &S, VarDecl *VD, SourceRange Range) {
   // Check for an intervening lambda scope.
   for (DeclContext *DC = S.CurContext; DC != VD->getDeclContext();
        DC = DC->getParent()) {
-    assert(DC && "Var context not a parent of the current context");
+    if (!DC) return false;
     if (auto *RD = dyn_cast<CXXRecordDecl>(DC); RD && RD->isLambda()) {
       S.Diag(Range.getBegin(), diag::err_splice_intervening_lambda)
           << VD << Range;
