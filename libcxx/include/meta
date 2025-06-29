@@ -395,12 +395,16 @@ template <reflection_range R1 = initializer_list<info>,
  */
 
 #include <__config>
-#include <algorithm>
 #include <bit>
 #include <initializer_list>
 #include <optional>
-#include <ranges>
+
+#include <__ranges/access.h>
+#include <__ranges/concepts.h>
+#include <__ranges/size.h>
+
 #include <source_location>
+#include <span>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -597,7 +601,7 @@ public:
   }
 
   // pre-incr ++itr;
-  consteval iterator operator++() {
+  consteval iterator& operator++() {
     m_currInfoItr = m_next(m_currInfoItr, m_reflectedEntity, m_nextIndex++);
     return *this;
   }
@@ -638,6 +642,11 @@ public:
   consteval iterator end() const
   {
     return m_last;
+  }
+
+  consteval vector<info> to_vec() const
+  {
+    return vector<info>(m_first, m_last);
   }
 };
 
@@ -927,7 +936,7 @@ consteval auto can_substitute(info templ, R &&args) -> bool {
     sub = __metafunction(detail::__metafn_substitute, templ,
                          ranges::data(args), ranges::size(args), false);
   } else {
-    vector vargs = args | ranges::to<vector>();
+    vector vargs(from_range, args);
     sub = __metafunction(detail::__metafn_substitute, templ,
                          vargs.data(), vargs.size(), false);
   }
@@ -942,7 +951,7 @@ consteval auto substitute(info templ, R &&args) -> info {
     return __metafunction(detail::__metafn_substitute, templ,
                           ranges::data(args), ranges::size(args), true);
   } else {
-    vector vargs = args | ranges::to<vector>();
+    vector vargs(from_range, args);
     return __metafunction(detail::__metafn_substitute, templ, vargs.data(),
                           vargs.size(), true);
   }
@@ -1016,19 +1025,20 @@ consteval auto is_accessible(info r, access_context ctx) -> bool {
                         r, ctx.scope(), ctx.designating_class());
 }
 
+template <class P>
+consteval auto __filtered(vector<info> v, P pred) -> vector<info> {
+  erase_if(v, [=](info i) { return !pred(i); });
+  return v;
+}
+
 consteval auto members_of(info r, access_context ctx) -> vector<info> {
   using iterator =
       __range_of_infos::iterator<__range_of_infos::front_member_of_fn,
                                  __range_of_infos::next_member_of_fn,
                                  __range_of_infos::map_decl_to_entity_fn>;
   using range = __range_of_infos::range<iterator>;
-  auto rng = range{r};
 
-  vector<info> v {rng.begin(), rng.end()};
-  return vector<info>{
-      from_range,
-      v | views::filter([=](info r) { return is_accessible(r, ctx); })
-  };
+  return __filtered(range(r).to_vec(), [=](info r) { return is_accessible(r, ctx); });
 }
 
 // Returns whether the reflected entity is a namespace.
@@ -1045,13 +1055,8 @@ consteval auto bases_of(info r, access_context ctx) -> vector<info> {
                                 __range_of_infos::next_base_of_fn,
                                 __range_of_infos::map_identity_fn>;
   using range = __range_of_infos::range<iterator>;
-  auto rng = range{r};
 
-  vector<info> v {rng.begin(), rng.end()};
-  return vector<info>{
-      from_range,
-      v | views::filter([=](info r) { return is_accessible(r, ctx); })
-  };
+  return __filtered(range(r).to_vec(), [=](info r) { return is_accessible(r, ctx); });
 }
 
 // Returns whether the reflected entity is a variable.
@@ -1064,9 +1069,7 @@ consteval auto static_data_members_of(info r,
   if (is_namespace(r))
     throw "Namespaces cannot have static data members";
 
-  return members_of(r, ctx) |
-         views::filter(is_variable) |
-         ranges::to<vector>();
+  return __filtered(members_of(r, ctx), is_variable);
 }
 
 consteval auto nonstatic_data_members_of(info r,
@@ -1074,9 +1077,7 @@ consteval auto nonstatic_data_members_of(info r,
   if (is_namespace(r))
     throw "Namespaces cannot have non-static data members";
 
-  return members_of(r, ctx) |
-         views::filter(is_nonstatic_data_member) |
-         ranges::to<vector>();
+  return __filtered(members_of(r, ctx), is_nonstatic_data_member);
 }
 
 // Returns true if the reflected entity is an enumerable type.
@@ -1417,106 +1418,6 @@ consteval auto reflect_object(T &r) -> info {
 template <typename T> requires (is_function_v<remove_reference_t<T>>)
 consteval auto reflect_function(T &r) -> info {
   return __metafunction(detail::__metafn_reflect_result, type_of(^^r), r);
-}
-
-// Representation of a data member which may be passed to 'data_member_spec'.
-struct data_member_options {
-  struct name_type {
-    variant<u8string, string> impl;
-
-    template <typename T> requires constructible_from<u8string, T>
-    consteval name_type(T &&in) : impl(in_place_type<u8string>, in) {}
-
-    template <typename T> requires constructible_from<string, T>
-    consteval name_type(T &&in) : impl(in_place_type<string>, in) {}
-
-    private:
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-private-field"
-      info unused = ^^::;
-#pragma clang diagnostic pop
-  };
-
-  optional<name_type> name = nullopt;
-  optional<int> alignment = nullopt;
-  optional<int> width = nullopt;
-  bool no_unique_address = false;
-};
-
-// Returns the alignment of the reflected entity.
-consteval auto alignment_of(info r) -> size_t {
-  return __metafunction(detail::__metafn_alignment_of, r);
-}
-
-// Returns a reflection representing a description of a data member, which may
-// be used with 'define_aggregate' to define a record type.
-consteval auto data_member_spec(info member_type,
-                                data_member_options options = {}) -> info {
-  if (!is_type(member_type))
-    throw "'member_type' must represent a type";
-
-  auto name = options.name.value_or(u8"").impl;
-  int alignment = options.alignment.value_or(0);
-  int width = options.width.value_or(0);
-  bool no_unique_address = options.no_unique_address;
-
-  auto validate = [&](auto name_string) {
-    if (width) {
-      if (alignment)
-        throw "Cannot specify both width and alignment for data member";
-      if (no_unique_address)
-        throw "Cannot specify both width and no_unique_address for data member";
-      if (width < 0)
-        throw "Cannot specify a negative width for data member";
-      if (!extract<bool>(substitute(^^is_integral_v, {member_type})) &&
-          !extract<bool>(substitute(^^is_enum_v, {member_type})))
-        throw "Bit field must have integral or enumeral type";
-    } else {
-      if (options.width.has_value() && !name_string.empty())
-        throw "Bit-fields of zero width must be unnamed";
-    }
-
-    if (alignment) {
-      if (alignment < int(alignment_of(member_type)))
-        throw "Cannot specify an alignment less than that of the member type";
-      if (alignment <= 0 || ((alignment - 1) & alignment))
-        throw "Alignment specifier must be a non-negative power of 2";
-    }
-  };
-
-  if (holds_alternative<u8string>(name)) {
-    const u8string &s = get<u8string>(name);
-    validate(s);
-    return __metafunction(detail::__metafn_data_member_spec,
-                          member_type,
-                          !s.empty(), s.size(), ^^const char8_t, s.data(),
-                          options.alignment.has_value(), alignment,
-                          options.width.has_value(), width,
-                          no_unique_address);
-  } else {
-    const string &s = get<string>(name);
-    validate(s);
-    return __metafunction(detail::__metafn_data_member_spec,
-                          member_type,
-                          !s.empty(), s.size(), ^^const char, s.data(),
-                          options.alignment.has_value(), alignment,
-                          options.width.has_value(), width,
-                          no_unique_address);
-  }
-}
-
-// Completes the definition of the record type reflected by 'class_type' with
-// the members described by the reflections in the provided range.
-template <reflection_range R = initializer_list<info>>
-consteval auto define_aggregate(info class_type, R &&members) -> info {
-  if constexpr (ranges::contiguous_range<R>) {
-    return __metafunction(detail::__metafn_define_aggregate, class_type,
-                          ranges::size(members), ranges::data(members));
-  } else {
-    vector vmembers = members | ranges::to<vector>();
-    return __metafunction(detail::__metafn_define_aggregate, class_type,
-                          vmembers.size(), vmembers.data());
-  }
 }
 
 struct member_offset {
@@ -2122,9 +2023,9 @@ consteval auto annotations_of(info r, info ty) -> vector<info> {
   if (!is_type(ty))
     throw "Expected a reflection of a type";
 
-  return annotations_of(r) | views::filter([=](info annot) {
-    return type_of(annot) == ty;
-  }) | ranges::to<vector>();
+  return __filtered(annotations_of(r), [=](info annot) {
+    return remove_const(type_of(annot)) == remove_const(ty);
+  });
 }
 
 template<typename T>
@@ -2153,17 +2054,23 @@ consteval auto annotate(info entity, info val) -> info {
 
 #endif  // __has_feature(annotation_attributes)
 
+consteval auto __any_inaccessible(vector<info> const& r, access_context ctx) -> bool {
+  for (info i : r) {
+    if (!is_accessible(i, ctx)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 consteval auto has_inaccessible_nonstatic_data_members(
         info r,
         access_context ctx) -> bool {
-  return !ranges::all_of(
-        nonstatic_data_members_of(r, access_context::unchecked()),
-        [=](info m) { return is_accessible(m, ctx); });
+  return __any_inaccessible(nonstatic_data_members_of(r, access_context::unchecked()), ctx);
 }
 
 consteval auto has_inaccessible_bases(info r, access_context ctx) -> bool {
-  return !ranges::all_of(bases_of(r, access_context::unchecked()),
-                         [=](info b) { return is_accessible(b, ctx); });
+  return __any_inaccessible(bases_of(r, access_context::unchecked()), ctx);
 }
 
              // ===================================================
@@ -2184,7 +2091,7 @@ consteval auto reflect_invoke(info target, R &&args) -> info {
                           static_cast<info *>(nullptr), 0,
                           ranges::data(args), ranges::size(args));
   } else {
-    vector vargs = args | ranges::to<vector>();
+    vector vargs(from_range, args);
     return __metafunction(detail::__metafn_reflect_invoke, target,
                           static_cast<info *>(nullptr), 0,
                           vargs.data(), vargs.size());
@@ -2200,23 +2107,130 @@ consteval auto reflect_invoke(info target, R1 &&targs, R2 &&args) -> info {
                             ranges::data(targs), ranges::size(targs),
                             ranges::data(args), ranges::size(args));
     } else {
-      vector vargs = args | ranges::to<vector>();
+      vector vargs(from_range, args);
       return __metafunction(detail::__metafn_reflect_invoke, target,
                             ranges::data(targs), ranges::size(targs),
                             vargs.data(), vargs.size());
     }
   } else {
-    vector vtargs = targs | ranges::to<vector>();
+    vector vtargs(from_range, targs);
     if constexpr (ranges::contiguous_range<R2>) {
       return __metafunction(detail::__metafn_reflect_invoke, target,
                             vtargs.data(), vtargs.size(),
                             ranges::data(args), ranges::size(args));
     } else {
-      vector vargs = args | ranges::to<vector>();
+      vector vargs(from_range, args);
       return __metafunction(detail::__metafn_reflect_invoke, target,
                             vtargs.data(), vtargs.size(),
                             vargs.data(), vargs.size());
     }
+  }
+}
+
+
+// Representation of a data member which may be passed to 'data_member_spec'.
+struct data_member_options {
+  struct name_type {
+    bool is_u8;
+    u8string u8;
+    string s;
+
+    template <typename T> requires constructible_from<u8string, T>
+    consteval name_type(T &&in) : is_u8(true), u8((T&&)in) {}
+
+    template <typename T> requires constructible_from<string, T>
+    consteval name_type(T &&in) : is_u8(false), s((T&&)in) {}
+
+    private:
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-private-field"
+      info unused = ^^::;
+#pragma clang diagnostic pop
+  };
+
+  optional<name_type> name = nullopt;
+  optional<int> alignment = nullopt;
+  optional<int> width = nullopt;
+  bool no_unique_address = false;
+};
+
+// Returns the alignment of the reflected entity.
+consteval auto alignment_of(info r) -> size_t {
+  return __metafunction(detail::__metafn_alignment_of, r);
+}
+
+// Returns a reflection representing a description of a data member, which may
+// be used with 'define_aggregate' to define a record type.
+consteval auto data_member_spec(info member_type,
+                                data_member_options options = {}) -> info {
+  if (!is_type(member_type))
+    throw "'member_type' must represent a type";
+
+  bool has_name = options.name.has_value();
+  int alignment = options.alignment.value_or(0);
+  int width = options.width.value_or(0);
+  bool no_unique_address = options.no_unique_address;
+
+  if (width) {
+    if (alignment)
+      throw "Cannot specify both width and alignment for data member";
+    if (no_unique_address)
+      throw "Cannot specify both width and no_unique_address for data member";
+    if (width < 0)
+      throw "Cannot specify a negative width for data member";
+    if (!is_integral_type(member_type) && !is_enum_type(member_type))
+      throw "Bit field must have integral or enumeration type";
+  } else {
+    if (options.width.has_value() && has_name)
+      throw "Bit-fields of zero width must be unnamed";
+  }
+
+  if (alignment) {
+    if (alignment < int(alignment_of(member_type)))
+      throw "Cannot specify an alignment less than that of the member type";
+    if (alignment <= 0 || ((alignment - 1) & alignment))
+      throw "Alignment specifier must be a non-negative power of 2";
+  }
+
+  if (has_name) {
+    if (options.name->is_u8) {
+      const u8string &s = options.name->u8;
+      return __metafunction(detail::__metafn_data_member_spec,
+                            member_type,
+                            !s.empty(), s.size(), ^^const char8_t, s.data(),
+                            options.alignment.has_value(), alignment,
+                            options.width.has_value(), width,
+                            no_unique_address);
+    } else {
+      const string &s = options.name->s;
+      return __metafunction(detail::__metafn_data_member_spec,
+                            member_type,
+                            !s.empty(), s.size(), ^^const char, s.data(),
+                            options.alignment.has_value(), alignment,
+                            options.width.has_value(), width,
+                            no_unique_address);
+    }
+  } else {
+    return __metafunction(detail::__metafn_data_member_spec,
+      member_type,
+      false, 0, ^^const char, "",
+      options.alignment.has_value(), alignment,
+      options.width.has_value(), width,
+      no_unique_address);
+  }
+}
+
+// Completes the definition of the record type reflected by 'class_type' with
+// the members described by the reflections in the provided range.
+template <reflection_range R = initializer_list<info>>
+consteval auto define_aggregate(info class_type, R &&members) -> info {
+  if constexpr (ranges::contiguous_range<R>) {
+    return __metafunction(detail::__metafn_define_aggregate, class_type,
+                          ranges::size(members), ranges::data(members));
+  } else {
+    vector vmembers(from_range, members);
+    return __metafunction(detail::__metafn_define_aggregate, class_type,
+                          vmembers.size(), vmembers.data());
   }
 }
 
@@ -2330,6 +2344,14 @@ consteval auto reflect_constant_string(std::string_view In) -> info {
   return substitute(^^__define_static::FixedArray, Args);
 }
 
+consteval auto reflect_constant_string(std::u8string_view In) -> info {
+  vector Args = {^^char8_t};
+  for (char8_t C : In)
+    Args.push_back(reflect_constant(C));
+  Args.push_back(reflect_constant(char8_t{}));
+  return substitute(^^__define_static::FixedArray, Args);
+}
+
 _LIBCPP_END_NAMESPACE_REFLECTION_V2
 
 _LIBCPP_BEGIN_NAMESPACE_STD
@@ -2346,15 +2368,13 @@ consteval auto define_static_array(R &&elems)
 
 // Returns a static string having the provided contents.
 consteval auto define_static_string(string_view in) -> const char * {
-  const char nullterm[1] = {0};
-  vector<span<const char>> v = {in, nullterm};
-  return define_static_array(views::join(v)).data();
+  meta::info array = meta::reflect_constant_string(in);
+  return extract<const char*>(array);
 }
 
 consteval auto define_static_string(u8string_view in) -> const char8_t * {
-  const char8_t nullterm[1] = {0};
-  vector<span<const char8_t>> v = {in, nullterm};
-  return define_static_array(views::join(v)).data();
+  meta::info array = meta::reflect_constant_string(in);
+  return extract<const char8_t*>(array);
 }
 
 _LIBCPP_END_NAMESPACE_STD
