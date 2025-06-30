@@ -181,6 +181,11 @@ CXXIndeterminateExpansionStmt *CXXIndeterminateExpansionStmt::Create(
                                                ColonLoc, RParenLoc, TParamRef);
 }
 
+CXXIndeterminateExpansionStmt *CXXIndeterminateExpansionStmt::Create(
+    const ASTContext &C, EmptyShell Empty) {
+  return new (C) CXXIndeterminateExpansionStmt(Empty);
+}
+
 CXXIterableExpansionStmt *CXXIterableExpansionStmt::Create(
     const ASTContext &C, Stmt *Init, DeclStmt *ExpansionVar, Expr *SizeExpr,
     unsigned NumInstantiations, SourceLocation TemplateKWLoc,
@@ -194,7 +199,7 @@ CXXIterableExpansionStmt *CXXIterableExpansionStmt::Create(
 
 CXXIterableExpansionStmt *CXXIterableExpansionStmt::Create(const ASTContext &C,
                                                            EmptyShell Empty) {
-  return new CXXIterableExpansionStmt(Empty);
+  return new (C) CXXIterableExpansionStmt(Empty);
 }
 
 bool CXXIterableExpansionStmt::hasDependentSize() const {
@@ -218,7 +223,7 @@ CXXDestructurableExpansionStmt *CXXDestructurableExpansionStmt::Create(
 
 CXXDestructurableExpansionStmt *CXXDestructurableExpansionStmt::Create(
     const ASTContext &C, EmptyShell Empty) {
-  return new CXXDestructurableExpansionStmt(Empty);
+  return new (C) CXXDestructurableExpansionStmt(Empty);
 }
 
 bool CXXDestructurableExpansionStmt::hasDependentSize() const {

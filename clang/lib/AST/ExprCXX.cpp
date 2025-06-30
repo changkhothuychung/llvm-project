@@ -2132,11 +2132,20 @@ CXXExpansionInitListExpr::CXXExpansionInitListExpr(
   setDependence(computeDependence(this));
 }
 
+CXXExpansionInitListExpr::CXXExpansionInitListExpr(EmptyShell Empty)
+  : Expr(CXXExpansionInitListExprClass, Empty) {
+}
+
 CXXExpansionInitListExpr *CXXExpansionInitListExpr::Create(
         const ASTContext &C, Expr ** SubExprs, unsigned NumSubExprs,
         SourceLocation LBraceLoc, SourceLocation RBraceLoc) {
   return new (C) CXXExpansionInitListExpr(C.VoidTy, SubExprs, NumSubExprs,
                                           LBraceLoc, RBraceLoc);
+}
+
+CXXExpansionInitListExpr *CXXExpansionInitListExpr::Create(
+        const ASTContext &C, EmptyShell Empty) {
+  return new (C) CXXExpansionInitListExpr(Empty);
 }
 
 CXXIndeterminateExpansionSelectExpr::CXXIndeterminateExpansionSelectExpr(
@@ -2151,6 +2160,11 @@ CXXIndeterminateExpansionSelectExpr::CXXIndeterminateExpansionSelectExpr(
   setDependence(computeDependence(this));
 }
 
+CXXIndeterminateExpansionSelectExpr::CXXIndeterminateExpansionSelectExpr(
+        EmptyShell Empty)
+    : Expr(CXXIndeterminateExpansionSelectExprClass, Empty) {
+}
+
 CXXIndeterminateExpansionSelectExpr *
 CXXIndeterminateExpansionSelectExpr::Create(
         const ASTContext &C, Expr *Range, Expr *Idx, VarDecl *ExpansionVar,
@@ -2161,6 +2175,12 @@ CXXIndeterminateExpansionSelectExpr::Create(
   return new (C) CXXIndeterminateExpansionSelectExpr(
       C.DependentTy, Range, Idx, ExpansionVar, LifetimeExtendTemps.size(),
       temps);
+}
+
+CXXIndeterminateExpansionSelectExpr *
+CXXIndeterminateExpansionSelectExpr::Create(const ASTContext &C,
+                                            EmptyShell Empty) {
+  return new (C) CXXIndeterminateExpansionSelectExpr(Empty);
 }
 
 ArrayRef<MaterializeTemporaryExpr *>
@@ -2177,10 +2197,19 @@ CXXIterableExpansionSelectExpr::CXXIterableExpansionSelectExpr(
   setDependence(computeDependence(this));
 }
 
+CXXIterableExpansionSelectExpr::CXXIterableExpansionSelectExpr(EmptyShell Empty)
+    : Expr(CXXIterableExpansionSelectExprClass, Empty) {
+}
+
 CXXIterableExpansionSelectExpr *
 CXXIterableExpansionSelectExpr::Create(const ASTContext &C, VarDecl *RangeVar,
                                        Expr *Impl) {
   return new (C) CXXIterableExpansionSelectExpr(C.DependentTy, RangeVar, Impl);
+}
+
+CXXIterableExpansionSelectExpr *
+CXXIterableExpansionSelectExpr::Create(const ASTContext &C, EmptyShell Empty) {
+  return new (C) CXXIterableExpansionSelectExpr(Empty);
 }
 
 CXXDestructurableExpansionSelectExpr::CXXDestructurableExpansionSelectExpr(
@@ -2192,12 +2221,23 @@ CXXDestructurableExpansionSelectExpr::CXXDestructurableExpansionSelectExpr(
   setDependence(computeDependence(this));
 }
 
+CXXDestructurableExpansionSelectExpr::CXXDestructurableExpansionSelectExpr(
+        EmptyShell Empty)
+    : Expr(CXXDestructurableExpansionSelectExprClass, Empty) {
+}
+
 CXXDestructurableExpansionSelectExpr *
 CXXDestructurableExpansionSelectExpr::Create(const ASTContext &C,
                                              DecompositionDecl *DD, Expr *Idx,
                                              VarDecl *ExpansionVar) {
   return new (C) CXXDestructurableExpansionSelectExpr(C.DependentTy, DD, Idx,
                                                       ExpansionVar);
+}
+
+CXXDestructurableExpansionSelectExpr *
+CXXDestructurableExpansionSelectExpr::Create(const ASTContext &C,
+                                             EmptyShell Empty) {
+  return new (C) CXXDestructurableExpansionSelectExpr(Empty);
 }
 
 CXXExpansionInitListSelectExpr::CXXExpansionInitListSelectExpr(
@@ -2208,10 +2248,19 @@ CXXExpansionInitListSelectExpr::CXXExpansionInitListSelectExpr(
   setDependence(computeDependence(this));
 }
 
+CXXExpansionInitListSelectExpr::CXXExpansionInitListSelectExpr(EmptyShell Empty)
+    : Expr(CXXExpansionInitListSelectExprClass, Empty) {
+}
+
 CXXExpansionInitListSelectExpr *
 CXXExpansionInitListSelectExpr::Create(const ASTContext &C, Expr *Range,
                                        Expr *Idx) {
   return new (C) CXXExpansionInitListSelectExpr(C.DependentTy, Range, Idx);
+}
+
+CXXExpansionInitListSelectExpr *
+CXXExpansionInitListSelectExpr::Create(const ASTContext &C, EmptyShell Empty) {
+  return new (C) CXXExpansionInitListSelectExpr(Empty);
 }
 
 CUDAKernelCallExpr::CUDAKernelCallExpr(Expr *Fn, CallExpr *Config,
