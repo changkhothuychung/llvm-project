@@ -1387,7 +1387,7 @@ bool APValue::hasLValuePath() const {
 ArrayRef<APValue::LValuePathEntry> APValue::getLValuePath() const {
   assert(Kind == LValue && hasLValuePath() && "Invalid accessor");
   const LV &LVal = *((const LV *)(const char *)&Data);
-  return llvm::ArrayRef(LVal.getPath(), LVal.PathLength);
+  return {LVal.getPath(), LVal.PathLength};
 }
 
 unsigned APValue::getLValueCallIndex() const {
@@ -1465,7 +1465,7 @@ ArrayRef<const CXXRecordDecl*> APValue::getMemberPointerPath() const {
   assert(Kind == MemberPointer && "Invalid accessor");
   const MemberPointerData &MPD =
       *((const MemberPointerData *)(const char *)&Data);
-  return llvm::ArrayRef(MPD.getPath(), MPD.PathLength);
+  return {MPD.getPath(), MPD.PathLength};
 }
 
 void APValue::MakeLValue() {

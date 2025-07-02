@@ -41,6 +41,7 @@
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/BinaryFormat/DXContainer.h"
 #include "llvm/Frontend/HLSL/HLSLRootSignature.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
@@ -3428,16 +3429,13 @@ public:
 
   static IndirectFieldDecl *Create(ASTContext &C, DeclContext *DC,
                                    SourceLocation L, const IdentifierInfo *Id,
-                                   QualType T,
-                                   llvm::MutableArrayRef<NamedDecl *> CH);
+                                   QualType T, MutableArrayRef<NamedDecl *> CH);
 
   static IndirectFieldDecl *CreateDeserialized(ASTContext &C, GlobalDeclID ID);
 
   using chain_iterator = ArrayRef<NamedDecl *>::const_iterator;
 
-  ArrayRef<NamedDecl *> chain() const {
-    return llvm::ArrayRef(Chaining, ChainingSize);
-  }
+  ArrayRef<NamedDecl *> chain() const { return {Chaining, ChainingSize}; }
   chain_iterator chain_begin() const { return chain().begin(); }
   chain_iterator chain_end() const { return chain().end(); }
 
@@ -5194,6 +5192,8 @@ class HLSLRootSignatureDecl final
                                     llvm::hlsl::rootsig::RootElement> {
   friend TrailingObjects;
 
+  llvm::dxbc::RootSignatureVersion Version;
+
   unsigned NumElems;
 
   llvm::hlsl::rootsig::RootElement *getElems() { return getTrailingObjects(); }
@@ -5203,15 +5203,19 @@ class HLSLRootSignatureDecl final
   }
 
   HLSLRootSignatureDecl(DeclContext *DC, SourceLocation Loc, IdentifierInfo *ID,
+                        llvm::dxbc::RootSignatureVersion Version,
                         unsigned NumElems);
 
 public:
   static HLSLRootSignatureDecl *
   Create(ASTContext &C, DeclContext *DC, SourceLocation Loc, IdentifierInfo *ID,
+         llvm::dxbc::RootSignatureVersion Version,
          ArrayRef<llvm::hlsl::rootsig::RootElement> RootElements);
 
   static HLSLRootSignatureDecl *CreateDeserialized(ASTContext &C,
                                                    GlobalDeclID ID);
+
+  llvm::dxbc::RootSignatureVersion getVersion() const { return Version; }
 
   ArrayRef<llvm::hlsl::rootsig::RootElement> getRootElements() const {
     return {getElems(), NumElems};

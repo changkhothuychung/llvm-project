@@ -1209,7 +1209,7 @@ CXXConstructExpr::CXXConstructExpr(
 
   Stmt **TrailingArgs = getTrailingArgs();
   llvm::copy(Args, TrailingArgs);
-  assert(llvm::all_of(Args, [](const Stmt *Arg) { return Arg != nullptr; }));
+  assert(!llvm::is_contained(Args, nullptr));
 
   // CXXTemporaryObjectExpr does this itself after setting its TypeSourceInfo.
   if (SC == CXXConstructExprClass)
@@ -1784,7 +1784,7 @@ SubstNonTypeTemplateParmPackExpr::getParameterPack() const {
 }
 
 TemplateArgument SubstNonTypeTemplateParmPackExpr::getArgumentPack() const {
-  return TemplateArgument(llvm::ArrayRef(Arguments, NumArguments));
+  return TemplateArgument(ArrayRef(Arguments, NumArguments));
 }
 
 FunctionParmPackExpr::FunctionParmPackExpr(QualType T, ValueDecl *ParamPack,
