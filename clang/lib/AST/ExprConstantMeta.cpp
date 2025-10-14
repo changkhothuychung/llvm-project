@@ -22,6 +22,7 @@
 #include "clang/AST/Metafunction.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/Reflection.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/DiagnosticMetafn.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
@@ -5605,7 +5606,9 @@ bool return_type_of(APValue &Result, ASTContext &C, MetaActions &Meta,
 
   switch (RV.getReflectionKind()) {
   case ReflectionKind::Type: {
-    if (auto *FPT = dyn_cast<FunctionProtoType>(RV.getReflectedType())) {
+    // Unwrap alias, Keep CV and Ref
+    QualType rawType = desugarType(RV.getReflectedType(), true, false, false);
+    if (auto *FPT = dyn_cast<FunctionProtoType>(rawType)) {
       QualType QT =
           desugarType(FPT->getReturnType(), /*UnwrapAliases=*/ true,
                       /*DropCV=*/false, /*DropRefs=*/false);
