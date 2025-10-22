@@ -1321,15 +1321,11 @@ public:
 
   /// Callback to the parser to parse templated functions when needed.
   typedef void LateTemplateParserCB(void *P, LateParsedTemplate &LPT);
-  typedef void LateTemplateParserCleanupCB(void *P);
   LateTemplateParserCB *LateTemplateParser;
-  LateTemplateParserCleanupCB *LateTemplateParserCleanup;
   void *OpaqueParser;
 
-  void SetLateTemplateParser(LateTemplateParserCB *LTP,
-                             LateTemplateParserCleanupCB *LTPCleanup, void *P) {
+  void SetLateTemplateParser(LateTemplateParserCB *LTP, void *P) {
     LateTemplateParser = LTP;
-    LateTemplateParserCleanup = LTPCleanup;
     OpaqueParser = P;
   }
 
@@ -14755,6 +14751,16 @@ public:
   /// \name Constraints and Concepts
   /// Implementations are in SemaConcept.cpp
   ///@{
+
+public:
+  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc, TypeSourceInfo *T);
+  ExprResult ActOnCXXReflectExpr(SourceLocation OpLoc, SourceLocation ArgLoc,
+                                 Decl *D);
+
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
+                                 SourceLocation OperandLoc, QualType T);
+  ExprResult BuildCXXReflectExpr(SourceLocation OperatorLoc,
+                                 SourceLocation OperandLoc, Decl *D);
 
 public:
   void PushSatisfactionStackEntry(const NamedDecl *D,
