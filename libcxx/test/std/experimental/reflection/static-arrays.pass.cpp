@@ -61,4 +61,12 @@ static_assert(fn<std::define_static_string("literal")>() == 'l');
 
 }  // namespace static_strings
 
+namespace empty_array {
+// when an array is empty, the reflection type should be const std::array<T, 0> initialized with {}
+constexpr auto reflect_empty_array = type_of(std::meta::reflect_constant_array(std::initializer_list<int>{}));
+static_assert(is_object_type(reflect_empty_array));
+static_assert(is_class_type(reflect_empty_array));
+static_assert(reflect_empty_array == ^^const std::array<int, 0>);
+} // namespace empty_array
+
 int main() { }
