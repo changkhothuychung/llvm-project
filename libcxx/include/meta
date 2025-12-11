@@ -2323,6 +2323,8 @@ namespace __define_static {
 template <typename ValTy, ValTy... Vals>
 inline constexpr ValTy FixedArray[sizeof...(Vals)] = {Vals...};
 
+template <typename ValTy, ValTy... Vals>
+inline constexpr std::array<ValTy, 0> EmptyArray = {};
 }  // namespace __define_static
 
 template <ranges::input_range R>
@@ -2333,7 +2335,8 @@ consteval auto reflect_constant_array(R &&elems) -> info {
   vector Args = {^^ValTy};
   for (const auto &V : elems)
     Args.push_back(reflect_constant(V));
-  return substitute(^^__define_static::FixedArray, Args);
+  return Args.size() == 1 ? substitute(^^__define_static::EmptyArray, Args) :
+                            substitute(^^__define_static::FixedArray, Args);
 }
 
 consteval auto reflect_constant_string(std::string_view In) -> info {
@@ -2363,7 +2366,14 @@ consteval auto define_static_array(R &&elems)
     -> span<const ranges::range_value_t<R>> {
   using ValTy  = ranges::range_value_t<R>;
   meta::info array = meta::reflect_constant_array(elems);
-  return span<const ValTy>(extract<const ValTy*>(array), meta::extent(type_of(array)));
+  if(meta::is_array_type(meta::type_of(array)))
+  {
+    return span<const ValTy>(extract<const ValTy*>(array), meta::extent(type_of(array)));
+  }
+  else
+  {
+    return span<const ValTy>();
+  }
 }
 
 // Returns a static string having the provided contents.
