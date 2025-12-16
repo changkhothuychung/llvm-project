@@ -29,21 +29,17 @@ struct B : A {};
 
 template <typename T>
 consteval auto list_bases() {
-  std::string result {};
+  std::string result{};
   result += identifier_of(^^T);
   result += ":";
-  for(auto base : bases_of(^^T, ctx)) {
+  for (auto base : bases_of(^^T, ctx)) {
     result += identifier_of(base);
   }
   return std::define_static_string(result);
 }
 
-static_assert(std::string_view(list_bases<B>()) == "B:A" );
+static_assert(std::string_view(list_bases<B>()) == "B:A");
 
-}  // namespace test_with_base_specifier
+} // namespace test_with_base_specifier
 
-
-
-int main() {
-
-}
+int main() {}

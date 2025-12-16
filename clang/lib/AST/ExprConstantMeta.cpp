@@ -2170,8 +2170,7 @@ bool identifier_of(APValue &Result, ASTContext &C, MetaActions &Meta,
   case ReflectionKind::BaseSpecifier: {
     CXXBaseSpecifier *Base = RV.getReflectedBaseSpecifier();
     QualType QT = Base->getType();
-    if(!QT.isNull() && QT.getBaseTypeIdentifier())
-    {
+    if (!QT.isNull() && QT.getBaseTypeIdentifier()) {
       Name = QT.getBaseTypeIdentifier()->getName();
     }
     break;
