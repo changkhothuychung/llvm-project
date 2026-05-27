@@ -11113,7 +11113,8 @@ bool clang::isBetterOverloadCandidate(
   // from the argument to F1's first parameter uses `operator cv T` as its user-defined conversion
   // (or is an ambiguous conversion sequence where one of the possible user-defined conversions
   // is an operator cv T), and F2 is not a copy/move constructor, then F1 is better than F2.
-  if (NumArgs == 1 &&
+  if (Kind == OverloadCandidateSet::CSK_InitByConstructor &&
+      NumArgs == 1 &&
       Cand1.Function && Cand2.Function &&
       isa<CXXConstructorDecl>(Cand1.Function) &&
       isa<CXXConstructorDecl>(Cand2.Function)) {
@@ -11203,6 +11204,17 @@ bool clang::isBetterOverloadCandidate(
     // C++14 [over.match.best]p1 section 2 bullet 3.
   }
 
+  // FIXME: Work around a defect in the C++17 guaranteed copy elision wording,
+  // as combined with the resolution to CWG issue 243.
+  //
+  // When the context is initialization by constructor ([over.match.ctor] or
+  // either phase of [over.match.list]), a constructor is preferred over
+  // a conversion function.
+  if (Kind == OverloadCandidateSet::CSK_InitByConstructor && NumArgs == 1 &&
+      Cand1.Function && Cand2.Function &&
+      isa<CXXConstructorDecl>(Cand1.Function) !=
+          isa<CXXConstructorDecl>(Cand2.Function))
+    return isa<CXXConstructorDecl>(Cand1.Function);
 
   if (Cand1.StrictPackMatch != Cand2.StrictPackMatch)
     return Cand2.StrictPackMatch;
