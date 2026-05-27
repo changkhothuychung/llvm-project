@@ -5408,7 +5408,7 @@ FindConversionForRefInit(Sema &S, ImplicitConversionSequence &ICS,
   OverloadCandidateSet::iterator Best;
   switch (CandidateSet.BestViableFunction(S, DeclLoc, Best)) {
   case OR_Success:
-
+  case OR_Deleted:
     assert(Best->HasFinalConversion);
 
     // C++ [over.ics.ref]p1:
@@ -5445,9 +5445,7 @@ FindConversionForRefInit(Sema &S, ImplicitConversionSequence &ICS,
     return true;
 
   case OR_No_Viable_Function:
-  case OR_Deleted:
-    // There was no suitable conversion, or we found a deleted
-    // conversion; continue with other checks.
+    // There was no suitable conversion; continue with other checks.
     return false;
   }
 
@@ -11109,6 +11107,71 @@ bool clang::isBetterOverloadCandidate(
   if (HasBetterConversion && !HasWorseConversion)
     return true;
 
+  // Rule 2: tie-breaker. (right after https://eel.is/c++draft/over.match.best.general#2.1)
+  //
+  // if F1 is a copy/move constructor and the user-defined implicit conversion sequence
+  // from the argument to F1's first parameter uses `operator cv T` as its user-defined conversion
+  // (or is an ambiguous conversion sequence where one of the possible user-defined conversions
+  // is an operator cv T), and F2 is not a copy/move constructor, then F1 is better than F2.
+  if (NumArgs == 1 &&
+      Cand1.Function && Cand2.Function &&
+      isa<CXXConstructorDecl>(Cand1.Function) &&
+      isa<CXXConstructorDecl>(Cand2.Function)) {
+    auto *Ctor1 = dyn_cast<CXXConstructorDecl>(Cand1.Function);
+    auto *Ctor2 = dyn_cast<CXXConstructorDecl>(Cand2.Function);
+
+
+    // check if a candidate's ICS for its first argument uses an
+    // operator cv T
+    auto ICSUsesOperatorCvT = [&](const OverloadCandidate &Cand) -> bool {
+      if (Cand.Conversions.empty())
+        return false;
+      const ImplicitConversionSequence &ICS = Cand.Conversions[0];
+      // Check user-defined conversion sequence.
+      if (ICS.isUserDefined()) {
+        if (auto *ConvFn = ICS.UserDefined.ConversionFunction) {
+          if (auto *ConvDecl = dyn_cast<CXXConversionDecl>(ConvFn)) {
+            QualType ConvType = ConvDecl->getConversionType();
+            if (!ConvType->isReferenceType()) {
+              QualType DestType =
+                  Cand.Function->getParamDecl(0)->getType().getNonReferenceType();
+              if (S.Context.hasSameUnqualifiedType(ConvType, DestType))
+                return true;
+            }
+          }
+        }
+      }
+      // Check ambiguous conversion sequence: if any of the possible
+      // conversions is an operator cv T.
+      if (ICS.isAmbiguous()) {
+        for (const auto &Pair : ICS.Ambiguous.conversions()) {
+          if (auto *ConvDecl = dyn_cast<CXXConversionDecl>(Pair.second)) {
+            QualType ConvType = ConvDecl->getConversionType();
+            if (!ConvType->isReferenceType()) {
+              QualType DestType =
+                  Cand.Function->getParamDecl(0)->getType().getNonReferenceType();
+              if (S.Context.hasSameUnqualifiedType(ConvType, DestType))
+                return true;
+            }
+          }
+        }
+      }
+      return false;
+    };
+
+    bool Cand1IsCopyMoveWithOpCvT =
+        Ctor1->isCopyOrMoveConstructor() && ICSUsesOperatorCvT(Cand1);
+    bool Cand2IsCopyMoveWithOpCvT =
+        Ctor2->isCopyOrMoveConstructor() && ICSUsesOperatorCvT(Cand2);
+
+    // If one is a copy/move ctor using operator cv T and the other
+    // is a non-copy/move ctor, prefer the copy/move ctor.
+    if (Cand1IsCopyMoveWithOpCvT && Ctor2 && !Ctor2->isCopyOrMoveConstructor())
+      return true;
+    if (Cand2IsCopyMoveWithOpCvT && Ctor1 && !Ctor1->isCopyOrMoveConstructor())
+      return false;
+  }
+
   //   -- the context is an initialization by user-defined conversion
   //      (see 8.5, 13.3.1.5) and the standard conversion sequence
   //      from the return type of F1 to the destination type (i.e.,
@@ -11140,17 +11203,6 @@ bool clang::isBetterOverloadCandidate(
     // C++14 [over.match.best]p1 section 2 bullet 3.
   }
 
-  // FIXME: Work around a defect in the C++17 guaranteed copy elision wording,
-  // as combined with the resolution to CWG issue 243.
-  //
-  // When the context is initialization by constructor ([over.match.ctor] or
-  // either phase of [over.match.list]), a constructor is preferred over
-  // a conversion function.
-  if (Kind == OverloadCandidateSet::CSK_InitByConstructor && NumArgs == 1 &&
-      Cand1.Function && Cand2.Function &&
-      isa<CXXConstructorDecl>(Cand1.Function) !=
-          isa<CXXConstructorDecl>(Cand2.Function))
-    return isa<CXXConstructorDecl>(Cand1.Function);
 
   if (Cand1.StrictPackMatch != Cand2.StrictPackMatch)
     return Cand2.StrictPackMatch;
