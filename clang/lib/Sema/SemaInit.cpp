@@ -4457,7 +4457,7 @@ static OverloadingResult ResolveConstructorOverload(
     DeclContext::lookup_result Ctors, OverloadCandidateSet::iterator &Best,
     bool CopyInitializing, bool AllowExplicit, bool OnlyListConstructors,
     bool IsListInit, bool RequireActualConstructor,
-    bool SecondStepOfCopyInit = false) {
+    bool SecondStepOfCopyInit = false, bool IsDirectInit = false) {
   CandidateSet.clear(OverloadCandidateSet::CSK_InitByConstructor);
   CandidateSet.setDestAS(DestType.getQualifiers().getAddressSpace());
 
@@ -4524,7 +4524,7 @@ static OverloadingResult ResolveConstructorOverload(
     // add this check below so that this approach does not apply to direct init anymore
     // we now have a new process for copy elision for direct initialization
     // with conversion functions
-    && (CopyInitializing || IsListInit)) {
+    && !IsDirectInit) {
     Expr *Initializer = Args[0];
     auto *SourceRD = Initializer->getType()->getAsCXXRecordDecl();
     if (SourceRD && S.isCompleteType(DeclLoc, Initializer->getType())) {
@@ -4684,7 +4684,9 @@ static void TryConstructorInitialization(Sema &S,
       Result = ResolveConstructorOverload(
           S, Kind.getLocation(), Args, CandidateSet, DestType, Ctors, Best,
           CopyInitialization, AllowExplicit,
-          /*OnlyListConstructors=*/true, IsListInit, RequireActualConstructor);
+          /*OnlyListConstructors=*/true, IsListInit, RequireActualConstructor,
+          /*SecondStepOfCopyInit*/ false,
+          /*IsDirectInit=*/ Kind.getKind() == InitializationKind::IK_Direct);
 
     if (CopyElisionPossible && Result == OR_No_Viable_Function) {
       // No initializer list candidate
@@ -4715,7 +4717,9 @@ static void TryConstructorInitialization(Sema &S,
     Result = ResolveConstructorOverload(
         S, Kind.getLocation(), UnwrappedArgs, CandidateSet, DestType, Ctors,
         Best, CopyInitialization, AllowExplicit,
-        /*OnlyListConstructors=*/false, IsListInit, RequireActualConstructor);
+        /*OnlyListConstructors=*/false, IsListInit, RequireActualConstructor,
+        /*SecondStepOfCopyInit*/ false, 
+        /*IsDirectInit=*/Kind.getKind() == InitializationKind::IK_Direct);
   }
 
   // Rule 1
@@ -7430,7 +7434,7 @@ static ExprResult CopyObject(Sema &S,
       /*CopyInitializing=*/false, /*AllowExplicit=*/true,
       /*OnlyListConstructors=*/false, /*IsListInit=*/false,
       /*RequireActualConstructor=*/false,
-      /*SecondStepOfCopyInit=*/true)) {
+      /*SecondStepOfCopyInit=*/true, /*IsDirectInit =*/ false)) {
   case OR_Success:
     break;
 
@@ -7572,7 +7576,7 @@ static void CheckCXX98CompatAccessibleCopy(Sema &S,
       /*CopyInitializing=*/false, /*AllowExplicit=*/true,
       /*OnlyListConstructors=*/false, /*IsListInit=*/false,
       /*RequireActualConstructor=*/false,
-      /*SecondStepOfCopyInit=*/true);
+      /*SecondStepOfCopyInit=*/true, /*IsDirectInit =*/ false);
 
   PartialDiagnostic Diag = S.PDiag(diag::warn_cxx98_compat_temp_copy)
     << OR << (int)Entity.getKind() << CurInitExpr->getType()

@@ -4,7 +4,6 @@
 
 namespace Example1 {
   struct Cat {
-    Cat() = default;
     Cat(const Cat&) = delete;
     Cat(Cat&&) = delete;
   };
@@ -21,7 +20,6 @@ namespace Example1 {
 
 namespace Example1_With_CvQualified {
   struct T {
-    T() = default;
     T(const T&) = delete;
     T(T&&) = delete;
   };
@@ -36,7 +34,6 @@ namespace Example1_With_CvQualified {
 namespace Example1_With_PrivateConstructors {
   struct T {
     private:
-      T() = default;
       T(const T&) = delete;
       T(T&&) = delete;
   };
@@ -51,7 +48,6 @@ namespace Example1_With_PrivateConstructors {
 namespace Example1_With_ReturnsReference {
   // This test should fail since it does not create any temporary to elide.
   struct T {
-    T() = default;
     T(const T&) = delete; // expected-note {{marked deleted here}}
     T(T&&) = delete;
   };
@@ -66,7 +62,6 @@ namespace Example1_With_ReturnsReference {
 namespace ReturnsDerived {
   // This test should fail.
   struct Base {
-    Base() = default;
     Base(const Base&) = delete;
     Base(Base&&) = delete; // expected-note {{marked deleted here}}
   };
@@ -88,7 +83,7 @@ namespace Example2 {
 
   struct Y {
     operator X();
-    operator int();
+    operator int() = delete;
   };
 
   X x(Y{});
@@ -102,7 +97,7 @@ namespace Example4 {
   };
 
   struct Dog {
-    operator Cat();
+    operator Cat() = delete;
   };
 
   Cat cat(Dog{});
@@ -118,7 +113,7 @@ namespace Example5 {
   };
 
   struct B : A1 {
-    operator A2();
+    operator A2() = delete;
   };
 
   A2 a(B{});
@@ -162,7 +157,7 @@ namespace Example7 {
 } // namespace Example7
 
 namespace Example8 {
-  template <int i = 0>
+  template <int i>
   class NonCopyable {
   public:
     NonCopyable(const NonCopyable&) requires(i != 0);
@@ -180,65 +175,62 @@ namespace Example8 {
 
 // Tests that fail and will issue diagnostics.
 
-namespace Step3_NoViableCandidate {
+namespace NoViableConversion {
+  template <int i>
   struct T {
-    T() = default; // expected-note {{candidate constructor not viable: requires 0 arguments, but 1 was provided}}
-    T(const T&) = delete; // expected-note {{candidate constructor not viable: no known conversion from 'S' to 'const T' for 1st argument}}
-    T(T&&) = delete; // expected-note {{candidate constructor not viable: no known conversion from 'S' to 'T' for 1st argument}}
+    T(const T&) requires(i != 0); // expected-note {{candidate constructor not viable: constraints not satisfied}} \
+                                  // expected-note {{because '0 != 0' (0 != 0) evaluated to false}}
   };
 
   struct S {
-    operator int(); // no operator T() at all
+    operator int(); // no operator T<0>() at all
   };
 
-  T t(S{}); // expected-error {{no viable conversion function from 'S' to 'T'}}
-} // namespace Step3_NoViableCandidate
+  T<0> t(S{}); // expected-error {{no matching constructor for initialization of 'T<0>'}}
+} // namespace NoViableConversion
 
-namespace Step3_Ambiguous {
+namespace AmbiguousConversion {
+  template <int i>
   struct T {
-    T() = default;
-    T(const T&) = delete; // expected-note {{candidate constructor has been explicitly deleted}}
-    T(T&&) = delete; // expected-note {{candidate constructor has been explicitly deleted}}
+    T(const T&) requires(i != 0);
   };
 
   struct S1 {
-    operator T();
+    operator T<0>(); // expected-note {{candidate function}}
   };
 
   struct S2 {
-    operator T();
+    operator T<0>(); // expected-note {{candidate function}}
   };
 
   struct U : S1, S2 {};
 
-  T t(U{}); // expected-error {{call to constructor of 'T' is ambiguous}}
-} // namespace Step3_Ambiguous
+  T<0> t(U{}); // expected-error {{call to constructor of 'T<0>' is ambiguous}}
+} // namespace AmbiguousConversion
 
-namespace Step3_Deleted {
+namespace DeletedConversion {
+  template <int i>
   struct T {
-    T() = default;
-    T(const T&) = delete;
-    T(T&&) = delete;
+    T(const T&) requires(i != 0);
   };
 
   struct S {
-    operator T() = delete; // expected-note {{'operator T' has been explicitly marked deleted here}}
+    operator T<0>() = delete; // expected-note {{'operator T' has been explicitly marked deleted here}}
   };
 
-  T t(S{}); // expected-error {{conversion from 'S' to 'T' invokes a deleted function}}
-} // namespace Step3_Deleted
+  T<0> t(S{}); // expected-error {{call to deleted constructor of 'T<0>'}}
+} // namespace DeletedConversion
 
-namespace Step3_Inaccessible {
+namespace InaccessibleConversion {
+  template <int i>
   struct T {
-    T() = default;
-    T(const T&) = delete;
-    T(T&&) = delete;
+    T(const T&) requires(i != 0);
   };
 
   struct S {
   private:
-    operator T(); // expected-note {{declared private here}}
+    operator T<0>(); // expected-note {{declared private here}}
   };
 
-  T t(S{}); // expected-error {{'operator T' is a private member of 'Step3_Inaccessible::S'}}
-} // namespace Step3_Inaccessible
+  T<0> t(S{}); // expected-error {{'operator T' is a private member of 'InaccessibleConversion::S'}}
+} // namespace InaccessibleConversion
