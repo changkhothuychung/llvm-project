@@ -11198,7 +11198,6 @@ bool clang::isBetterOverloadCandidate(
 
     if (Result != ImplicitConversionSequence::Indistinguishable)
       return Result == ImplicitConversionSequence::Better;
-
     // FIXME: Compare kind of reference binding if conversion functions
     // convert to a reference type used in direct reference binding, per
     // C++14 [over.match.best]p1 section 2 bullet 3.

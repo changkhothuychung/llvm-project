@@ -4032,6 +4032,7 @@ bool InitializationSequence::isAmbiguous() const {
   case FK_VariableLengthArrayHasInitializer:
   case FK_PlaceholderType:
   case FK_ExplicitConstructor:
+  case FK_ExplicitConversionFunction:
   case FK_AddressOfUnaddressableFunction:
   case FK_ParenthesizedListInitFailed:
   case FK_DesignatedInitForNonAggregate:
@@ -4457,7 +4458,7 @@ static OverloadingResult ResolveConstructorOverload(
     DeclContext::lookup_result Ctors, OverloadCandidateSet::iterator &Best,
     bool CopyInitializing, bool AllowExplicit, bool OnlyListConstructors,
     bool IsListInit, bool RequireActualConstructor,
-    bool SecondStepOfCopyInit = false, bool IsDirectInit = false) {
+    bool SecondStepOfCopyInit = false) {
   CandidateSet.clear(OverloadCandidateSet::CSK_InitByConstructor);
   CandidateSet.setDestAS(DestType.getQualifiers().getAddressSpace());
 
@@ -4508,55 +4509,189 @@ static OverloadingResult ResolveConstructorOverload(
     }
   }
 
-  // FIXME: Work around a bug in C++17 guaranteed copy elision.
-  //
-  // When initializing an object of class type T by constructor
-  // ([over.match.ctor]) or by list-initialization ([over.match.list])
-  // from a single expression of class type U, conversion functions of
-  // U that convert to the non-reference type cv T are candidates.
-  // Explicit conversion functions are only candidates during
-  // direct-initialization.
-  //
-  // Note: SecondStepOfCopyInit is only ever true in this case when
-  // evaluating whether to produce a C++98 compatibility warning.
-  if (S.getLangOpts().CPlusPlus17 && Args.size() == 1 &&
-      !RequireActualConstructor && !SecondStepOfCopyInit
-    // add this check below so that this approach does not apply to direct init anymore
-    // we now have a new process for copy elision for direct initialization
-    // with conversion functions
-    && !IsDirectInit) {
-    Expr *Initializer = Args[0];
-    auto *SourceRD = Initializer->getType()->getAsCXXRecordDecl();
-    if (SourceRD && S.isCompleteType(DeclLoc, Initializer->getType())) {
-      const auto &Conversions = SourceRD->getVisibleConversionFunctions();
-      for (auto I = Conversions.begin(), E = Conversions.end(); I != E; ++I) {
-        NamedDecl *D = *I;
-        CXXRecordDecl *ActingDC = cast<CXXRecordDecl>(D->getDeclContext());
-        D = D->getUnderlyingDecl();
+  // // FIXME: Work around a bug in C++17 guaranteed copy elision.
+  // //
+  // // When initializing an object of class type T by constructor
+  // // ([over.match.ctor]) or by list-initialization ([over.match.list])
+  // // from a single expression of class type U, conversion functions of
+  // // U that convert to the non-reference type cv T are candidates.
+  // // Explicit conversion functions are only candidates during
+  // // direct-initialization.
+  // //
+  // // Note: SecondStepOfCopyInit is only ever true in this case when
+  // // evaluating whether to produce a C++98 compatibility warning.
+  // if (S.getLangOpts().CPlusPlus17 && Args.size() == 1 &&
+  //     !RequireActualConstructor && !SecondStepOfCopyInit
+  //     && ConsiderConversionFunctionsAsCandidates) {
+  //   Expr *Initializer = Args[0];
+  //   auto *SourceRD = Initializer->getType()->getAsCXXRecordDecl();
+  //   if (SourceRD && S.isCompleteType(DeclLoc, Initializer->getType())) {
+  //     const auto &Conversions = SourceRD->getVisibleConversionFunctions();
+  //     for (auto I = Conversions.begin(), E = Conversions.end(); I != E; ++I) {
+  //       NamedDecl *D = *I;
+  //       CXXRecordDecl *ActingDC = cast<CXXRecordDecl>(D->getDeclContext());
+  //       D = D->getUnderlyingDecl();
 
-        FunctionTemplateDecl *ConvTemplate = dyn_cast<FunctionTemplateDecl>(D);
-        CXXConversionDecl *Conv;
-        if (ConvTemplate)
-          Conv = cast<CXXConversionDecl>(ConvTemplate->getTemplatedDecl());
-        else
-          Conv = cast<CXXConversionDecl>(D);
+  //       FunctionTemplateDecl *ConvTemplate = dyn_cast<FunctionTemplateDecl>(D);
+  //       CXXConversionDecl *Conv;
+  //       if (ConvTemplate)
+  //         Conv = cast<CXXConversionDecl>(ConvTemplate->getTemplatedDecl());
+  //       else
+  //         Conv = cast<CXXConversionDecl>(D);
 
-        if (ConvTemplate)
-          S.AddTemplateConversionCandidate(
-              ConvTemplate, I.getPair(), ActingDC, Initializer, DestType,
-              CandidateSet, AllowExplicit, AllowExplicit,
-              /*AllowResultConversion*/ false);
-        else
-          S.AddConversionCandidate(Conv, I.getPair(), ActingDC, Initializer,
-                                   DestType, CandidateSet, AllowExplicit,
-                                   AllowExplicit,
-                                   /*AllowResultConversion*/ false);
+  //       if (ConvTemplate)
+  //         S.AddTemplateConversionCandidate(
+  //             ConvTemplate, I.getPair(), ActingDC, Initializer, DestType,
+  //             CandidateSet, AllowExplicit, AllowExplicit,
+  //             /*AllowResultConversion*/ false);
+  //       else
+  //         S.AddConversionCandidate(Conv, I.getPair(), ActingDC, Initializer,
+  //                                  DestType, CandidateSet, AllowExplicit,
+  //                                  AllowExplicit,
+  //                                  /*AllowResultConversion*/ false);
+  //     }
+  //   }
+  // }
+
+  // Perform overload resolution and return the result.
+  return CandidateSet.BestViableFunction(S, DeclLoc, Best);
+}
+
+/// Attempt conversion-initialization [dcl.init.general]
+///
+/// Populates \p Sequence with steps that directly call a conversion function
+/// of the source class type whose return type (ignoring cv-qualification) is
+/// \p DestType, bypassing any copy or move constructor of the destination
+/// (guaranteed copy elision).
+///
+/// Handles two cases from the paper's amendment to [dcl.init.general]
+/// p16.6.2 and [dcl.init.list] p3.7:
+///
+///
+/// \returns true if the sequence was populated and the caller should return
+///          immediately; false otherwise. \p Result and \p Best may be
+///          updated as a side effect of the second-phase overload attempt.
+static bool TryConversionInitialization(
+    Sema &S, const InitializedEntity &Entity, const InitializationKind &Kind,
+    MultiExprArg UnwrappedArgs, QualType DestType,
+    DeclContext::lookup_result Ctors, OverloadCandidateSet &CandidateSet,
+    OverloadCandidateSet::iterator &Best, OverloadingResult &Result,
+    bool CopyInitialization, bool AllowExplicit,
+    bool RequireActualConstructor, bool IsListInit, InitListExpr *ILE,
+    InitializationSequence &Sequence) {
+  assert(UnwrappedArgs.size() == 1 && "requires a single source argument");
+  assert((Kind.getKind() == InitializationKind::IK_Direct || IsListInit) &&
+         "only applies to direct-init or list-init");
+
+  bool HadMultipleCandidates = (CandidateSet.size() > 1);
+
+  auto AddConversionSteps = [&](CXXConversionDecl *ConvDecl,
+                                DeclAccessPair FoundDecl, QualType ConvType) {
+    Sequence.AddUserConversionStep(ConvDecl, FoundDecl, ConvType,
+                                   HadMultipleCandidates);
+    if (!S.Context.hasSameType(ConvType, DestType))
+      Sequence.AddQualificationConversionStep(DestType, VK_PRValue);
+    // [dcl.init.list] p3.9: if the initializer has a single element of
+    // type E and either T is not a reference, or its referenced type is
+    // reference-related to E, the object is initialized from that element.
+    if (IsListInit)
+      Sequence.RewrapReferenceInitList(Entity.getType(), ILE);
+  };
+
+  // Rule 1: elide a selected copy/move ctor whose ICS uses `operator cv T`.
+  if ((Result == OR_Success || Result == OR_Deleted) &&
+      isa_and_nonnull<CXXConstructorDecl>(Best->Function)) {
+    auto *CtorDecl = cast<CXXConstructorDecl>(Best->Function);
+    if (CtorDecl->isCopyOrMoveConstructor() &&
+        Best->Conversions[0].isUserDefined()) {
+      const UserDefinedConversionSequence &User =
+          Best->Conversions[0].UserDefined;
+      if (auto *ConvDecl =
+              dyn_cast_or_null<CXXConversionDecl>(User.ConversionFunction)) {
+        QualType ConvType = ConvDecl->getConversionType();
+        if (!ConvType->isReferenceType() &&
+            S.Context.hasSameUnqualifiedType(ConvType, DestType)) {
+          AddConversionSteps(ConvDecl, User.FoundConversionFunction,
+                             ConvType);
+          return true;
+        }
       }
     }
   }
 
-  // Perform overload resolution and return the result.
-  return CandidateSet.BestViableFunction(S, DeclLoc, Best);
+  // Rule 3 (CWG2327 fallback): no viable ctor. Re-run overload with the
+  // source's conversion functions as candidates. Only meacningful when the
+  // source has a class type (only class types have conversion functions).
+  //
+  // We only claim the initialization here on OR_Success. On OR_Deleted or
+  // OR_Ambiguous we defer to the outer failure-handling path so the
+  // sequence is marked as FailedSequence, producing the same "call to
+  // deleted constructor" / "ambiguous" diagnostics as before.
+  if (Result == OR_No_Viable_Function) {
+    Expr *Initializer = UnwrappedArgs[0];
+    auto *SourceRD = Initializer->getType()->getAsCXXRecordDecl();
+    if (!SourceRD ||
+        !S.isCompleteType(Kind.getLocation(), Initializer->getType()))
+      return false;
+
+    bool AllowExplicitConv = Kind.AllowExplicit() || IsListInit;
+    const auto &Conversions = SourceRD->getVisibleConversionFunctions();
+    for (auto I = Conversions.begin(), E = Conversions.end(); I != E; ++I) {
+      NamedDecl *D = *I;
+      CXXRecordDecl *ActingDC = cast<CXXRecordDecl>(D->getDeclContext());
+      D = D->getUnderlyingDecl();
+
+      FunctionTemplateDecl *ConvTemplate = dyn_cast<FunctionTemplateDecl>(D);
+      CXXConversionDecl *Conv =
+          ConvTemplate
+              ? cast<CXXConversionDecl>(ConvTemplate->getTemplatedDecl())
+              : cast<CXXConversionDecl>(D);
+
+      // Only conversion functions returning (cv-qualified) DestType can win.
+      QualType ConvType = Conv->getConversionType();
+      if (ConvType->isReferenceType())
+        continue;
+      if (!S.Context.hasSameUnqualifiedType(ConvType, DestType))
+        continue;
+
+      if (ConvTemplate)
+        S.AddTemplateConversionCandidate(
+            ConvTemplate, I.getPair(), ActingDC, Initializer, DestType,
+            CandidateSet, AllowExplicitConv, AllowExplicitConv,
+            /*AllowResultConversion=*/false);
+      else
+        S.AddConversionCandidate(Conv, I.getPair(), ActingDC, Initializer,
+                                 DestType, CandidateSet, AllowExplicitConv,
+                                 AllowExplicitConv,
+                                 /*AllowResultConversion=*/false);
+    }
+
+    Result = CandidateSet.BestViableFunction(S, Kind.getLocation(), Best);
+    if (Result == OR_Success) {
+      if (auto *CD = dyn_cast<CXXConversionDecl>(Best->Function)) {
+        // CWG2327 / P2828R3 [over.match.list]/1: in copy-list-initialization,
+        // if the selected conversion function is explicit, the initialization
+        // is ill-formed.
+        if (IsListInit && !Kind.AllowExplicit() && CD->isExplicit()) {
+          Sequence.SetFailed(
+              InitializationSequence::FK_ExplicitConversionFunction);
+          return true;
+        }
+        QualType ConvType = CD->getConversionType();
+        assert(S.Context.hasSameUnqualifiedType(ConvType, DestType) &&
+               "should not have selected this conversion function");
+        Sequence.AddUserConversionStep(CD, Best->FoundDecl, ConvType,
+                                       HadMultipleCandidates);
+        if (!S.Context.hasSameType(ConvType, DestType))
+          Sequence.AddQualificationConversionStep(DestType, VK_PRValue);
+        if (IsListInit)
+          Sequence.RewrapReferenceInitList(Entity.getType(), ILE);
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /// Attempt initialization by constructor (C++ [dcl.init]), which
@@ -4685,8 +4820,7 @@ static void TryConstructorInitialization(Sema &S,
           S, Kind.getLocation(), Args, CandidateSet, DestType, Ctors, Best,
           CopyInitialization, AllowExplicit,
           /*OnlyListConstructors=*/true, IsListInit, RequireActualConstructor,
-          /*SecondStepOfCopyInit*/ false,
-          /*IsDirectInit=*/ Kind.getKind() == InitializationKind::IK_Direct);
+          /*SecondStepOfCopyInit*/ false);
 
     if (CopyElisionPossible && Result == OR_No_Viable_Function) {
       // No initializer list candidate
@@ -4718,106 +4852,23 @@ static void TryConstructorInitialization(Sema &S,
         S, Kind.getLocation(), UnwrappedArgs, CandidateSet, DestType, Ctors,
         Best, CopyInitialization, AllowExplicit,
         /*OnlyListConstructors=*/false, IsListInit, RequireActualConstructor,
-        /*SecondStepOfCopyInit*/ false, 
-        /*IsDirectInit=*/Kind.getKind() == InitializationKind::IK_Direct);
+        /*SecondStepOfCopyInit*/ false);
   }
 
-  // Rule 1
-  // If overload resolution selected a copy or move constructor of the
-  // destination type T, and the implicit conversion sequence for its first
-  // parameter would bind that parameter to the result of calling a conversion
-  // function whose return type (ignoring cv-qualification) is T, then the
-  // constructor call is elided
-  if ((Result == OR_Success || Result == OR_Deleted) &&
-      S.getLangOpts().CPlusPlus17 && !RequireActualConstructor
-      && Kind.getKind() == InitializationKind::IK_Direct) {
-    if (auto *CtorDecl = dyn_cast<CXXConstructorDecl>(Best->Function)) {
-      if (CtorDecl->isCopyOrMoveConstructor() &&
-          Best->Conversions[0].isUserDefined()) {
-        const UserDefinedConversionSequence &User =
-            Best->Conversions[0].UserDefined;
-        if (User.ConversionFunction &&
-            isa<CXXConversionDecl>(User.ConversionFunction)) {
-          auto *ConvDecl = cast<CXXConversionDecl>(User.ConversionFunction);
-          QualType ConvType = ConvDecl->getConversionType();
-          if (!ConvType->isReferenceType() &&
-              S.Context.hasSameUnqualifiedType(ConvType, DestType)) {
-            // A selected deleted conversion function makes initialization
-            // ill-formed.
-            if (ConvDecl->isDeleted()) {
-              Sequence.SetOverloadFailure(
-                  IsListInit
-                      ? InitializationSequence::FK_ListConstructorOverloadFailed
-                      : InitializationSequence::FK_ConstructorOverloadFailed,
-                  OR_Deleted);
-              return;
-            }
-            bool HadMultipleCandidates = (CandidateSet.size() > 1);
-            Sequence.AddUserConversionStep(ConvDecl,
-                                           User.FoundConversionFunction,
-                                           ConvType, HadMultipleCandidates);
-            if (!S.Context.hasSameType(ConvType, DestType))
-              Sequence.AddQualificationConversionStep(DestType, VK_PRValue);
-
-              // [dcl.init.list] p3.9
-              // if the initializer has a single element of type E and
-              // either T is not a reference, or its referenced type is
-              // reference-related to E, the object is initialized from that element.
-            if (IsListInit)
-              Sequence.RewrapReferenceInitList(Entity.getType(), ILE);
-            return;
-          }
-        }
-      }
-    }
-  }
-
-  // Rule 3: Second-phase fallback with conversion functions.
-  // If no viable constructor was found, perform a second phase of overload
-  // resolution where conversion functions are also candidates.
-  if (Result == OR_No_Viable_Function &&
-      S.getLangOpts().CPlusPlus17 && !RequireActualConstructor &&
-      UnwrappedArgs.size() == 1
-    && Kind.getKind() == InitializationKind::IK_Direct) {
-    //CandidateSet.clear(OverloadCandidateSet::CSK_DirectInitByConversion);
-    Expr *Initializer = UnwrappedArgs[0];
-    auto *SourceRD = Initializer->getType()->getAsCXXRecordDecl();
-    if (SourceRD && S.isCompleteType(Kind.getLocation(), Initializer->getType())) {
-      bool AllowExplicitConv = Kind.AllowExplicit() || IsListInit;
-      const auto &Conversions = SourceRD->getVisibleConversionFunctions();
-      for (auto I = Conversions.begin(), E = Conversions.end(); I != E; ++I) {
-        NamedDecl *D = *I;
-        CXXRecordDecl *ActingDC = cast<CXXRecordDecl>(D->getDeclContext());
-        D = D->getUnderlyingDecl();
-
-        FunctionTemplateDecl *ConvTemplate = dyn_cast<FunctionTemplateDecl>(D);
-        CXXConversionDecl *Conv;
-        if (ConvTemplate)
-          Conv = cast<CXXConversionDecl>(ConvTemplate->getTemplatedDecl());
-        else
-          Conv = cast<CXXConversionDecl>(D);
-
-        QualType ConvType = Conv->getConversionType();
-        if (ConvType->isReferenceType())
-          continue;
-        if (!S.Context.hasSameUnqualifiedType(ConvType, DestType))
-          continue;
-
-        if (ConvTemplate)
-          S.AddTemplateConversionCandidate(
-              ConvTemplate, I.getPair(), ActingDC, Initializer, DestType,
-              CandidateSet, AllowExplicitConv, AllowExplicitConv,
-              /*AllowResultConversion*/ false);
-        else
-          S.AddConversionCandidate(Conv, I.getPair(), ActingDC, Initializer,
-                                   DestType, CandidateSet,
-                                   AllowExplicitConv, AllowExplicitConv,
-                                   /*AllowResultConversion*/ false);
-      }
-
-      // find the best candidate with candidate set of conversion functions
-      Result = CandidateSet.BestViableFunction(S, Kind.getLocation(), Best);
-    }
+  // CWG2327 / P2828R3: for direct-init or list-init from a single source
+  // argument, elide any selected copy/move ctor of DestType by directly
+  // invoking a conversion function on the source that returns (cv) DestType,
+  // and, if no viable ctor was found, retry overload resolution with the
+  // source's conversion functions as candidates.
+  if (S.getLangOpts().CPlusPlus17 && !RequireActualConstructor &&
+      UnwrappedArgs.size() == 1 &&
+      (Kind.getKind() == InitializationKind::IK_Direct || IsListInit)) {
+    if (TryConversionInitialization(S, Entity, Kind, UnwrappedArgs, DestType,
+                                    Ctors, CandidateSet, Best, Result,
+                                    CopyInitialization, AllowExplicit,
+                                    RequireActualConstructor, IsListInit, ILE,
+                                    Sequence))
+      return;
   }
 
   if (Result) {
@@ -4828,25 +4879,6 @@ static void TryConstructorInitialization(Sema &S,
 
     if (Result != OR_Deleted)
       return;
-  }
-
-  bool HadMultipleCandidates = (CandidateSet.size() > 1);
-
-  // rule 3 should kick in here
-  // In C++17, ResolveConstructorOverload can select a conversion function
-  // instead of a constructor.
-  if (auto *CD = dyn_cast<CXXConversionDecl>(Best->Function)) {
-    // Add the user-defined conversion step that calls the conversion function.
-    QualType ConvType = CD->getConversionType();
-    assert(S.Context.hasSameUnqualifiedType(ConvType, DestType) &&
-           "should not have selected this conversion function");
-    Sequence.AddUserConversionStep(CD, Best->FoundDecl, ConvType,
-                                   HadMultipleCandidates);
-    if (!S.Context.hasSameType(ConvType, DestType))
-      Sequence.AddQualificationConversionStep(DestType, VK_PRValue);
-    if (IsListInit)
-      Sequence.RewrapReferenceInitList(Entity.getType(), ILE);
-    return;
   }
 
   CXXConstructorDecl *CtorDecl = cast<CXXConstructorDecl>(Best->Function);
@@ -4900,6 +4932,8 @@ static void TryConstructorInitialization(Sema &S,
   // initialization sequence.
   if (Result == OR_Deleted && Kind.getKind() != InitializationKind::IK_Copy)
     return;
+
+  bool HadMultipleCandidates = (CandidateSet.size() > 1);
 
   // Add the constructor initialization step. Any cv-qualification conversion is
   // subsumed by the initialization.
@@ -7434,7 +7468,7 @@ static ExprResult CopyObject(Sema &S,
       /*CopyInitializing=*/false, /*AllowExplicit=*/true,
       /*OnlyListConstructors=*/false, /*IsListInit=*/false,
       /*RequireActualConstructor=*/false,
-      /*SecondStepOfCopyInit=*/true, /*IsDirectInit =*/ false)) {
+      /*SecondStepOfCopyInit=*/true)) {
   case OR_Success:
     break;
 
@@ -7576,7 +7610,7 @@ static void CheckCXX98CompatAccessibleCopy(Sema &S,
       /*CopyInitializing=*/false, /*AllowExplicit=*/true,
       /*OnlyListConstructors=*/false, /*IsListInit=*/false,
       /*RequireActualConstructor=*/false,
-      /*SecondStepOfCopyInit=*/true, /*IsDirectInit =*/ false);
+      /*SecondStepOfCopyInit=*/true);
 
   PartialDiagnostic Diag = S.PDiag(diag::warn_cxx98_compat_temp_copy)
     << OR << (int)Entity.getKind() << CurInitExpr->getType()
@@ -9600,6 +9634,23 @@ bool InitializationSequence::Diagnose(Sema &S,
     break;
   }
 
+  case FK_ExplicitConversionFunction: {
+    // CWG2327/P2828: copy-list-initialization selected an explicit conversion
+    // function via the second-phase conversion-initialization fallback.
+    S.Diag(Kind.getLocation(),
+           diag::err_selected_explicit_conversion_function)
+        << Args[0]->getSourceRange();
+    OverloadCandidateSet::iterator Best;
+    OverloadingResult Ovl =
+        FailedCandidateSet.BestViableFunction(S, Kind.getLocation(), Best);
+    (void)Ovl;
+    assert(Ovl == OR_Success && "Inconsistent overload resolution");
+    auto *ConvDecl = cast<CXXConversionDecl>(Best->Function);
+    S.Diag(ConvDecl->getLocation(),
+           diag::note_explicit_conversion_function_here);
+    break;
+  }
+
   case FK_ParenthesizedListInitFailed:
     TryOrBuildParenListInitialization(S, Entity, Kind, Args, *this,
                                       /*VerifyOnly=*/false);
@@ -9775,6 +9826,10 @@ void InitializationSequence::dump(raw_ostream &OS) const {
 
     case FK_ExplicitConstructor:
       OS << "list copy initialization chose explicit constructor";
+      break;
+
+    case FK_ExplicitConversionFunction:
+      OS << "copy-list-initialization chose explicit conversion function";
       break;
 
     case FK_ParenthesizedListInitFailed:
