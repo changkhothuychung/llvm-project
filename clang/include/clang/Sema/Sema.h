@@ -10657,6 +10657,12 @@ public:
       OverloadCandidateSet &CandidateSet, bool AllowObjCConversionOnExplicit,
       bool AllowExplicit, bool AllowResultConversion = true);
 
+  /// Adds conversion functions as candidates for constructor overload
+  /// purpsoes when no viable constructor was found.
+  void AddUserDefinedConversionCandidate(Expr *Initializer, QualType DestType,
+                                         OverloadCandidateSet &CandidateSet,
+                                         bool AllowExplicit);
+
   /// AddSurrogateCandidate - Adds a "surrogate" candidate function that
   /// converts the given @c Object to a function pointer via the
   /// conversion function @c Conversion, and then attempts to call it
