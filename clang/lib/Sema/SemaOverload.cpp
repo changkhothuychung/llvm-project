@@ -4258,8 +4258,21 @@ IsUserDefinedConversion(Sema &S, Expr *From, QualType ToType,
     }
   }
 
+  OverloadCandidateSet::iterator Best;
+  OverloadingResult Result = CandidateSet.BestViableFunction(S, From->getBeginLoc(), Best);;
+
   // Enumerate conversion functions, if we're allowed to.
   if (ConstructorsOnly || isa<InitListExpr>(From)) {
+    if (Result == OR_No_Viable_Function && S.getLangOpts().CPlusPlus17 &&
+      ToType->isRecordType()) {
+    if (auto *InitList = dyn_cast<InitListExpr>(From);
+        InitList && InitList->getNumInits() == 1) {
+      S.AddUserDefinedConversionCandidate(
+          InitList->getInit(0), ToType, CandidateSet,
+          AllowExplicit != AllowedExplicit::None);
+      Result = CandidateSet.BestViableFunction(S, From->getBeginLoc(), Best);
+    }
+  }
   } else if (!S.isCompleteType(From->getBeginLoc(), From->getType())) {
     // No conversion functions from incomplete types.
   } else if (const RecordType *FromRecordType =
@@ -4294,13 +4307,12 @@ IsUserDefinedConversion(Sema &S, Expr *From, QualType ToType,
                                    AllowExplicit != AllowedExplicit::None);
       }
     }
+    Result = CandidateSet.BestViableFunction(S, From->getBeginLoc(), Best);
   }
 
   bool HadMultipleCandidates = (CandidateSet.size() > 1);
 
-  OverloadCandidateSet::iterator Best;
-  switch (auto Result =
-              CandidateSet.BestViableFunction(S, From->getBeginLoc(), Best)) {
+  switch (Result) {
   case OR_Success:
   case OR_Deleted:
     // Record the standard conversion we used and the conversion function.
@@ -4344,6 +4356,8 @@ IsUserDefinedConversion(Sema &S, Expr *From, QualType ToType,
       //   conversion sequence converts the source type to the
       //   implicit object parameter of the conversion function.
       User.Before = Best->Conversions[0].Standard;
+      if (isa<InitListExpr>(From))
+        User.Before.FromBracedInitList = true;
       User.HadMultipleCandidates = HadMultipleCandidates;
       User.ConversionFunction = Conversion;
       User.FoundConversionFunction = Best->FoundDecl;
@@ -5449,7 +5463,7 @@ FindConversionForRefInit(Sema &S, ImplicitConversionSequence &ICS,
   OverloadCandidateSet::iterator Best;
   switch (CandidateSet.BestViableFunction(S, DeclLoc, Best)) {
   case OR_Success:
-
+  case OR_Deleted:
     assert(Best->HasFinalConversion);
 
     // C++ [over.ics.ref]p1:
@@ -5486,9 +5500,7 @@ FindConversionForRefInit(Sema &S, ImplicitConversionSequence &ICS,
     return true;
 
   case OR_No_Viable_Function:
-  case OR_Deleted:
-    // There was no suitable conversion, or we found a deleted
-    // conversion; continue with other checks.
+    // There was no suitable conversion; continue with other checks.
     return false;
   }
 
@@ -8824,7 +8836,9 @@ void Sema::AddTemplateConversionCandidate(
   if (!CandidateSet.shouldDeferTemplateArgumentDeduction(*this) ||
       CandidateSet.getKind() ==
           OverloadCandidateSet::CSK_InitByUserDefinedConversion ||
-      CandidateSet.getKind() == OverloadCandidateSet::CSK_InitByConstructor) {
+      CandidateSet.getKind() == OverloadCandidateSet::CSK_InitByConstructor ||
+      CandidateSet.getKind() ==
+          OverloadCandidateSet::CSK_DirectInitByConstructor) {
     AddTemplateConversionCandidateImmediately(
         *this, CandidateSet, FunctionTemplate, FoundDecl, ActingDC, From,
         ToType, AllowObjCConversionOnExplicit, AllowExplicit,
@@ -8837,6 +8851,45 @@ void Sema::AddTemplateConversionCandidate(
   CandidateSet.AddDeferredConversionTemplateCandidate(
       FunctionTemplate, FoundDecl, ActingDC, From, ToType,
       AllowObjCConversionOnExplicit, AllowExplicit, AllowResultConversion);
+}
+
+void Sema::AddUserDefinedConversionCandidate(
+    Expr *Initializer, QualType DestType, OverloadCandidateSet &CandidateSet,
+    bool AllowExplicit) {
+  SourceLocation DeclLoc = Initializer->getBeginLoc();
+
+  // Not performed if the initializer has the same or a derived class type.
+  if (Context.hasSameUnqualifiedType(Initializer->getType(), DestType) ||
+      IsDerivedFrom(DeclLoc, Initializer->getType(), DestType))
+    return;
+
+  auto *SourceRD = Initializer->getType()->getAsCXXRecordDecl();
+  if (SourceRD && isCompleteType(DeclLoc, Initializer->getType())) {
+    const auto &Conversions = SourceRD->getVisibleConversionFunctions();
+    for (auto I = Conversions.begin(), E = Conversions.end(); I != E; ++I) {
+      NamedDecl *D = *I;
+      CXXRecordDecl *ActingDC = cast<CXXRecordDecl>(D->getDeclContext());
+      D = D->getUnderlyingDecl();
+
+      FunctionTemplateDecl *ConvTemplate = dyn_cast<FunctionTemplateDecl>(D);
+      CXXConversionDecl *Conv;
+      if (ConvTemplate)
+        Conv = cast<CXXConversionDecl>(ConvTemplate->getTemplatedDecl());
+      else
+        Conv = cast<CXXConversionDecl>(D);
+
+      if (ConvTemplate)
+        AddTemplateConversionCandidate(
+            ConvTemplate, I.getPair(), ActingDC, Initializer, DestType,
+            CandidateSet, AllowExplicit, AllowExplicit,
+            /*AllowResultConversion*/ false);
+      else
+        AddConversionCandidate(Conv, I.getPair(), ActingDC, Initializer,
+                               DestType, CandidateSet, AllowExplicit,
+                               AllowExplicit,
+                               /*AllowResultConversion*/ false);
+    }
+  }
 }
 
 void Sema::AddSurrogateCandidate(CXXConversionDecl *Conversion,
@@ -11181,6 +11234,51 @@ bool clang::isBetterOverloadCandidate(
   if (HasBetterConversion && !HasWorseConversion)
     return true;
 
+  // [over.match.best.general]:
+  // - the context is the direct-initialization of an object of type cv1 T, 
+  //   F1 is a copy or move constructor of T, F2 is not, the argument list 
+  //   has a single element, and ICS1(F1) is a user-defined conversion sequence U, such that:
+  //   - U's user-defined conversion is a conversion function whose return type is cv2 T, or
+  //   - U is the ambiguous conversion sequence, and one of the possible implicit conversion sequences 
+  //     for F1's parameter is such a user-defined conversion
+  if (Kind == OverloadCandidateSet::CSK_DirectInitByConstructor &&
+      S.getLangOpts().CPlusPlus17 && NumArgs == 1) {
+    auto *Ctor1 = dyn_cast_or_null<CXXConstructorDecl>(Cand1.Function);
+    auto *Ctor2 = dyn_cast_or_null<CXXConstructorDecl>(Cand2.Function);
+    if (Ctor1 && Ctor2) {
+
+      // Determines whether ICS is a user-defined conversion sequence
+      // in which there exists a conversion function as a step.
+      auto ICSHasConversionFunction = [&](const ImplicitConversionSequence &ICS,
+                                          const CXXRecordDecl *RD) {
+        QualType ClassType = S.Context.getCanonicalTagType(RD);
+        auto IsConversionToClassType = [&](const FunctionDecl *FD) {
+          auto *Conv = dyn_cast_or_null<CXXConversionDecl>(FD);
+          return Conv && !Conv->getConversionType()->isReferenceType() &&
+                 S.Context.hasSameUnqualifiedType(Conv->getConversionType(),
+                                                  ClassType);
+        };
+        if (ICS.isUserDefined())
+          return IsConversionToClassType(ICS.UserDefined.ConversionFunction);
+        if (ICS.isAmbiguous())
+          return llvm::any_of(ICS.Ambiguous.conversions(),
+                              [&](const auto &Conv) {
+                                return IsConversionToClassType(Conv.second);
+                              });
+        return false;
+      };
+
+      bool Ctor1IsCopyOrMove = Ctor1->isCopyOrMoveConstructor();
+      bool Ctor2IsCopyOrMove = Ctor2->isCopyOrMoveConstructor();
+      if (Ctor1IsCopyOrMove && !Ctor2IsCopyOrMove &&
+          ICSHasConversionFunction(Cand1.Conversions[0], Ctor1->getParent()))
+        return true;
+      if (Ctor2IsCopyOrMove && !Ctor1IsCopyOrMove &&
+          ICSHasConversionFunction(Cand2.Conversions[0], Ctor2->getParent()))
+        return false;
+    }
+  }
+
   //   -- the context is an initialization by user-defined conversion
   //      (see 8.5, 13.3.1.5) and the standard conversion sequence
   //      from the return type of F1 to the destination type (i.e.,
@@ -11211,18 +11309,6 @@ bool clang::isBetterOverloadCandidate(
     // convert to a reference type used in direct reference binding, per
     // C++14 [over.match.best]p1 section 2 bullet 3.
   }
-
-  // FIXME: Work around a defect in the C++17 guaranteed copy elision wording,
-  // as combined with the resolution to CWG issue 243.
-  //
-  // When the context is initialization by constructor ([over.match.ctor] or
-  // either phase of [over.match.list]), a constructor is preferred over
-  // a conversion function.
-  if (Kind == OverloadCandidateSet::CSK_InitByConstructor && NumArgs == 1 &&
-      Cand1.Function && Cand2.Function &&
-      isa<CXXConstructorDecl>(Cand1.Function) !=
-          isa<CXXConstructorDecl>(Cand2.Function))
-    return isa<CXXConstructorDecl>(Cand1.Function);
 
   if (Cand1.StrictPackMatch != Cand2.StrictPackMatch)
     return Cand2.StrictPackMatch;

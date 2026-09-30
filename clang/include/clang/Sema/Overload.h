@@ -1181,6 +1181,11 @@ class Sema;
       /// using either a parenthesized or braced list of arguments.
       CSK_InitByConstructor,
 
+      /// C++ [over.match.ctor], [over.match.list]
+      /// Like CSK_InitByConstructor, in the context of direct-initialization
+      /// ([over.match.best.general]).
+      CSK_DirectInitByConstructor,
+
       /// C++ [over.match.call.general]
       /// Resolve a call through the address of an overload set.
       CSK_AddressOfOverloadSet,
@@ -1490,6 +1495,7 @@ class Sema;
 
     void setDestAS(LangAS AS) {
       assert((Kind == CSK_InitByConstructor ||
+              Kind == CSK_DirectInitByConstructor ||
               Kind == CSK_InitByUserDefinedConversion) &&
              "can't set the destination address space when not constructing an "
              "object");
