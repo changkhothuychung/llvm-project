@@ -940,6 +940,24 @@ public:
   _LIBCPP_HIDE_FROM_ABI static size_type __recommend_blocks(size_type __n) {
     return __n / __block_size + (__n % __block_size != 0);
   }
+  // Returns whether __map_ has to be reallocated before __n pointers are added to one of its ends, __added of which
+  // are new blocks (the others are spare blocks moved over from the other end). __spare_at_end is the free space at the
+  // end being added to. When that end is full, __split_buffer makes room by shifting every pointer by half of the free
+  // space at the other end, which is only amortized O(1) if that free space is O(size()). So we reallocate instead of
+  // shifting whenever the map would be more than 2/3 full.
+  // See https://github.com/llvm/llvm-project/issues/141707.
+  _LIBCPP_HIDE_FROM_ABI bool
+  __map_needs_realloc(size_type __spare_at_end, size_type __n, size_type __added) const _NOEXCEPT {
+    if (__spare_at_end >= __n)
+      return false;
+    size_type __new_size = __map_.size() + __added;
+    return __map_.capacity() < __new_size + __new_size / 2;
+  }
+  // The capacity to reallocate __map_ with when it will hold __new_size pointers. This leaves O(size()) free space,
+  // which is split evenly between both ends of the new map.
+  _LIBCPP_HIDE_FROM_ABI static size_type __map_realloc_capacity(size_type __new_size) _NOEXCEPT {
+    return 2 * __new_size;
+  }
   _LIBCPP_HIDE_FROM_ABI size_type __capacity() const {
     return __map_.size() == 0 ? 0 : __map_.size() * __block_size - 1;
   }
@@ -1965,15 +1983,17 @@ void deque<_Tp, _Allocator>::__append(size_type __n, const value_type& __v) {
 // Strong guarantee.  Either do it or don't touch anything.
 template <class _Tp, class _Allocator>
 void deque<_Tp, _Allocator>::__add_front_capacity() {
-  allocator_type& __a = __alloc();
-  if (__back_spare() >= __block_size) {
+  allocator_type& __a     = __alloc();
+  bool __reuse_back_block = __back_spare() >= __block_size;
+  bool __realloc_map      = __map_needs_realloc(__map_.__front_spare(), 1, !__reuse_back_block);
+  if (__reuse_back_block && !__realloc_map) {
     __start_ += __block_size;
     pointer __pt = __map_.back();
     __map_.pop_back();
     __map_.emplace_front(__pt);
   }
-  // Else if __map_.size() < __map_.capacity() then we need to allocate 1 buffer
-  else if (__map_.size() < __map_.capacity()) { // we can put the new buffer into the map, but don't shift things around
+  // Else if the map doesn't need to be reallocated then we need to allocate 1 buffer
+  else if (!__realloc_map) { // we can put the new buffer into the map, but don't shift things around
     // until all buffers are allocated.  If we throw, we don't need to fix
     // anything up (any added buffers are undetectible)
     if (__map_.__front_spare() > 0)
@@ -1987,15 +2007,21 @@ void deque<_Tp, _Allocator>::__add_front_capacity() {
     }
     __start_ = __map_.size() == 1 ? __block_size / 2 : __start_ + __block_size;
   }
-  // Else need to allocate 1 buffer, *and* we need to reallocate __map_.
+  // Else need to reallocate __map_, and to allocate 1 buffer unless we can reuse the spare one at the back.
   else {
-    __split_buffer<pointer, __pointer_allocator> __buf(
-        std::max<size_type>(2 * __map_.capacity(), 1), 0, __map_.__get_allocator());
+    size_type __new_size = __map_.size() + !__reuse_back_block;
+    size_type __cap      = __map_realloc_capacity(__new_size);
+    __split_buffer<pointer, __pointer_allocator> __buf(__cap, (__cap - __new_size + 1) / 2, __map_.__get_allocator());
 
-    typedef __allocator_destructor<_Allocator> _Dp;
-    unique_ptr<pointer, _Dp> __hold(__alloc_traits::allocate(__a, __block_size), _Dp(__a, __block_size));
-    __buf.emplace_back(__hold.get());
-    __hold.release();
+    if (__reuse_back_block) {
+      __buf.emplace_back(__map_.back());
+      __map_.pop_back();
+    } else {
+      typedef __allocator_destructor<_Allocator> _Dp;
+      unique_ptr<pointer, _Dp> __hold(__alloc_traits::allocate(__a, __block_size), _Dp(__a, __block_size));
+      __buf.emplace_back(__hold.get());
+      __hold.release();
+    }
 
     for (__map_pointer __i = __map_.begin(); __i != __map_.end(); ++__i)
       __buf.emplace_back(*__i);
@@ -2015,8 +2041,9 @@ void deque<_Tp, _Allocator>::__add_front_capacity(size_type __n) {
   size_type __back_capacity = __back_spare() / __block_size;
   __back_capacity           = std::min(__back_capacity, __nb); // don't take more than you need
   __nb -= __back_capacity;                                     // number of blocks need to allocate
+  bool __realloc_map = __map_needs_realloc(__map_.__front_spare(), __nb + __back_capacity, __nb);
   // If __nb == 0, then we have sufficient capacity.
-  if (__nb == 0) {
+  if (__nb == 0 && !__realloc_map) {
     __start_ += __block_size * __back_capacity;
     for (; __back_capacity > 0; --__back_capacity) {
       pointer __pt = __map_.back();
@@ -2024,9 +2051,9 @@ void deque<_Tp, _Allocator>::__add_front_capacity(size_type __n) {
       __map_.emplace_front(__pt);
     }
   }
-  // Else if __nb <= __map_.capacity() - __map_.size() then we need to allocate __nb buffers
-  else if (__nb <= __map_.capacity() -
-                       __map_.size()) { // we can put the new buffers into the map, but don't shift things around
+  // Else if the map doesn't need to be reallocated (so __nb <= __map_.capacity() - __map_.size()) then we need to
+  // allocate __nb buffers
+  else if (!__realloc_map) { // we can put the new buffers into the map, but don't shift things around
     // until all buffers are allocated.  If we throw, we don't need to fix
     // anything up (any added buffers are undetectible)
     for (; __nb > 0; --__nb, __start_ += __block_size - (__map_.size() == 1)) {
@@ -2048,9 +2075,10 @@ void deque<_Tp, _Allocator>::__add_front_capacity(size_type __n) {
   }
   // Else need to allocate __nb buffers, *and* we need to reallocate __map_.
   else {
-    size_type __ds = (__nb + __back_capacity) * __block_size - __map_.empty();
-    __split_buffer<pointer, __pointer_allocator> __buf(
-        std::max<size_type>(2 * __map_.capacity(), __nb + __map_.size()), 0, __map_.__get_allocator());
+    size_type __ds       = (__nb + __back_capacity) * __block_size - __map_.empty();
+    size_type __new_size = __map_.size() + __nb;
+    size_type __cap      = __map_realloc_capacity(__new_size);
+    __split_buffer<pointer, __pointer_allocator> __buf(__cap, (__cap - __new_size + 1) / 2, __map_.__get_allocator());
     auto __guard = std::__make_exception_guard([&] {
       __annotate_delete();
       for (__map_pointer __i = __buf.begin(); __i != __buf.end(); ++__i)
@@ -2077,15 +2105,17 @@ void deque<_Tp, _Allocator>::__add_front_capacity(size_type __n) {
 // Strong guarantee.  Either do it or don't touch anything.
 template <class _Tp, class _Allocator>
 void deque<_Tp, _Allocator>::__add_back_capacity() {
-  allocator_type& __a = __alloc();
-  if (__front_spare() >= __block_size) {
+  allocator_type& __a      = __alloc();
+  bool __reuse_front_block = __front_spare() >= __block_size;
+  bool __realloc_map       = __map_needs_realloc(__map_.__back_spare(), 1, !__reuse_front_block);
+  if (__reuse_front_block && !__realloc_map) {
     __start_ -= __block_size;
     pointer __pt = __map_.front();
     __map_.pop_front();
     __map_.emplace_back(__pt);
   }
-  // Else if __nb <= __map_.capacity() - __map_.size() then we need to allocate __nb buffers
-  else if (__map_.size() < __map_.capacity()) { // we can put the new buffer into the map, but don't shift things around
+  // Else if the map doesn't need to be reallocated then we need to allocate 1 buffer
+  else if (!__realloc_map) { // we can put the new buffer into the map, but don't shift things around
     // until it is allocated.  If we throw, we don't need to fix
     // anything up (any added buffers are undetectible)
     if (__map_.__back_spare() != 0)
@@ -2099,20 +2129,29 @@ void deque<_Tp, _Allocator>::__add_back_capacity() {
     }
     __annotate_whole_block(__map_.size() - 1, __asan_poison);
   }
-  // Else need to allocate 1 buffer, *and* we need to reallocate __map_.
+  // Else need to reallocate __map_, and to allocate 1 buffer unless we can reuse the spare one at the front.
   else {
+    size_type __new_size = __map_.size() + !__reuse_front_block;
+    size_type __cap      = __map_realloc_capacity(__new_size);
     __split_buffer<pointer, __pointer_allocator> __buf(
-        std::max<size_type>(2 * __map_.capacity(), 1), __map_.size(), __map_.__get_allocator());
+        __cap, (__cap - __new_size) / 2 + __new_size - 1, __map_.__get_allocator());
 
-    typedef __allocator_destructor<_Allocator> _Dp;
-    unique_ptr<pointer, _Dp> __hold(__alloc_traits::allocate(__a, __block_size), _Dp(__a, __block_size));
-    __buf.emplace_back(__hold.get());
-    __hold.release();
+    if (__reuse_front_block) {
+      __start_ -= __block_size;
+      __buf.emplace_back(__map_.front());
+      __map_.pop_front();
+    } else {
+      typedef __allocator_destructor<_Allocator> _Dp;
+      unique_ptr<pointer, _Dp> __hold(__alloc_traits::allocate(__a, __block_size), _Dp(__a, __block_size));
+      __buf.emplace_back(__hold.get());
+      __hold.release();
+    }
 
     for (__map_pointer __i = __map_.end(); __i != __map_.begin();)
       __buf.emplace_front(*--__i);
     __map_.__swap_without_allocator(__buf);
-    __annotate_whole_block(__map_.size() - 1, __asan_poison);
+    if (!__reuse_front_block)
+      __annotate_whole_block(__map_.size() - 1, __asan_poison);
   }
 }
 
@@ -2126,8 +2165,9 @@ void deque<_Tp, _Allocator>::__add_back_capacity(size_type __n) {
   size_type __front_capacity = __front_spare() / __block_size;
   __front_capacity           = std::min(__front_capacity, __nb); // don't take more than you need
   __nb -= __front_capacity;                                      // number of blocks need to allocate
+  bool __realloc_map = __map_needs_realloc(__map_.__back_spare(), __nb + __front_capacity, __nb);
   // If __nb == 0, then we have sufficient capacity.
-  if (__nb == 0) {
+  if (__nb == 0 && !__realloc_map) {
     __start_ -= __block_size * __front_capacity;
     for (; __front_capacity > 0; --__front_capacity) {
       pointer __pt = __map_.front();
@@ -2135,9 +2175,9 @@ void deque<_Tp, _Allocator>::__add_back_capacity(size_type __n) {
       __map_.emplace_back(__pt);
     }
   }
-  // Else if __nb <= __map_.capacity() - __map_.size() then we need to allocate __nb buffers
-  else if (__nb <= __map_.capacity() -
-                       __map_.size()) { // we can put the new buffers into the map, but don't shift things around
+  // Else if the map doesn't need to be reallocated (so __nb <= __map_.capacity() - __map_.size()) then we need to
+  // allocate __nb buffers
+  else if (!__realloc_map) { // we can put the new buffers into the map, but don't shift things around
     // until all buffers are allocated.  If we throw, we don't need to fix
     // anything up (any added buffers are undetectible)
     for (; __nb > 0; --__nb) {
@@ -2160,11 +2200,11 @@ void deque<_Tp, _Allocator>::__add_back_capacity(size_type __n) {
   }
   // Else need to allocate __nb buffers, *and* we need to reallocate __map_.
   else {
-    size_type __ds = __front_capacity * __block_size;
+    size_type __ds       = __front_capacity * __block_size;
+    size_type __new_size = __map_.size() + __nb;
+    size_type __cap      = __map_realloc_capacity(__new_size);
     __split_buffer<pointer, __pointer_allocator> __buf(
-        std::max<size_type>(2 * __map_.capacity(), __nb + __map_.size()),
-        __map_.size() - __front_capacity,
-        __map_.__get_allocator());
+        __cap, (__cap - __new_size) / 2 + __map_.size() - __front_capacity, __map_.__get_allocator());
     auto __guard = std::__make_exception_guard([&] {
       __annotate_delete();
       for (__map_pointer __i = __buf.begin(); __i != __buf.end(); ++__i)
